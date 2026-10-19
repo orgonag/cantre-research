@@ -1,0 +1,16 @@
+# Documentation-only handoff; raw and private material stay outside git.
+data/
+raw/
+processed/
+baseline/
+fixtures/private/
+.env
+.env.*
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.gml
+*.gpkg
+node_modules/
+.DS_Store

@@ -1,0 +1,39 @@
+# Acceptance-test specification
+
+This is a test specification, not a claim of executed tests in this repository.
+Use independently authored synthetic fixtures first. Fix numeric tolerances according
+to the chosen representation and units; document them separately from field accuracy.
+
+| Case | Required assertion |
+| --- | --- |
+| Straight track | Endpoint anchors reproduce their mileposts; interior distance fractions interpolate correctly. |
+| Curved polyline | An asymmetric bent path uses sum of segment lengths, not endpoint chord distance; projection on each segment gives expected progress. |
+| Geometry density | Coarse and dense samples of a known synthetic arc quantify approximation effects; no claim that densification recovers missing real geometry. |
+| Decreasing MPs | Increasing path distance can decrease milepost; endpoint and interior values remain correct. |
+| Projection bounds | Fix before/after a segment clamps locally; outside the outer calibration bracket returns uncalibrated rather than extrapolated MP. |
+| Bad geometry | Empty/single-point paths, duplicate vertices, zero total length and nonfinite coordinates fail or handle explicitly without NaN leaking as a usable MP. |
+| Anchors | Missing/unknown units, sentinels and unknown qualifiers rejected; valid zero retained; duplicate positions and conflicting/discontinuous mileage flagged. |
+| Units | Known mile/kilometre inputs convert consistently; output units cannot be inferred silently. |
+| Junction | Near branch point retain plausible branches until evidence resolves them; avoid an unsupported jump in subdivision/MP. |
+| Parallel tracks | Equidistant and same-heading tracks yield ambiguity; noisy fixes do not fabricate certainty; continuity cannot override strong contrary evidence indefinitely. |
+| Gaps | Disconnected geometry and missing calibration remain gaps; never create a straight connector or mileage through missing topology. |
+| Identity | Shared subdivision names do not merge distinct IDs; asset joins require valid stable references. |
+| Assets | Bridges/crossings without source MPs remain explicitly uncalibrated unless a calculated MP is labelled as derived; culverts are not bridges; duplicate/grouped records not counted as distinct assets. |
+| GPS lifecycle | Permission denied/unavailable, old or out-of-order fixes, background/resume and missing heading/speed have explicit states. Stale fixes do not appear current. |
+| Uncertainty | Display fix accuracy, source limits, cross-track residual and ambiguity separately; no invented confidence interval or survey guarantee. |
+| Reproducibility | Identical pinned input and transform configuration yield identical normalized results/hashes; corrupt input fails validation. |
+| Privacy | No location leaves the device or persists without explicit opt-in; browser tests inspect requests and storage. |
+
+For interpolation tests, include exact anchor positions and uneven segment lengths;
+a symmetric halfway example alone can accidentally pass chord interpolation.
+For stateful matching, replay sequences through switches, reversal, standstill and
+GPS jumps. Define freshness/off-track thresholds before testing their boundary cases.
+
+## Evaluation reporting
+
+Publish sample counts, source vintage, filtering/exclusions and error distributions.
+Report held-out internal consistency separately from independently surveyed accuracy.
+Reproducing the historical 57.91 m mean is not a required success condition; this repo
+contains no private fixture to reproduce it. Pending 1% semantics blocks a 1% verdict,
+not synthetic-core development. Field acceptance requires an agreed denominator,
+near-zero handling, absolute bound and independent evidence; thresholds remain TBD.
