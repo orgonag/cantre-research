@@ -38,3 +38,9 @@ behavior. PR descriptions must distinguish implemented, tested and deferred work
 Do not publish private paths, raw per-location results or original source snippets
 in issues, PRs or documentation. Research use conveys no access authority or safety
 guarantee. LRT is optional and must not block the conventional-rail pilot.
+
+Owner priority: diamonds/perpendicular crossings and nearby different Class I routes.
+Use validated evidence for automatic choice, explicit user selection for ambiguity,
+and a visible route/subdivision lock with no silent switching. Stale/conflicting
+fixes must not produce a current confident match. Selection does not improve GPS
+precision. Read docs/PROJECTION.md and the selection contract before implementing.

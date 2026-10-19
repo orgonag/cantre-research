@@ -19,6 +19,7 @@ movement authority, protection limit or substitute for railway rules.
 
 ## Start here
 
+- [Projection math tutorial](docs/PROJECTION.md): vectors, worked examples and limits.
 - [Agent instructions](AGENTS.md): scope, privacy and implementation discipline.
 - [Implementation brief](docs/IMPLEMENTATION.md): proposed architecture and contracts.
 - [Staged plan](docs/PLAN.md): deliverables and stop conditions.
@@ -83,6 +84,18 @@ they were not recorded phone fixes. Six interior-anchor leave-one-out checks gav
 15.61 m mean absolute and 26.44 m maximum disagreement, an internal-consistency test
 rather than independent truth. The local harness passed three parsing and eight
 calculation tests; these tests and private fixtures are not shipped here.
+
+## Route choice and user control
+
+Priority cases include diamonds/perpendicular crossings and different Class I
+railways close together, as well as parallel tracks. Automatic subdivision choice
+requires unambiguous evidence under a validated policy. A sole candidate in an
+incomplete dataset is not proof. If several routes remain plausible, present explicit
+choices with source-supported identities and uncertainty. Let the user lock a route
+or subdivision; never silently switch the lock. Contradictory or stale fixes produce
+a warning/unresolved state, not an automatic route change. User choice constrains
+candidates but cannot improve GPS precision. Thresholds remain to be validated.
+See the [selection contract](docs/IMPLEMENTATION.md#route-selection-and-user-control).
 
 ## What remains unresolved
 

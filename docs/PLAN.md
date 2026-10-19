@@ -23,7 +23,9 @@ output hashes and audit report; no invented anchors or unsupported coverage clai
 
 ## 3 — Candidate matching
 
-Add spatial indexing and explicit junction/parallel-track ambiguity with synthetic
+Add spatial indexing, explicit user selection and route/subdivision locks with no
+silent switching. Prioritize diamonds and nearby different Class I railways alongside
+junction/parallel-track ambiguity with synthetic
 and lawful public cases. Compare baseline and continuity strategies without tuning
 to private reference outputs. Exit: correct no-result/ambiguous states and documented
 thresholds. The preselected-track pilot is not acceptance evidence for this stage.

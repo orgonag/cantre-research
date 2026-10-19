@@ -46,6 +46,45 @@ ambiguity separately. Do not convert one into an unsupported statistical confide
 Any dead reckoning must be clearly marked estimated, time-limited and tested separately
 from the raw fix calculation; it is deferred from the first milestone.
 
+## Route selection and user control
+
+This is an owner requirement for future implementation, not existing functionality.
+Prioritize diamonds/perpendicular crossings and nearby different Class I railways;
+same-railway parallel tracks are only one subset of ambiguity.
+
+- **Automatic/unambiguous:** choose only when fresh fixes, candidate coverage,
+  geometry, source-supported identities and available heading/continuity evidence
+  support a unique route under a validated policy. Do not equate the highest score
+  or sole returned record with certainty. A single well-supported subdivision can
+  be selected automatically, while track-level ambiguity within it remains visible.
+- **Ambiguous:** show plausible route/subdivision choices with verified railway
+  identity where available, source vintage and why selection is unresolved. Permit
+  explicit user choice or continued unresolved status; never force a confident MP.
+- **User-locked:** record the explicit route/subdivision constraint visibly. Match
+  only within that constraint; a subdivision lock can still leave multiple tracks
+  unresolved. Do not silently switch to a nearby railway, rename the lock after a
+  source update or treat the lock as improved GPS precision.
+- **Contradiction/no match:** if fresh evidence cannot support the locked route,
+  retain the visible lock but withhold a current validated match and explain the
+  conflict. Offer an explicit unlock/change action; no automatic fallback outside it.
+- **Stale/unavailable:** retain the choice, label any last result historical and
+  withhold a current match until fresh acceptable evidence returns. Reassess inside
+  the lock; out-of-order fixes cannot replace newer state. Resetting a lock on
+  session end/reload requires a documented visible lifecycle, not silent migration.
+
+At a diamond both routes may have near-zero residual at the same point. A geometric
+intersection is not evidence of a connecting switch or permission to transfer routes.
+Reliable movement history may distinguish perpendicular directions; stationary or
+noisy heading may not. Nearby different railways require stable route/subdivision IDs
+and source-supported operator identity, not guessing ownership from names or proximity.
+Do not assign authoritative candidate probabilities without calibrated evidence.
+
+Specify and validate freshness, acceptable fix/source accuracy, candidate coverage,
+score separation and continuity policies before enabling automatic choice. Numeric
+thresholds are deliberately not invented here. Retain reason codes and selection
+origin (automatic or user) in the proposed result contract. A user lock is a candidate
+constraint, not a guarantee of location, track occupancy or operational safety.
+
 ## Deferred decisions
 
 Confirm desired local/offline behavior, corridor bundle size, whether a server is

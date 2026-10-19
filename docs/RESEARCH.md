@@ -42,3 +42,16 @@ hypotheses, not findings about the 57.91 m value. Hold other factors fixed when
 experimenting. Report a failed or inconclusive experiment as such. Adding more
 vertices to the same polyline alone does not add missing real-world curvature.
 Never optimize against a private-reference score and then call it surveyed accuracy.
+
+## 2026-10-19 — Owner clarification: projection and route choice
+
+Added a vector projection tutorial and worked metre-coordinate examples. Owner
+prioritizes diamonds/perpendicular crossings and different Class I railways close
+together. Automatic choice requires unambiguous validated evidence; ambiguous cases
+need explicit selection, a visible lock and no silent switching. Fix freshness and
+uncertainty remain visible; a choice cannot improve underlying GPS precision.
+
+The spoken CN “Havrelock/Havelock” versus Wilkie example is **unverified illustrative
+input**. Spelling, railway attribution, geography and the suggested relationship were
+not checked. Do not promote it to a real-world fixture, source fact or map label. Use
+synthetic route A/route B cases until independently verified public evidence exists.
