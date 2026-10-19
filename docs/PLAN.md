@@ -1,4 +1,8 @@
-# Staged build plan
+# Staged learning and build plan
+
+Each stage is a proposal, not permission to execute it autonomously. Follow
+[the learning method](LEARNING.md): agree a small step, explain and build it together,
+review the result, then pause before the next substantive implementation step.
 
 ## 0 — Rights and research baseline
 
@@ -9,7 +13,8 @@ thresholds are visibly pending and never treated as passes.
 
 ## 1 — Independent pure calculation core
 
-Implement projection, polyline cumulative length, qualified anchor bracketing and
+Begin with one discussed synthetic projection example and one tiny function. Over
+separately agreed sessions, implement projection, polyline cumulative length, qualified anchor bracketing and
 milepost interpolation using synthetic geometry. Include units, decreasing MPs,
 degenerate geometry and explicit no-result cases. Exit: core acceptance tests pass;
 no source-app code or fixtures copied; no UI required.

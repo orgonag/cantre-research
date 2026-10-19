@@ -28,7 +28,9 @@ to the chosen representation and units; document them separately from field accu
 | GPS lifecycle | Permission denied/unavailable, old or out-of-order fixes, background/resume and missing heading/speed have explicit states. Stale fixes do not appear current. |
 | Uncertainty | Display fix accuracy, source limits, cross-track residual and ambiguity separately; no invented confidence interval or survey guarantee. |
 | Reproducibility | Identical pinned input and transform configuration yield identical normalized results/hashes; corrupt input fails validation. |
-| Privacy | No location leaves the device or persists without explicit opt-in; browser tests inspect requests and storage. |
+| Calculation versus display | Simplifying display tiles cannot silently change calculation geometry or mileposts; validate any deliberate calculation precision conversion. |
+| Regional boundary | Buffered bundles preserve needed route/anchor continuity; missing adjacent data produces a visible gap, not a route switch. Mixed versions are detected. |
+| Privacy | No raw GPS fix or trace leaves the device or persists without explicit opt-in. Disclose approximate location revealed by regional bundle requests before enabling delivery; browser tests inspect requests and storage. |
 
 For interpolation tests, include exact anchor positions and uneven segment lengths;
 a symmetric halfway example alone can accidentally pass chord interpolation.

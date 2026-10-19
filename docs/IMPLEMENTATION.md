@@ -90,4 +90,28 @@ constraint, not a guarantee of location, track occupancy or operational safety.
 Confirm desired local/offline behavior, corridor bundle size, whether a server is
 needed, mobile browser targets, GPS retention policy, tolerance metric and independent
 validation sources. Validate current dependency versions/licences before selecting
-React/Vite/Leaflet or alternatives. No deployment target is chosen.
+React/Vite/Leaflet or alternatives. Cloudflare Pages/R2 is a proposal; no deployment
+configuration or approval is established. Follow LEARNING.md before implementation.
+
+## Proposed storage and delivery
+
+- GitHub holds independently authored code/research, not raw private data.
+- Preserve raw public ZIP/shapefile/GML/GeoPackage snapshots, terms, checksums and
+  retrieval dates on controlled storage; an independent backup is proposed. The
+  existing pilot source is a Saskatchewan GML ZIP, not a downloaded national SHP set.
+- Keep canonical processing outputs separate, with source IDs, CRS, feature vintage,
+  anchors and transformation versions. A canonical database/file format is unresolved.
+- Proposed Cloudflare Pages serves the frontend and small versioned region index.
+  Proposed R2 holds processed public regional bundles. This is a design idea, not
+  an installed service, account configuration, purchase or deployment instruction.
+- The phone uses GPS locally to choose regions plus overlap/boundary buffers, loads
+  needed bundles, and matches locally. Boundary logic must avoid losing a route at
+  a file edge or silently changing source versions. Buffer sizes need validation.
+- Retain source-resolution calculation geometry and validate any precision conversion;
+  simplified display geometry and map tiles are separate. Never derive chainage
+  from raster tiles or silently reuse a zoom-simplified display line.
+- Offline cache eviction, version pinning, prefetch choice, map provider, bundle
+  format/size and costs remain open. The Mac mini need not be a public data server.
+- Local GPS processing does not eliminate request metadata: regional downloads can
+  reveal approximate whereabouts to hosts. No location telemetry by default; explain
+  this boundary and obtain approval for any additional retention/upload.

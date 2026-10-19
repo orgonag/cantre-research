@@ -1,8 +1,18 @@
 # RailHUD research
 
-Private, documentation-first research handoff for a future implementation agent.
+A collaborative math-and-coding research project, with eventual open-source publication
+as a goal. The repository is currently private; visibility has not been changed.
 **No application is implemented in this repository.** No source app, private railway
 data, coordinates, fixtures, credentials, photographs or database is included.
+
+## How we work — approved method
+
+The owner and AI learn and build together, in small understandable steps. Explain
+prerequisites, each line of code and each calculation; work through examples and
+inspect results together. Pause for discussion before the next substantive
+implementation step. An agent must not autonomously build the entire project.
+The [learning roadmap](docs/LEARNING.md) governs the staged plan. This documentation
+update authorizes no app implementation or deployment.
 
 ## Goal and intended experience
 
@@ -19,6 +29,10 @@ movement authority, protection limit or substitute for railway rules.
 
 ## Start here
 
+- [Learning roadmap](docs/LEARNING.md): the approved teach-and-build-together method.
+- [Controlled source comparison](docs/SOURCE-COMPARISON.md): verified aggregate findings.
+- [Prior-art study](docs/PRIOR-ART.md): TrackPilot lessons and limits, without copying.
+- [Additional public layers](docs/LAYERS.md): schema evidence and proposed audits.
 - [Projection math tutorial](docs/PROJECTION.md): vectors, worked examples and limits.
 - [Agent instructions](AGENTS.md): scope, privacy and implementation discipline.
 - [Implementation brief](docs/IMPLEMENTATION.md): proposed architecture and contracts.
@@ -85,6 +99,19 @@ they were not recorded phone fixes. Six interior-anchor leave-one-out checks gav
 rather than independent truth. The local harness passed three parsing and eight
 calculation tests; these tests and private fixtures are not shipped here.
 
+## Controlled geometry comparison — observed results
+
+A later bounded study kept the same eight NRCan anchors and 63 sample positions,
+then substituted NARN or OSM geometry using the same calculation. NARN changed MPs
+by 0.0036 m mean absolute / 0.0211 m maximum; OSM by 0.1274 m / 0.5736 m. Their mean
+private-reference disagreements remained 57.91 m and 57.88 m respectively.
+These are calculation disagreements, **not 58-metre GPS accuracy**.
+
+NRCan and NARN have nearly identical geometry here. OSM differs slightly, but its
+MPs borrowed the same NRCan anchors and are not independently sourced mileposts.
+No independent field accuracy was established. RAC is a qualitative reference until
+export/reuse rights are verified. See [methods, evidence and limitations](docs/SOURCE-COMPARISON.md).
+
 ## Route choice and user control
 
 Priority cases include diamonds/perpendicular crossings and different Class I
@@ -110,8 +137,9 @@ was cold-start, without heading or prior-track state; its bounding-box candidate
 query used a linear equivalent, whose exact-tie order may differ from the original
 spatial index. Full GPS/UI history and display extrapolation were not exercised.
 
-Selected public feature revisions were historical (2015). Track accuracy was recorded
-as 10 m; asset/marker accuracy was unknown. LL-83 (NAD83 geographic) was used without
+Selected public feature revisions were historical (2015). The track accuracy field
+contains `10`; its units and definition remain unverified, so it is not a 10 m
+accuracy claim. Asset/marker accuracy was unknown. LL-83 (NAD83 geographic) was used without
 a datum transformation beside reference coordinates. Source-derived offsets below
 0.24 m do not prove survey quality. Neither whole-network coverage nor current track
 status is established.
@@ -136,6 +164,20 @@ versioned corridor bundles first; add a backend only for a demonstrated requirem
 Evaluate current versions, licences, browser support, bundle size and alternatives
 at implementation time. SQLite/DuckDB are optional preparation tools, not required
 browser dependencies. No stack decision is settled by this document.
+
+## Hosting and storage — proposal, not deployment
+
+Proposed: Cloudflare Pages for the frontend and R2 for regional public-data bundles.
+The website supplies a small versioned manifest/index; phone-local GPS identifies
+relevant regions and boundary buffers, then requests those bundles. Raw shapefiles
+or other originals need not be served from the Mac mini. Keep immutable source
+snapshots and an independent backup separately from processed delivery data; the
+backup destination remains undecided. Preserve full calculation geometry separately
+from simplified map/display tiles. Exact formats, precision, region boundaries,
+cache policy, hosting configuration and costs remain to be evaluated together.
+Region requests can reveal approximate location to the host even if GPS is processed
+locally; review that privacy boundary before deployment. See the
+[storage proposal](docs/IMPLEMENTATION.md#proposed-storage-and-delivery).
 
 ## Sources and preservation
 
