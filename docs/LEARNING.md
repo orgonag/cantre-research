@@ -42,3 +42,7 @@ keystroke. Preserve an agreed small step's scope and do not turn it into a scaff
 Use docs/PROJECTION.md for the first worked example and docs/ACCEPTANCE.md for
 future tests. A test specification is not evidence that the feature exists. Keep
 research notes readable enough that the owner can explain the calculation back.
+
+## Saved lessons
+
+- [October 20, 2026 — Projection, anchors and track choice](lessons/2026-10-20-projection/README.md), with horizontal and diagonal diagrams and worked arithmetic. Next: translate the calculation into a small function together; no implementation yet.

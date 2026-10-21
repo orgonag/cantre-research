@@ -86,3 +86,9 @@ requires rights and privacy review. No implementation, deployment or merge is im
 by this documentation update. The original calculation is a comparison baseline,
 not ground truth. Independent controls, held-out calibration validation, ambiguity
 tests and the definition of the 1% metric remain open research work.
+
+## 2026-10-20 — Illustrated projection lesson
+
+Saved [the learning session](lessons/2026-10-20-projection/README.md) with original synthetic diagrams, horizontal and diagonal projection arithmetic, endpoint clamping and coordinate-unit limitations. Discussed qualified crossings and other known-position/known-milepost anchors. Owner reaffirmed explicit choice when multiple tracks remain plausible; selection does not improve GPS precision.
+
+Owner selected the private research repository as the destination for invited collaborators. No public release, app implementation or deployment. Next agreed teaching topic is a small projection function explained line by line, at the owner's pace.

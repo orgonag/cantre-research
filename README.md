@@ -29,6 +29,7 @@ movement authority, protection limit or substitute for railway rules.
 
 ## Start here
 
+- [Illustrated learning journal — October 20](docs/lessons/2026-10-20-projection/README.md): projection math, anchors and track choice.
 - [Learning roadmap](docs/LEARNING.md): the approved teach-and-build-together method.
 - [Controlled source comparison](docs/SOURCE-COMPARISON.md): verified aggregate findings.
 - [Prior-art study](docs/PRIOR-ART.md): TrackPilot lessons and limits, without copying.
