@@ -1,0 +1,21 @@
+{
+  "name": "@cantre/core",
+  "version": "0.0.0",
+  "description": "CANTRE calculation core: geodesy, projection and milepost estimation.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ."
+  }
+}
