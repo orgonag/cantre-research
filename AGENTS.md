@@ -9,9 +9,12 @@ contains research documentation only. Do not describe planned features as built.
 - Independently author implementation. Do not copy employer/private source,
   coordinates, fixtures, database records, photos or credentials without established
   rights and explicit authorization. Never commit downloaded private reference data.
-- Keep visibility private. Public release, deployment, external telemetry and national
-  bulk downloads require separate authorization. Do not add an open-source licence
-  that implies rights clearance over unknown materials.
+- Keep visibility private until the owner says otherwise. Making the repo public,
+  enabling Pages, deploying and external telemetry each need the owner's explicit
+  go-ahead. The owner chose MIT for independently authored code (2026-10-23); data
+  stays under each source's own licence (NRWN: OGL-Canada). Never imply rights over
+  material we did not author. Downloading every public NRWN province package for the
+  pipeline is authorized by the v1 spec.
 - Public source ingestion must preserve publisher, licence, source URL, retrieval
   timestamp, version evidence, CRS, checksums and transformation recipe.
 - Do not record or upload phone location by default. Explicit user opt-in is required
@@ -19,19 +22,17 @@ contains research documentation only. Do not describe planned features as built.
 
 ## Implementation discipline
 
-The approved working method is collaborative learning, not autonomous delivery of
-an entire app. Teach the owner the math and coding and build together line by line.
-Read docs/LEARNING.md. Before each substantive implementation step, explain its
-purpose, prerequisites, formula, units and proposed small change; discuss it with
-the owner and wait for direction to continue. Do not interpret the staged plan as
-blanket authorization to implement all stages. After an agreed small step, explain
-each line and calculation, inspect its result together and pause before the next.
+On 2026-10-23 the owner replaced the line-by-line learning method: build CANTRE to
+research grade, "with all the bells and whistles", comment the math and code
+thoroughly, and get it ready for release. The governing design is
+[the v1 spec](docs/superpowers/specs/2026-10-23-cantre-v1-design.md), and its
+implementation plan sets the order of work.
 
-The first proposed coding topic is a tiny independent projection function with a
-synthetic example, not a scaffolded app. Use a branch and reviewable PR. Recheck
-current state, instructions and dependency documentation before agreed coding.
-Documentation maintenance and expressly requested checks may proceed within their
-authorized scope. Never copy the old app or autonomously build the full project.
+Work milestone by milestone, each on a branch with a reviewable PR that the owner
+approves before the next. Comment every formula with its units, source and limits,
+so the owner and reviewers can follow the method from the code. Recheck current
+dependency versions and licences before adding any. Never copy the old app.
+[LEARNING.md](docs/LEARNING.md) remains the record of the earlier lessons.
 
 Keep units explicit. Separate cross-track residual, along-track distance, calculated
 milepost, ambiguity and survey accuracy. A small residual is not a confidence interval.

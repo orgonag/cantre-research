@@ -28,12 +28,12 @@ no deployment, no public release and no new bulk data acquisition.
 | One-percent definition | Unresolved denominator, near-zero rule and absolute bound. |
 | Independent truth | Not obtained; identify authorized survey/calibration evidence. |
 | Original reference rights | Not established for redistribution; exclude source/data/fixtures. |
-| New stack | Proposed only; choose current supported versions after requirements review. |
+| New stack | Chosen in the v1 spec (2026-10-23): Python pipeline, TypeScript core, Preact + MapLibre PWA. Versions pinned at plan time. |
 | Geometry/datum error contribution | Unisolated; controlled experiments required. |
 | Parallel-track and junction selection | Public pilot preselected a track; not validated. |
 | GPS freshness/uncertainty thresholds | To define and test, not inherited blindly. |
-| Offline, storage and backend | Cloudflare Pages/R2 regional delivery proposed; formats, buffers, cache/privacy and costs unresolved. |
-| Open-source/public release | Desired eventually; separate rights review and approval required. |
+| Offline, storage and backend | v1 spec: static PWA, regional JSON tiles plus manifest, GitHub Pages once public. No server. |
+| Open-source/public release | Owner chose MIT for code and release readiness (2026-10-23). Going public and deploying remain owner-gated. |
 
 ## Hypothesis discipline
 
@@ -92,3 +92,16 @@ tests and the definition of the 1% metric remain open research work.
 Saved [the learning session](lessons/2026-10-20-projection/README.md) with original synthetic diagrams, horizontal and diagonal projection arithmetic, endpoint clamping and coordinate-unit limitations. Discussed qualified crossings and other known-position/known-milepost anchors. Owner reaffirmed explicit choice when multiple tracks remain plausible; selection does not improve GPS precision.
 
 Owner selected the private research repository as the destination for invited collaborators. No public release, app implementation or deployment. Next agreed teaching topic is a small projection function explained line by line, at the owner's pace.
+
+## 2026-10-23 — Rename, new working method and v1 spec
+
+Renamed RailHUD to **CANTRE (Canada Track Rail Estimation)** for an intended NRC Canada
+submission, and moved the repository to `orgonag/cantre-research`. The owner replaced the
+line-by-line learning method: build to research grade, comment thoroughly and prepare for
+open-source release. Defaults chosen: offline-first static PWA, every NRWN province, MIT for
+code, GitHub Pages once public, English and French UI.
+
+Inspected the Ontario NRWN 2.0 SHP package (2019-07-25) to ground the spec: CRS is
+NAD83(CSRS98); 8,747 of 12,718 crossing records carry Posted mileage, all 671 stations are
+Posted, but 3,745 of 3,867 marker posts are Unknown-qualified; 41 diamond junctions. See
+[the v1 spec](superpowers/specs/2026-10-23-cantre-v1-design.md). No code is built yet.
