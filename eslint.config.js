@@ -2,7 +2,15 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['.superpowers/**', '**/dist/**', 'coverage/**', 'node_modules/**'] },
+  {
+    ignores: [
+      '.superpowers/**',
+      '**/dist/**',
+      '**/.tsc-check/**',
+      'coverage/**',
+      'node_modules/**',
+    ],
+  },
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,
   {
@@ -15,5 +23,5 @@ export default tseslint.config(
       },
     },
   },
-  { files: ['**/*.js'], extends: [tseslint.configs.disableTypeChecked] },
+  { files: ['**/*.js', '**/*.mjs'], extends: [tseslint.configs.disableTypeChecked] },
 );

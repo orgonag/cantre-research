@@ -122,11 +122,12 @@ intervals, milepost interpolation and the GPS band. See
   against a gate of lines 95, branches 90, functions 100.
 - Distance against GeographicLib on GRS80. The repo tests in
   `packages/core/test/distance.test.ts` assert only a 1 mm bound (a latitude 80-83.5 by azimuth
-  0-359 sweep and 2000 random draws). The 0.734 mm and 0.727 mm maxima below came from an
-  ad-hoc measurement script that is not in the repo. Worst case 0.734 mm (latitude 83.5 degrees,
-  azimuth about 56 degrees, d = 2000 m, deterministic sweep); 50000 random draws peaked at
-  0.727 mm. Segments over 2 km are subdivided for distance only; over 50 km east-west at 83
-  degrees the relative error is about 1.7e-4. Projection agreed within 0.1 % at a 5 km
+  0-359 sweep and 2000 random draws). The measured maxima come from the committed script
+  `packages/core/scripts/measure-distance-error.mjs` (`npm run measure:distance -w
+  @cantre/core`, GeographicLib on GRS80). It printed: sweep maximum 0.734 mm (latitude 83.5
+  degrees, azimuth 56 degrees, d = 2000 m); 50000 seeded random draws (seed 20261023) peaked at
+  0.660 mm; a 50 km due-east segment at latitude 83 had relative error 1.69e-4. Segments over
+  2 km are subdivided for distance only. Projection agreed within 0.1 % at a 5 km
   cross-track offset.
 
 Not done or not claimed: no datum transform (NAD83(CSRS) used as-is against WGS 84, roughly

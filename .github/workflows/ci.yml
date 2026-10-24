@@ -21,4 +21,7 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
+      - run: npm run build -w @cantre/core
+      - name: Smoke-import the built package
+        run: node -e "import('@cantre/core').then(m => { if (typeof m.interpolateMilepost !== 'function') process.exit(1) })"
       - run: npm run coverage

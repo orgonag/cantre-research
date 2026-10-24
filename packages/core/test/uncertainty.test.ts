@@ -45,4 +45,12 @@ describe('gpsMilepostBandMi', () => {
       expect.objectContaining({ code: 'INVALID_INTERVAL' }),
     );
   });
+
+  it('rejects a band that overflows to infinity', () => {
+    const lo = a('lo', 0, -1e308);
+    const hi = a('hi', 1, 1e308);
+    expect(() => gpsMilepostBandMi(1, lo, hi)).toThrow(
+      expect.objectContaining({ code: 'NON_FINITE' }),
+    );
+  });
 });

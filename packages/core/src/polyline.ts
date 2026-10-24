@@ -89,8 +89,11 @@ export function cumulativeLengthsM(line: Polyline): Float64Array {
  * two segments gives the same `alongM` from either side.
  * Near-ties: `nearTieAlongM` lists the `alongM` of other segments whose `crossTrackM` is within
  * {@link NEAR_TIE_TOLERANCE_M} of the best and whose `alongM` differs from the best by more than
- * that, de-duplicated within 1 m. This keeps adjacent segments that share a vertex out of the
- * list. Choosing between DIFFERENT chains (parallel tracks, diamonds) is milestone M3's job; this
+ * that, de-duplicated within 1 m. When the fix lies exactly on a shared vertex both segments give
+ * the same `alongM`, so the neighbour is not listed. A fix offset from a sharp bend is different:
+ * the neighbouring segment can be within the tolerance of the best cross-track yet more than 1 m
+ * away along the chain, so it is reported as a near-tie (a 5 m offset inside a 90 degree bend
+ * does this). That over-reports ambiguity on purpose rather than hiding it. Choosing between DIFFERENT chains (parallel tracks, diamonds) is milestone M3's job; this
  * function only flags ambiguity WITHIN one chain (a hairpin or loop).
  * Units: degrees in; metres out (`crossTrackM`, `alongM`, `totalLengthM`, `nearTieAlongM`).
  * Cost: O(n) segments per call (no spatial index).

@@ -61,6 +61,13 @@ describe('interpolateMilepost', () => {
     );
   });
 
+  it('rejects an interpolated milepost that overflows to infinity', () => {
+    const iv = [a('A', 0, -1e308), a('B', 10, 1e308)];
+    expect(() => interpolateMilepost(5, iv)).toThrow(
+      expect.objectContaining({ code: 'NON_FINITE' }),
+    );
+  });
+
   it.each<[readonly Anchor[], IntervalIssueCode]>([
     [[a('A', 0, 1)], 'TOO_FEW_ANCHORS'],
     [[a('A', 10, 1), a('B', 0, 2)], 'UNSORTED'],

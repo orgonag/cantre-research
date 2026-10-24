@@ -18,7 +18,7 @@ import { assertFinite } from './units.js';
  * milepost slope taken over the bracketing interval. Throws `CoreInputError`, checked in this
  * order: `NON_FINITE` if `accuracyM` is NaN or infinite; `NEGATIVE_ACCURACY` if it is below 0;
  * `INVALID_INTERVAL` if an anchor's `s` or `mp` is not finite or if `upper.s` is not greater
- * than `lower.s`.
+ * than `lower.s`; `NON_FINITE` again if the result overflows to Infinity.
  */
 export function gpsMilepostBandMi(accuracyM: number, lower: Anchor, upper: Anchor): number {
   assertFinite(accuracyM, 'accuracyM');
@@ -35,5 +35,7 @@ export function gpsMilepostBandMi(accuracyM: number, lower: Anchor, upper: Ancho
       'anchors need finite s and mp, with upper.s greater than lower.s',
     );
   }
-  return (accuracyM * Math.abs(upper.mp - lower.mp)) / (upper.s - lower.s); // miles
+  const band = (accuracyM * Math.abs(upper.mp - lower.mp)) / (upper.s - lower.s); // miles
+  assertFinite(band, 'band'); // extreme finite inputs (e.g. mp +-1e308) can overflow to Infinity
+  return band;
 }

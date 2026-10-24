@@ -24,11 +24,13 @@ function planarLengthM(a: LatLon, b: LatLon): number {
  * Error bound: for a segment along a parallel the tangent-plane error is about
  * L^3 tan^2(phi) / (24 R^2) with R about 6.4e6 m (the same-parallel approximation, not the worst
  * case). Measured worst case against GeographicLib for L = 2 km: 0.734 mm at lat 83.5 deg,
- * azimuth about 56 deg (deterministic sweep, lat 80-83.5 x azimuth 0-359; 50000 random draws
- * peaked at 0.727 mm), so the 1 mm target holds with about 27 % margin at the envelope edge and
+ * azimuth 56 deg (deterministic sweep, lat 80-83.5 x azimuth 0-359; 50000 seeded random draws
+ * peaked at 0.660 mm; reproduce with scripts/measure-distance-error.mjs via
+ * `npm run measure:distance -w @cantre/core`), so the 1 mm target holds with about 27 % margin at the envelope edge and
  * is far tighter at lower latitudes. Subdividing keeps each patch under 2 km, but the
  * interpolation path is a straight line in lat/lon, which differs from the true geodesic by a
- * second-order amount: 50 km at 45 deg azimuth is within 0.05 % (tested).
+ * second-order amount: 50 km at 45 deg azimuth is within 0.05 % (tested), and 50 km due east at
+ * lat 83 measured 1.69e-4 relative (same script).
  * Limits: no antimeridian wrap. Both points are checked with `assertLatLonRange` (finite, |lat| <= 90,
  * |lon| <= 180) but not against the Canada envelope, so a segment may end slightly outside it. The
  * range check also stops unit blunders (E7 integers, swapped lat/lon) before the subdivision count

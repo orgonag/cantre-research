@@ -95,9 +95,12 @@ function assertScaleLat(scaleLat: number): void {
  * latM are metres per degree from {@link metresPerDegree}. x is metres east, y metres north.
  * Units: degrees in (origin, p and scaleLat), metres out.
  * Source: spec §6 (segment-local tangent plane, scales at the segment mid-latitude).
- * Error bound: for a segment of length L at latitude phi the neglected curvature gives about
- * L^3 tan^2(phi) / (24 R^2) (R about 6.4e6 m); that is below 1 mm for L <= 2 km up to 83.5 deg
- * when `scaleLat` is the mid-latitude. It grows as L^3, so long lines must be subdivided.
+ * Error bound: for a segment of length L along a parallel at latitude phi the neglected
+ * curvature gives about L^3 tan^2(phi) / (24 R^2) (R about 6.4e6 m). That is the same-parallel
+ * approximation, not the worst case: against GeographicLib (GRS80) the measured worst case for
+ * L = 2 km with `scaleLat` at the mid-latitude is 0.734 mm, at lat 83.5 deg and azimuth 56 deg
+ * (reproduce with scripts/measure-distance-error.mjs via `npm run measure:distance -w
+ * @cantre/core`). The error grows as L^3, so long lines must be subdivided.
  * Limits: no longitude wrap handling (Canada does not straddle the antimeridian); no envelope
  * check (only {@link assertLatLonRange}). `scaleLat` must be finite with |scaleLat| < 90. Throws
  * `NON_FINITE`, `LAT_OUT_OF_RANGE` or `LON_OUT_OF_RANGE`.

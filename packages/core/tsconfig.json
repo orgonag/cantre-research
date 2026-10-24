@@ -2,8 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
-    "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "outDir": ".tsc-check",
+    "tsBuildInfoFile": ".tsc-check/.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

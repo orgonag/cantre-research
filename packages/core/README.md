@@ -53,12 +53,14 @@ GRS80 ellipsoid. For two points it takes the mid-latitude, converts degrees of l
 longitude to metres with the ellipsoid's meridional and prime-vertical radii, and applies
 Pythagoras. Scaling at the mid-latitude cancels the first-order drift between the two ends.
 Against GeographicLib's exact geodesic, the worst case found for a segment of up to 2 km is
-0.734 mm, at latitude 83.5 degrees, azimuth about 56 degrees and d = 2000 m, from a
-deterministic sweep; 50000 random draws peaked at 0.727 mm. The textbook term
+0.734 mm, at latitude 83.5 degrees, azimuth 56 degrees and d = 2000 m, from a deterministic
+sweep; 50000 seeded random draws peaked at 0.660 mm. Both come from
+`scripts/measure-distance-error.mjs` (`npm run measure:distance -w @cantre/core`), which
+anyone can rerun. The textbook term
 L³·tan²φ/(24R²) describes the same-parallel case only and is not the worst case. Segments
 longer than 2 km are split into equal parts whose planar lengths are summed. This is for
-distance only, and over long east-west spans at high latitude it drifts: about 1.7e-4
-relative error at 83 degrees over 50 km.
+distance only, and over long east-west spans at high latitude it drifts: about 1.69e-4
+relative error at 83 degrees over 50 km due east (same script).
 
 **Projection.** To place a point on a segment, both are mapped into a tangent plane scaled at
 the segment's mid-latitude. The point is dropped onto the segment's line with a dot product,
