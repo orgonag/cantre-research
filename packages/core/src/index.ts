@@ -13,3 +13,5 @@ export type { LatLon } from './coords.js';
 export { distanceM } from './distance.js';
 export { projectOntoSegment } from './segment.js';
 export type { SegmentProjection } from './segment.js';
+export { NEAR_TIE_TOLERANCE_M, cumulativeLengthsM, projectOntoPolyline } from './polyline.js';
+export type { Polyline, PolylineProjection } from './polyline.js';
