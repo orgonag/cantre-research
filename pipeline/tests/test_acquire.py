@@ -509,3 +509,19 @@ def test_corrupt_file_copy_is_detected(
     with pytest.raises(PipelineError) as e:
         record(tmp_path, served_csv, "tc-gci")
     assert e.value.code == "INCOMPLETE_EXTRACTION"
+
+
+def test_files_unreadable_at_final_path_are_detected(
+    tmp_path: Path, served_zip: Served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cantre_pipeline.acquire as mod
+
+    real = mod._members_of
+    # Simulate a path limit that only bites after staging is renamed to <cache>/<sha256>.
+    monkeypatch.setattr(
+        mod, "_members_of", lambda d: real(d) if d.name.startswith(".stage-") else ()
+    )
+    with pytest.raises(PipelineError) as e:
+        record(tmp_path, served_zip)
+    assert e.value.code == "INCOMPLETE_EXTRACTION" and "CANTRE_RAW_DIR" in str(e.value)
+    assert not (tmp_path / "c" / served_zip.sha256).exists()

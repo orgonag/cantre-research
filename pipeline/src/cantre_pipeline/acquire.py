@@ -271,6 +271,15 @@ def _materialise(
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
+    # The final path is longer than the staging path (a 64-character hash), so a Windows path
+    # limit can bite only now: re-check the files where callers will read them.
+    if spec.kind == "zip" and _members_of(final) != listed:
+        shutil.rmtree(final, ignore_errors=True)
+        raise PipelineError(
+            "INCOMPLETE_EXTRACTION",
+            f"files under {len(str(final))}-character path {final.name[:12]}... are not readable. "
+            "Set CANTRE_RAW_DIR to a shorter directory.",
+        )
     return final, listed
 
 
