@@ -113,14 +113,17 @@ radii, coordinate checks, tangent-plane distance, segment and polyline projectio
 intervals, milepost interpolation and the GPS band. See
 [the package README](../packages/core/README.md). Commands run and results:
 
-- `npm ci`: exit 0, 0 vulnerabilities reported.
+- `npm ci`: exit 0; summary line "found 0 vulnerabilities".
 - `npm run lint`, `npm run format:check`, `npm run typecheck`: each exit 0.
 - `npm run coverage`: 11 test files, 87 tests passed. Four property tests ran 1000 generated
   cases each, 4000 property runs in total (perpendicular residual, monotonic `alongM`,
   interpolation between bracket mileposts, finite outputs). No property failed. Coverage of
   `packages/core/src`: statements 98.59 %, branches 97.19 %, functions 100 %, lines 98.55 %,
   against a gate of lines 95, branches 90, functions 100.
-- Distance against GeographicLib on GRS80: worst case 0.734 mm (latitude 83.5 degrees,
+- Distance against GeographicLib on GRS80. The repo tests in
+  `packages/core/test/distance.test.ts` assert only a 1 mm bound (a latitude 80-83.5 by azimuth
+  0-359 sweep and 2000 random draws). The 0.734 mm and 0.727 mm maxima below came from an
+  ad-hoc measurement script that is not in the repo. Worst case 0.734 mm (latitude 83.5 degrees,
   azimuth about 56 degrees, d = 2000 m, deterministic sweep); 50000 random draws peaked at
   0.727 mm. Segments over 2 km are subdivided for distance only; over 50 km east-west at 83
   degrees the relative error is about 1.7e-4. Projection agreed within 0.1 % at a 5 km

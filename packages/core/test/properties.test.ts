@@ -48,7 +48,9 @@ describe('property: perpendicular residual', () => {
         const q = toLocalM(a, r.point, scaleLat);
         const res = { x: v.x - q.x, y: v.y - q.y };
         const resLen = Math.hypot(res.x, res.y);
-        if (resLen < 1e-6) {
+        // Below 1 mm the round-trip noise (about 1e-9 m) is not small against the residual, so
+        // the angle is meaningless; the generator's smallest offset is 1 mm.
+        if (resLen < 1e-3) {
           return;
         }
         const cos = Math.abs(res.x * d.x + res.y * d.y) / (resLen * Math.hypot(d.x, d.y));
@@ -125,7 +127,8 @@ describe('property: interpolation', () => {
         if (first === undefined || last === undefined) {
           throw new Error('generator produced an empty interval');
         }
-        const s = first.s + u * (last.s - first.s);
+        // Clamp: first.s + (last.s - first.s) can land an ulp above last.s (uncalibrated).
+        const s = Math.min(last.s, Math.max(first.s, first.s + u * (last.s - first.s)));
         const r = interpolateMilepost(s, anchors);
         if (r.kind !== 'calibrated') {
           throw new Error(`expected calibrated, got ${r.reason}`);
