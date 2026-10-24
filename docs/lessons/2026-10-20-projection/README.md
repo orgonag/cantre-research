@@ -99,6 +99,6 @@ Next learning step: translate the small projection calculation into code togethe
 
 ### Provenance and sharing
 
-These notes summarize the owner–assistant learning session dated October 20, 2026. The diagrams are original synthetic teaching examples. They contain no real GPS traces or employer railway datasets. Research repository: https://github.com/shokbotai-odn/cantre-research (access depends on repository permissions).
+These notes summarize the owner–assistant learning session dated October 20, 2026. The diagrams are original synthetic teaching examples. They contain no real GPS traces or employer railway datasets. Research repository: https://github.com/orgonag/cantre-research (access depends on repository permissions).
 
 This lesson is maintained in the private research repository for invited collaborators. It does not authorize a public website or a change in repository visibility. Keep the Markdown and images together when exporting.
