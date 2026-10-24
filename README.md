@@ -1,4 +1,6 @@
-# RailHUD research
+# CANTRE research
+
+**CANTRE — Canada Track Rail Estimation** (formerly RailHUD).
 
 A collaborative math-and-coding research project, with eventual open-source publication
 as a goal. The repository is currently private; visibility has not been changed.

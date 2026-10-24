@@ -2,7 +2,7 @@
 
 Inspected [TrackPilot commit d15f712](https://github.com/steidlmichael2000-stack/trackpilot/tree/d15f71265cd720cb6ae8826c6faabd53043026fb)
 read-only. No third-party code/tests were executed or implementation/data copied into
-RailHUD. The owner does not want TrackPilot data copied; use independently obtained
+CANTRE. The owner does not want TrackPilot data copied; use independently obtained
 public sources and independently authored implementation after discussion.
 
 Observed code implements live GPS-to-kilometre calculation. Its primary DB InfraGO
