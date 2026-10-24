@@ -32,7 +32,7 @@ no deployment, no public release and no new bulk data acquisition.
 | Geometry/datum error contribution | Unisolated; controlled experiments required. |
 | Parallel-track and junction selection | Public pilot preselected a track; not validated. |
 | GPS freshness/uncertainty thresholds | To define and test, not inherited blindly. |
-| Offline, storage and backend | Requirements decision pending; default location processing local. |
+| Offline, storage and backend | Cloudflare Pages/R2 regional delivery proposed; formats, buffers, cache/privacy and costs unresolved. |
 | Open-source/public release | Desired eventually; separate rights review and approval required. |
 
 ## Hypothesis discipline
@@ -42,3 +42,53 @@ hypotheses, not findings about the 57.91 m value. Hold other factors fixed when
 experimenting. Report a failed or inconclusive experiment as such. Adding more
 vertices to the same polyline alone does not add missing real-world curvature.
 Never optimize against a private-reference score and then call it surveyed accuracy.
+
+## 2026-10-19 — Owner clarification: projection and route choice
+
+Added a vector projection tutorial and worked metre-coordinate examples. Owner
+prioritizes diamonds/perpendicular crossings and different Class I railways close
+together. Automatic choice requires unambiguous validated evidence; ambiguous cases
+need explicit selection, a visible lock and no silent switching. Fix freshness and
+uncertainty remain visible; a choice cannot improve underlying GPS precision.
+
+The spoken CN “Havrelock/Havelock” versus Wilkie example is **unverified illustrative
+input**. Spelling, railway attribution, geography and the suggested relationship were
+not checked. Do not promote it to a real-world fixture, source fact or map label. Use
+synthetic route A/route B cases until independently verified public evidence exists.
+
+## 2026-10-19 — Controlled comparison and collaborative learning decision
+
+Completed the bounded NRCan/NARN/OSM comparison with shared NRCan anchors and fixed
+synthetic positions; see SOURCE-COMPARISON.md. Geometry substitution changed outputs
+little and did not establish field accuracy or discrepancy cause. RAC remains
+qualitative pending rights. TrackPilot was studied at a pinned commit, not executed
+or copied; see PRIOR-ART.md. No national data download occurred.
+
+Approved working method: teach the owner math and coding, build together in small
+understandable steps, explain each line and calculation, and pause for discussion
+before the next substantive implementation step. Agents must not autonomously build
+the entire project. LEARNING.md governs future sessions; the staged plan is not
+blanket implementation authorization.
+
+Proposals: React/TypeScript/Vite, Leaflet, Cloudflare Pages frontend and R2 regional
+bundles selected locally from a small manifest/index with boundary buffers. Full
+calculation geometry remains separate from display tiles. Backup destination, bundle
+format, precision, buffering, cache policy and privacy remain unresolved.
+
+Proposed research: audit actual crossing/structure/junction populations using the
+NRWN catalogue and related CanVec schema. Terrain/LiDAR/hydrography are optional
+future context, not committed scope or an engineering-accuracy promise. Corrected
+the earlier unsupported interpretation of NRCan accuracy field `10`; it remains
+uninterpreted pending the matching schema definition.
+
+Current repository visibility remains private. Eventual public/open-source release
+requires rights and privacy review. No implementation, deployment or merge is implied
+by this documentation update. The original calculation is a comparison baseline,
+not ground truth. Independent controls, held-out calibration validation, ambiguity
+tests and the definition of the 1% metric remain open research work.
+
+## 2026-10-20 — Illustrated projection lesson
+
+Saved [the learning session](lessons/2026-10-20-projection/README.md) with original synthetic diagrams, horizontal and diagonal projection arithmetic, endpoint clamping and coordinate-unit limitations. Discussed qualified crossings and other known-position/known-milepost anchors. Owner reaffirmed explicit choice when multiple tracks remain plausible; selection does not improve GPS precision.
+
+Owner selected the private research repository as the destination for invited collaborators. No public release, app implementation or deployment. Next agreed teaching topic is a small projection function explained line by line, at the owner's pace.

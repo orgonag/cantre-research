@@ -67,3 +67,14 @@ The 2026-10-16 national directory inventory counted eleven English SHP ZIPs tota
 It is an NRWN inventory, not every Canadian government railway dataset. It establishes
 neither completeness nor every yard track, tie, ballast asset or LRT route. US sources
 must be evaluated separately for reuse rights, geometry, calibration and freshness.
+
+## Additional bounded study and storage decisions
+
+The October 19 comparison added bounded NARN GeoJSON and OSM XML extracts locally,
+not national downloads. OSM retrieval was independent of TrackPilot. RAC geometry
+was not extracted because reuse rights remain unresolved. See SOURCE-COMPARISON.md.
+Raw snapshots, licence terms, hashes, retrieval timestamps and feature/source vintage
+must stay distinct and preserved. Regional browser delivery is a proposal described
+in IMPLEMENTATION.md; original shapefiles need not be served by the Mac mini.
+Preserve full calculation geometry separately from simplified display tiles. Optional
+additional layer audits are in LAYERS.md; schema presence is not coverage evidence.

@@ -15,6 +15,12 @@ to the chosen representation and units; document them separately from field accu
 | Anchors | Missing/unknown units, sentinels and unknown qualifiers rejected; valid zero retained; duplicate positions and conflicting/discontinuous mileage flagged. |
 | Units | Known mile/kilometre inputs convert consistently; output units cannot be inferred silently. |
 | Junction | Near branch point retain plausible branches until evidence resolves them; avoid an unsupported jump in subdivision/MP. |
+| Diamond/perpendicular crossing | At the intersection, equal residuals remain ambiguous without adequate direction/history; geometric crossing alone creates no connectivity. Test approach, standstill, noisy heading and departure on both routes. |
+| Different nearby Class I railways | Preserve separate stable route identities; closest or main-track preference alone cannot force a selection. Show source-supported labels and explicit choice when unresolved. |
+| Unique candidate | Automatic selection requires validated evidence, freshness and coverage checks; an incomplete bundle returning one record must not masquerade as certainty. |
+| User route/subdivision lock | Explicit choice constrains candidates and stays visible; a subdivision lock may leave track ambiguity. No silent switching at a diamond, conflicting fix or dataset update. |
+| Lock conflict / stale fix | Keep the visible choice, withhold current matching when unsupported, label historical output, and require explicit change/unlock to consider another route. Newer fixes cannot be replaced by older ones. |
+| Choice versus precision | User selection changes candidate scope but never reduces device-reported accuracy radius or implies surveyed certainty. |
 | Parallel tracks | Equidistant and same-heading tracks yield ambiguity; noisy fixes do not fabricate certainty; continuity cannot override strong contrary evidence indefinitely. |
 | Gaps | Disconnected geometry and missing calibration remain gaps; never create a straight connector or mileage through missing topology. |
 | Identity | Shared subdivision names do not merge distinct IDs; asset joins require valid stable references. |
@@ -22,7 +28,9 @@ to the chosen representation and units; document them separately from field accu
 | GPS lifecycle | Permission denied/unavailable, old or out-of-order fixes, background/resume and missing heading/speed have explicit states. Stale fixes do not appear current. |
 | Uncertainty | Display fix accuracy, source limits, cross-track residual and ambiguity separately; no invented confidence interval or survey guarantee. |
 | Reproducibility | Identical pinned input and transform configuration yield identical normalized results/hashes; corrupt input fails validation. |
-| Privacy | No location leaves the device or persists without explicit opt-in; browser tests inspect requests and storage. |
+| Calculation versus display | Simplifying display tiles cannot silently change calculation geometry or mileposts; validate any deliberate calculation precision conversion. |
+| Regional boundary | Buffered bundles preserve needed route/anchor continuity; missing adjacent data produces a visible gap, not a route switch. Mixed versions are detected. |
+| Privacy | No raw GPS fix or trace leaves the device or persists without explicit opt-in. Disclose approximate location revealed by regional bundle requests before enabling delivery; browser tests inspect requests and storage. |
 
 For interpolation tests, include exact anchor positions and uneven segment lengths;
 a symmetric halfway example alone can accidentally pass chord interpolation.

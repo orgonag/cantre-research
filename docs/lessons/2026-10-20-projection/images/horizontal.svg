@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="650" viewBox="0 0 1000 650">
+<rect width="1000" height="650" rx="22" fill="#f5f7fb"/>
+<g font-family="Arial, sans-serif" fill="#17263d">
+<text x="55" y="55" font-size="29" font-weight="700">Projection: find your closest point on the track</text>
+<text x="55" y="89" font-size="19" fill="#526077">Example coordinates are in metres.</text>
+<line x1="100" y1="350" x2="900" y2="350" stroke="#526077" stroke-width="9" stroke-linecap="round"/>
+<line x1="100" y1="350" x2="340" y2="190" stroke="#9766ce" stroke-width="4"/>
+<line x1="340" y1="190" x2="340" y2="350" stroke="#e69726" stroke-width="4" stroke-dasharray="9 7"/>
+<path d="M340 330 L360 330 L360 350" fill="none" stroke="#e69726" stroke-width="2"/>
+<line x1="100" y1="350" x2="340" y2="350" stroke="#008b83" stroke-width="9"/>
+<circle cx="100" cy="350" r="9" fill="#17263d"/><circle cx="900" cy="350" r="9" fill="#17263d"/>
+<circle cx="340" cy="190" r="11" fill="#9766ce"/><circle cx="340" cy="350" r="11" fill="#008b83"/>
+<text x="365" y="174" font-size="23" font-weight="700" fill="#7843b3">P = (30, 20)</text>
+<text x="365" y="202" font-size="18">Your GPS position</text>
+<text x="362" y="278" font-size="20" fill="#a66000">20 m away from track</text>
+<text x="95" y="222" font-size="18" fill="#7843b3">w = A → P</text>
+<text x="67" y="389" font-size="21" font-weight="700">A (0, 0)</text>
+<text x="285" y="389" font-size="21" font-weight="700" fill="#008b83">Q (30, 0)</text>
+<text x="820" y="389" font-size="21" font-weight="700">B (100, 0)</text>
+<text x="158" y="328" font-size="21" font-weight="700" fill="#008b83">30 m along</text>
+<path d="M100 425 L900 425 M100 417 L100 433 M900 417 L900 433" stroke="#526077" stroke-width="2" fill="none"/>
+<text x="355" y="456" font-size="21">v = A → B: 100 m of track</text>
+<rect x="55" y="487" width="890" height="125" rx="16" fill="#e3efed"/>
+<text x="80" y="521" font-size="21" font-weight="700">The dot product keeps the part pointing along the track:</text>
+<text x="80" y="556" font-size="23">t = (30 × 100 + 20 × 0) / (100 × 100 + 0 × 0) = 0.30</text>
+<text x="80" y="589" font-size="21" fill="#00756f">Q is 30% of the way from A to B. The sideways 20 m contributes zero.</text>
+</g></svg>
