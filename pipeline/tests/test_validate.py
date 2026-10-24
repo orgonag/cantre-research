@@ -76,6 +76,32 @@ def test_valid_package_maps_to_dataclasses(tmp_path: Path) -> None:
         seg.key = "other"  # type: ignore[misc]
 
 
+def test_second_subdivision_is_ignored_and_counted(tmp_path: Path) -> None:
+    fx = NrwnFixture(tmp_path)
+    fx.track("S1", [A, B], nid="T1", sub2="SUB-B")
+    fx.track("S2", [B, C], nid="T2")
+    fx.track("S3", None, nid="T3", sub2="SUB-C")  # rejected record: no second-subdivision line
+    fx.crossing("X1", A, "T1", mp=1.0, sub2="SUB-B")
+    fx.station("ST1", A, "T1", sub2="SUB-B")
+    fx.markerpost("M1", A, "T1", sub2="")
+    fx.culvert("U1", A, "T1", sub2="SUB-B")
+    fx.bridge("BR1", [A, B], "T1", sub2="SUB-B")
+    fx.junction("J1", A, "End")
+    net = _load(fx)
+    got = {
+        (a.layer, a.nid, a.detail) for a in net.audit if a.reason == "SECOND_SUBDIVISION_IGNORED"
+    }
+    assert got == {
+        ("TRACK", "T1", "SUBDI2NID=SUB-B"),
+        ("CROSSING", "X1", "SUBDI2NID=SUB-B"),
+        ("STATION", "ST1", "SUBDI2NID=SUB-B"),
+        ("STRUCTURE_0", "U1", "SUBDI2NID=SUB-B"),
+        ("STRUCTURE_1", "BR1", "SUBDI2NID=SUB-B"),
+    }
+    assert {a.severity for a in net.audit if a.reason == "SECOND_SUBDIVISION_IGNORED"} == {"info"}
+    assert len(net.segments) == 2  # kept either way
+
+
 def test_geo_accuracy_sentinel_is_none(tmp_path: Path) -> None:
     fx = NrwnFixture(tmp_path)
     fx.track("S", [A, B], geoaccura=-1)

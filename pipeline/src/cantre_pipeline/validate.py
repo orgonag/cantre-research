@@ -14,6 +14,8 @@ Rules (spec section 5; Decisions 1 and the quantisation constraint in the plan):
 5. Repeated ``NID`` values are kept and audited ``DUPLICATE_NID`` (info, one line per record
    that shares the NID). A repeated ``TRACKSEGID`` gets the key suffix ``~1``, ``~2`` ... in
    file order among the kept segments (``DUPLICATE_SEGID``, info, on the suffixed ones).
+6. Decision 2: ``SUBDI2*`` is ignored in v1. Each kept record whose ``SUBDI2NID`` is not
+   ``"None"``/blank gets a ``SECOND_SUBDIVISION_IGNORED`` info line carrying that NID.
 
 Exactly one ``"rejected"`` audit line is written per rejected record, so for every layer
 ``kept + rejected == records read``.
@@ -133,6 +135,17 @@ def _identity_audit(layer: str, feats: list[RawFeature], audit: list[AuditRecord
                 audit.append(_info(layer, f, "UNKNOWN_DOMAIN_VALUE", f"{field}={value!r}"))
 
 
+def _second_subdivision(layer: str, f: RawFeature, audit: list[AuditRecord]) -> None:
+    """Note a kept record that names a second subdivision (``SUBDI2*`` is ignored in v1).
+
+    Decision 2: only subdivision 1 is used; one info line per such record lets the build report
+    how many records that leaves out. Blank and ``"None"`` mean no second subdivision.
+    """
+    nid2 = f.attrs.get("SUBDI2NID", "")
+    if nid2 not in ("", "None"):
+        audit.append(_info(layer, f, "SECOND_SUBDIVISION_IGNORED", f"SUBDI2NID={nid2}"))
+
+
 def _attrs(layer: str, f: RawFeature) -> Mapping[str, str]:
     """Read-only view of the layer's required fields."""
     return MappingProxyType({k: f.attrs[k] for k in sorted(REQUIRED_FIELDS[layer])})
@@ -164,6 +177,7 @@ def _segments(
         if res is None:
             continue
         raw, pts = res
+        _second_subdivision("TRACK", f, audit)
         a = f.attrs
         segid = a["TRACKSEGID"]
         key = segid
@@ -206,6 +220,7 @@ def _points(
         if res is None:
             continue
         pt, node = res
+        _second_subdivision(layer, f, audit)
         if layer == "JUNCTION":
             mp, qualifier, unit, track_nid, sub_nid = None, "", "", "", ""
         else:
@@ -237,6 +252,7 @@ def _structure_lines(
         res = _line(f, "STRUCTURE_1", cfg, audit)
         if res is None:
             continue
+        _second_subdivision("STRUCTURE_1", f, audit)
         mp, qualifier, unit = _mileage(f)
         out.append(
             LineFeature(

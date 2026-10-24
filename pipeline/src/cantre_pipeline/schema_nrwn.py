@@ -26,6 +26,7 @@ _ANCHOR_FIELDS = frozenset(
         "TRACKCLASS",  # Main / Siding / Yard / Spur ...
         "SUBDI1NID",  # first subdivision's NID
         "SUBDI1NAME",  # first subdivision's name
+        "SUBDI2NID",  # second subdivision's NID ("None" when absent); ignored in v1, counted
         "SUBD1DIST",  # posted distance along subdivision 1 (miles; -1 = none)
         "SUB1UNITDI",  # unit of that distance ("Mile")
         "SUB1DISTY",  # distance qualifier: Posted / Unknown
@@ -46,6 +47,7 @@ REQUIRED_FIELDS: dict[str, frozenset[str]] = {
             "OWNERENA",
             "SUBDI1NID",
             "SUBDI1NAME",
+            "SUBDI2NID",
             "GEOACCURA",
         }
     ),

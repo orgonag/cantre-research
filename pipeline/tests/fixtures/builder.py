@@ -40,6 +40,7 @@ _SUB = [
     ("TRACKCLASS", _C, 20, 0),
     ("SUBDI1NID", _C, 32, 0),
     ("SUBDI1NAME", _C, 100, 0),
+    ("SUBDI2NID", _C, 32, 0),
     ("SUBD1DIST", _N, 8, 2),
     ("SUB1UNITDI", _C, 20, 0),
     ("SUB1DISTY", _C, 15, 0),
@@ -57,6 +58,7 @@ LAYER_FIELDS: dict[str, list[tuple[str, str, int, int]]] = {
         ("OWNERENA", _C, 100, 0),
         ("SUBDI1NID", _C, 32, 0),
         ("SUBDI1NAME", _C, 100, 0),
+        ("SUBDI2NID", _C, 32, 0),
         ("GEOACCURA", _N, 3, 0),
     ],
     "CROSSING": [("NID", _C, 32, 0), ("CROSSINGID", _C, 32, 0), ("TCID", _N, 9, 0), *_SUB],
@@ -146,13 +148,20 @@ class NrwnFixture:
 
     @staticmethod
     def _anchor(
-        track_nid: str, mp: float | None, qualifier: str, sub: Sub, track_class: str, unit: str
+        track_nid: str,
+        mp: float | None,
+        qualifier: str,
+        sub: Sub,
+        track_class: str,
+        unit: str,
+        sub2: str,
     ) -> dict[str, object]:
         return {
             "TRACKNID": track_nid,
             "TRACKCLASS": track_class,
             "SUBDI1NID": sub[0],
             "SUBDI1NAME": sub[1],
+            "SUBDI2NID": sub2,
             "SUBD1DIST": -1.0 if mp is None else mp,
             "SUB1UNITDI": unit,
             "SUB1DISTY": qualifier,
@@ -179,6 +188,7 @@ class NrwnFixture:
         owner: str = "Owner",
         use_type: str = "Freight",
         track_name: str = "None",
+        sub2: str = "None",
     ) -> None:
         """Add a TRACK segment. ``pts`` is ``(lat, lon)`` vertices or ``None`` (null shape).
 
@@ -199,6 +209,7 @@ class NrwnFixture:
                 "OWNERENA": owner,
                 "SUBDI1NID": sub[0],
                 "SUBDI1NAME": sub[1],
+                "SUBDI2NID": sub2,
                 "GEOACCURA": geoaccura,
             },
         )
@@ -216,9 +227,10 @@ class NrwnFixture:
         tcid: int = -1,
         track_class: str = "Main",
         unit: str = "Mile",
+        sub2: str = "None",
     ) -> None:
         """Add a CROSSING point. ``mp=None`` writes the ``-1`` mileage sentinel."""
-        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit)
+        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
         values.update({"NID": nid, "CROSSINGID": crossing_id, "TCID": tcid})
         self._add("CROSSING", None if pt is None else [[pt]], values)
 
@@ -233,10 +245,11 @@ class NrwnFixture:
         sub: Sub = ("S1", "Alpha"),
         track_class: str = "Main",
         unit: str = "Mile",
+        sub2: str = "None",
         name: str = "Stn",
     ) -> None:
         """Add a STATION point (NRWN stations in SK are all qualifier ``Unknown``)."""
-        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit)
+        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
         values.update({"NID": nid, "STNENNAME": name})
         self._add("STATION", None if pt is None else [[pt]], values)
 
@@ -251,9 +264,10 @@ class NrwnFixture:
         sub: Sub = ("S1", "Alpha"),
         track_class: str = "Main",
         unit: str = "Mile",
+        sub2: str = "None",
     ) -> None:
         """Add a MARKERPOST point (NRWN marker posts in SK are all qualifier ``Unknown``)."""
-        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit)
+        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
         values["NID"] = nid
         self._add("MARKERPOST", None if pt is None else [[pt]], values)
 
@@ -268,10 +282,11 @@ class NrwnFixture:
         sub: Sub = ("S1", "Alpha"),
         track_class: str = "Main",
         unit: str = "Mile",
+        sub2: str = "None",
         kind: str = "Culvert",
     ) -> None:
         """Add a STRUCTURE_0 point (culvert by default)."""
-        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit)
+        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
         values.update({"NID": nid, "STRUCID": "", "STRUCTYPE": kind})
         self._add("STRUCTURE_0", None if pt is None else [[pt]], values)
 
@@ -286,11 +301,12 @@ class NrwnFixture:
         sub: Sub = ("S1", "Alpha"),
         track_class: str = "Main",
         unit: str = "Mile",
+        sub2: str = "None",
         kind: str = "Bridge",
         extra_parts: Sequence[Sequence[LatLon]] = (),
     ) -> None:
         """Add a STRUCTURE_1 line (bridge by default). ``pts`` are ``(lat, lon)`` vertices."""
-        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit)
+        values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
         values.update({"NID": nid, "STRUCID": "None", "STRUCTYPE": kind})
         self._add("STRUCTURE_1", self._line_parts(pts, extra_parts), values)
 
