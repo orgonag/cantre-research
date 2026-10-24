@@ -3,7 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build `pipeline/`, a deterministic Python pipeline. It turns the NRCan NRWN
-Saskatchewan package into chains, qualified anchors, calibrated intervals, assets,
+Saskatchewan package, together with the Transport Canada Grade Crossings Inventory, into
+chains, tiered anchors, calibrated intervals, assets,
 regional tiles, a manifest, an audit log and a per-subdivision coverage report. The
 pipeline is written to take any province. M2 runs only Saskatchewan (SK), and M5 runs the rest.
 
@@ -62,8 +63,31 @@ The SK SHP package was inspected on 2026-10-24.
 | JUNCTION | 5,163 | Switch 4,443; End 638; Administrative 59; **Diamond 21**; blank type 2. Every junction sits on a track endpoint. |
 | `GEOACCURA` | — | `10` on TRACK and JUNCTION, `-1` on every other layer. The package metadata (`RFN_SK_2.0_…xml`) describes the attribute as the horizontal positional accuracy of the source data, in metres. |
 
-**So in SK, only crossings qualify as anchors.** The anchor code still handles all four
-source layers, because other provinces differ.
+**Transport Canada Grade Crossings Inventory, 2023 update** (inspected 2026-10-24):
+- **The file:** `en-grade-crossing-inventory-2023-update.csv`, 4,000,479 bytes, SHA-256
+  `5ab3f3b75b20b186800cee244a482a65451ea1c7841fb136c827f69058708a41`, UTF-8 with a BOM.
+- **Coverage:** 24,852 rows nationally, 4,744 of them in SK.
+- **Columns used:** `TC Number`, `Province`, `Mile`, `Subdivision`, `Spur Mile Point`,
+  `Spur Name`, `Railway Company`, `Latitude` and `Longitude`. The coordinates have 0–5
+  decimals and are used for nothing but a sanity distance.
+- **Join to NRWN SK crossings by `TCID`:**
+  - 2,947 have no TC row;
+  - 309 are spur crossings, where `Mile` is the spur's turnout on the main line, not the
+    crossing itself;
+  - 33 have a subdivision name that differs;
+  - 3,936 Posted values agree within 0.05 mi and 23 disagree;
+  - 412 crossings have a TC value but no NRWN posted value, and 153 of those are on Main.
+
+**Anchor tiers** (spec §3, owner decision 2026-10-24):
+- `posted`: NRWN Posted values, about 5,210 in SK.
+- `tc`: Transport Canada values for crossings that aren't posted in NRWN, about 153
+  main-line in SK.
+- `unverified`: NRWN marker posts (2,430) and stations (255 with a value), qualifier
+  `Unknown`. In a rough straight-line distance check, 83 % of marker posts and 78 % of
+  stations were consistent with Posted crossings, against 85 % for Posted crossings with
+  each other.
+
+The anchor code still handles all four NRWN source layers, because other provinces differ.
 
 ## Global Constraints
 
@@ -143,15 +167,37 @@ RESEARCH.md in Task 9.
 6. **Derived mileposts are computed in the pipeline.** Each asset's derived MP is
    interpolated in Python with core's formula, and the Vitest contract test checks it
    against core.
+7. **The TC join rule.** A TC row joins an NRWN crossing when all of these hold:
+   - `TC Number` (stripped) equals `TCID`, and `TCID` is not `-1`;
+   - `Province` matches;
+   - `Spur Mile Point` is `-` or empty;
+   - `norm(TC Subdivision) == norm(SUBDI1NAME)`, where `norm(s)` removes a trailing
+     `" - <word>"` operator suffix, case-folds the name and keeps only the letters a–z;
+   - `Mile` parses to a value of 0 or more.
+
+   Rows failing a rule are audited `TC_NO_ROW`, `TC_SPUR_CROSSING`,
+   `TC_SUBDIVISION_MISMATCH` or `TC_BAD_MILE` (all info). A TC row whose number appears
+   twice is used for neither record (`TC_DUPLICATE_NUMBER`).
+8. **Tier precedence.**
+   - Collapsing: when anchors of different tiers collapse (Decision 4), the collapsed anchor
+     keeps the higher tier's `mp`, id and tier.
+   - Outliers: when one anchor in a conflicting pair must go, the lower tier goes first.
+   - Order: `posted` > `tc` > `unverified`.
 
 ## Review Focus
 
 1. **Segments arriving in a different order or direction.** Shuffling TRACK records or
    reversing segment vertex order must give byte-identical chains, IDs, `s` values and
    tiles. Tested in Task 4 (a hypothesis property) and Task 9 (the determinism test).
-2. **A posted crossing that can't be used.** A Posted crossing with `-1` (61 in SK), one on
-   a siding, or one whose subdivision differs from its track's must be rejected with a
-   reason. It must never become an anchor at MP −1 or on the wrong chain. Tested in Task 5.
+2. **A crossing value that can't be used.** It must be rejected with a reason in any of
+   these cases:
+   - a Posted crossing with `-1` (61 in SK);
+   - one on a siding;
+   - one whose subdivision differs from its track's;
+   - a TC spur crossing, whose `Mile` is the turnout on the main line.
+
+   It must never become an anchor at MP −1, on the wrong chain or at the spur's main-line
+   mileage. Tested in Task 5.
 3. **Mileage running against the chain direction.** When mileage decreases along `s`, the
    result must be one valid interval with decreasing MP. It must not be split at every pair,
    and core's `validateInterval` must accept it. Tested in Task 6 and the Task 9 contract
@@ -199,6 +245,7 @@ RESEARCH.md in Task 9.
   - `PipelineConfig`, a frozen dataclass with `snap_deg=1e-7`, `coord_scale=1_000_000`,
     `s_scale=1000`, `anchor_max_residual_m=25.0`, `slope_tolerance=0.15`,
     `slope_min_span_m=800.0`, `anchor_collapse_span_m=30.0`, `mp_equal_tol_mi=0.005`,
+    `tc_max_disagreement_mi=0.05`, `unverified_max_deviation_mi=0.05`,
     `tile_lat_deg=0.25`, `tile_lon_deg=0.5`, `tile_buffer_m=2000.0`,
     `tile_budget_gzip_bytes=500_000`;
   - `EXPERIMENTAL: frozenset[str]`, the threshold field names;
@@ -322,8 +369,8 @@ def test_property_cross_track_is_perpendicular() -> None: ...  # hypothesis, int
 
 **Files:**
 - Create: `pipeline/src/cantre_pipeline/acquire.py` and `pipeline/src/cantre_pipeline/provinces.py`.
-- Create: `pipeline/sources/sk.json`. This is metadata about the source, not data, and it is
-  committed.
+- Create: `pipeline/sources/sk.json` and `pipeline/sources/tc-gci.json`. These are metadata
+  about the sources, not data, and they are committed.
 - Modify: `docs/DATA.md`, adding an "SK SHP package (pipeline source)" section and a
   "`GEOACCURA`" section.
 - Test: `pipeline/tests/test_acquire.py`.
@@ -331,21 +378,31 @@ def test_property_cross_track_is_perpendicular() -> None: ...  # hypothesis, int
 **Interfaces:**
 - `PROVINCES: dict[str, str]` holds `{"sk": "https://ftp.maps.canada.ca/pub/nrcan_rncan/vector/geobase_nrwn_rfn/sk/nrwn_rfn_sk_shp_en.zip"}`.
   M5 adds the others with the same URL pattern.
+- `TC_GCI` is the TC inventory's source entry:
+  - id `"tc-gci"`, kind `"file"`;
+  - url `https://open.canada.ca/data/dataset/d0f54727-6c0b-4e5a-aa04-ea1463cf9f4c/resource/a53fda5b-134f-449d-a639-9b896065fc21/download/en-grade-crossing-inventory-2023-update.csv`;
+  - publisher `"Transport Canada"`;
+  - catalogue `https://open.canada.ca/data/en/dataset/d0f54727-6c0b-4e5a-aa04-ea1463cf9f4c`;
+  - the same OGL-Canada licence.
+
+  NRWN packages are kind `"zip"`.
 - `SourceRecord` is a frozen dataclass. Its fields:
-  - `province`, `url`;
-  - `publisher="Natural Resources Canada"`;
-  - `catalogueUrl="https://open.canada.ca/data/en/dataset/ac26807e-a1e8-49fa-87bf-451175a859b8"`;
+  - `sourceId` (`"sk"` or `"tc-gci"`), `kind`, `url`;
+  - `publisher` (`"Natural Resources Canada"` for NRWN);
+  - `catalogueUrl` (`https://open.canada.ca/data/en/dataset/ac26807e-a1e8-49fa-87bf-451175a859b8` for NRWN);
   - `licenceName="Open Government Licence - Canada"`;
   - `licenceUrl="https://open.canada.ca/en/open-government-licence-canada"`;
   - `httpLastModified`, `contentLength`, `sha256`, `retrievedUtc` (ISO 8601 with `Z`);
-  - `packageVersion` (parsed from the member names, for example `"2.0"`);
-  - `crsWkt` (the TRACK `.prj` text, verbatim);
-  - `metadataMember`;
-  - `members: list[{name, size, sha256}]`, sorted by name.
-- `acquire(province: str, *, cache_dir: Path, sources_dir: Path, record: bool = False,
+  - `packageVersion` (parsed from the member names, for example `"2.0"`; for the TC file,
+    `"2023 update"`, taken from the file name);
+  - `crsWkt` (the TRACK `.prj` text, verbatim; `null` for the TC file);
+  - `metadataMember` (`null` for the TC file);
+  - `members: list[{name, size, sha256}]`, sorted by name (empty for a `"file"` source).
+- `acquire(source_id: str, *, cache_dir: Path, sources_dir: Path, record: bool = False,
   opener=urllib.request.urlopen) -> tuple[SourceRecord, Path]` returns the record and the
-  extracted directory, `cache_dir/<sha256>/`.
-- `load_source(sources_dir, province) -> SourceRecord`.
+  extracted directory, `cache_dir/<sha256>/`. A `"file"` source is copied into that
+  directory under its original name.
+- `load_source(sources_dir, source_id) -> SourceRecord`.
 
 - [ ] **Step 1: Write the failing tests.** They use a local `http.server` on a temporary
   port, serving a zip built in `tmp_path` that contains three tiny members and a `.prj`.
@@ -367,6 +424,7 @@ def test_verify_mode_rejects_changed_bytes(tmp_path, served_zip) -> None:
 
 def test_cached_bytes_are_reverified_without_network(tmp_path, served_zip) -> None: ...
 def test_unknown_province_raises() -> None: ...
+def test_file_source_is_hashed_and_copied_without_extraction(tmp_path, served_csv) -> None: ...
 def test_zip_member_path_traversal_is_rejected(tmp_path) -> None: ...  # "../x" member -> PipelineError
 ```
 
@@ -386,7 +444,11 @@ def test_zip_member_path_traversal_is_rejected(tmp_path) -> None: ...  # "../x" 
 - [ ] **Step 5: Record SK for real.** Run `py -3.12 -m cantre_pipeline acquire --province sk --record`
   (the CLI stub for `acquire` lands here and Task 9 extends it). Confirm that
   `sources/sk.json` has SHA-256 `f25a91d2…a796a`, or, if NRCan has republished, a new hash
-  with the change noted in RESEARCH.md. Commit `sources/sk.json`.
+  with the change noted in RESEARCH.md.
+
+  Then run `acquire --source tc-gci --record` and confirm SHA-256 `5ab3f3b7…8a41`, or a new
+  hash noted the same way. Commit both source files. The CLI flag is `--source`, with
+  `--province` accepted as an alias for NRWN ids.
 
 - [ ] **Step 6: Verify the meaning of `GEOACCURA`.**
   - Look in the NRWN documentation directory on NRCan's FTP (next to
@@ -401,7 +463,11 @@ def test_zip_member_path_traversal_is_rejected(tmp_path) -> None: ...  # "../x" 
     elsewhere) and that v1 shows the value as the source's stated accuracy, never as a
     confidence interval (spec §6e).
 
-- [ ] **Step 7: Commit.** `feat(pipeline): acquire NRWN packages with hash-verified provenance; document GEOACCURA`
+- [ ] **Step 7: Add a "TC Grade Crossings Inventory (pipeline source)" section to DATA.md.**
+  It gives the URL, hash, licence, the columns used, and the join rule (Decision 7). It
+  also records that the coordinates are not used for geometry.
+
+- [ ] **Step 8: Commit.** `feat(pipeline): acquire NRWN and TC sources with hash-verified provenance; document GEOACCURA`
 
 ---
 
@@ -435,7 +501,9 @@ def test_zip_member_path_traversal_is_rejected(tmp_path) -> None: ...  # "../x" 
   - anchors: `NOT_POSTED`, `UNIT_NOT_MILE`, `MILEAGE_SENTINEL`, `POSTED_SENTINEL`,
     `TRACK_NOT_FOUND`, `TRACK_NOT_CHAINED`, `SUBDIVISION_MISMATCH`, `RESIDUAL_TOO_LARGE`,
     `AMBIGUOUS_TRACK`, `ANCHOR_CONFLICT`, `ANCHOR_MERGED`, `ANCHOR_COLLAPSED`,
-    `ANCHOR_OUTLIER`;
+    `ANCHOR_OUTLIER`, `SOURCE_DISAGREEMENT`, `UNVERIFIED_DEVIATION`;
+  - TC join: `TC_NO_ROW`, `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH`, `TC_BAD_MILE`,
+    `TC_DUPLICATE_NUMBER`;
   - topology: `JUNCTION_OFF_NETWORK`, `CHAIN_CYCLE`;
   - scope: `NOT_CHAINED_CLASS`, `NOT_OPERATIONAL`, `SECOND_SUBDIVISION_IGNORED`.
 - `model.py` has frozen dataclasses:
@@ -452,6 +520,17 @@ def test_zip_member_path_traversal_is_rejected(tmp_path) -> None: ...  # "../x" 
 - `parse_mileage(value: str) -> float | None` returns `None` for `""`, `"None"`,
   `"-1"`/`"-1.00"`, any negative value and anything non-numeric.
 - `load_network(raw_dir: Path, province: str, cfg: PipelineConfig) -> Network`.
+- The TC inventory reader:
+  - `TC_REQUIRED_COLUMNS` holds the nine columns listed in "What the data contains". A
+    missing header raises `SCHEMA_DRIFT`, and the file is read as `utf-8-sig`.
+  - `TcCrossing(tc_number, province, mile: float | None, subdivision, spur_mile_point: str,
+    spur_name, railway)`.
+  - `read_tc_inventory(path: Path, province: str) -> dict[str, TcCrossing]` returns the rows
+    for that province, keyed by stripped `TC Number`. Repeated numbers are kept out of the
+    dict and listed for a `TC_DUPLICATE_NUMBER` audit.
+- `norm_subdivision(name: str) -> str` follows Decision 7.
+- `NrwnFixture.tc_row(tc_number, *, mile, subdivision, spur_mile_point="-")` adds a TC
+  inventory row, and `.write()` also writes the CSV.
 - `fixtures/builder.py` provides `NrwnFixture(tmp_path)` with these methods:
   - `.track(segid, pts, *, nid=None, cls="Main", status="Operational", sub=("S1","Alpha"), op="CN")`;
   - `.crossing(nid, pt, track_nid, *, mp=None, qualifier="Posted", crossing_id="None", sub=("S1","Alpha"))`;
@@ -476,6 +555,10 @@ def test_quantisation_dedupes_vertices_and_rejects_degenerate(tmp_path) -> None:
     # two vertices 0.04 m apart collapse -> VERTEX_DEDUPED; a segment left with 1 vertex -> DEGENERATE_SEGMENT
 def test_coordinates_outside_canada_are_rejected_not_clamped(tmp_path) -> None: ...
 def test_null_and_multipart_geometry_are_audited(tmp_path) -> None: ...
+def test_tc_inventory_header_drift_and_duplicate_numbers(tmp_path) -> None: ...
+def test_norm_subdivision() -> None:
+    assert norm_subdivision("Kingston - CN") == norm_subdivision("Kingston") == "kingston"
+    assert norm_subdivision("Indian Head") == "indianhead"
 def test_every_input_record_is_accounted_for(tmp_path) -> None:
     # count(kept) + count(rejected audit lines) == count(records), per layer
 def test_reads_real_layer_shapes_when_raw_dir_set() -> None: ...  # skip unless CANTRE_RAW_DIR; TRACK count 7084
@@ -569,20 +652,38 @@ def test_property_order_and_direction_do_not_change_chains(order, flips) -> None
 - Test: `pipeline/tests/test_anchors.py`.
 
 **Interfaces:**
-- Consumes `Network`, `ChainSet` and `project_onto_range`.
+- Consumes `Network`, `ChainSet`, `project_onto_range` and the TC rows
+  (`dict[str, TcCrossing]`, from Task 3).
 - Produces:
   - `QualifiedAnchor(id: str, chain_id: str, s_m: float, mp: float, source: AnchorSource,
-    member_nids: tuple[str, ...], residual_m: float)`, where
-    `AnchorSource = Literal["crossing","station","structure","markerpost"]`. These are the
-    roadmap names.
-  - `qualify_anchors(net, chains, cfg) -> tuple[list[QualifiedAnchor], list[AuditRecord]]`.
+    tier: AnchorTier, member_nids: tuple[str, ...], residual_m: float)`. The types are
+    `AnchorSource = Literal["crossing","station","structure","markerpost"]` and
+    `AnchorTier = Literal["posted","tc","unverified"]`, both roadmap names.
+  - `TIER_RANK = {"posted": 0, "tc": 1, "unverified": 2}`.
+  - `qualify_anchors(net, chains, tc_rows, cfg) -> tuple[list[QualifiedAnchor],
+    list[AuditRecord]]`.
 
-**Rules, checked in this order.** The first rule a record fails gives its single audit
-reason.
-1. `mp_qualifier == "Posted"`, else `NOT_POSTED`.
-2. `mp_unit == "Mile"`, else `UNIT_NOT_MILE`.
-3. A parsed value exists, else `POSTED_SENTINEL` if it was Posted, otherwise
-   `MILEAGE_SENTINEL`.
+**Step A: choose the value and tier.** Every record gets exactly one outcome:
+- **Posted with a valid value:** tier `posted`, using the NRWN value. For a crossing,
+  check it against a TC row that joins under Decision 7. A difference greater than
+  `tc_max_disagreement_mi` excludes the record as `SOURCE_DISAGREEMENT`, with both values
+  in the detail.
+- **A crossing that isn't usable as posted,** that is `Unknown`, sentinel or Posted `-1`:
+  if a TC row joins, it becomes tier `tc` with `mp = TC Mile`. Otherwise it is rejected
+  with the TC join reason, or `NOT_POSTED` or `POSTED_SENTINEL` when there is no TC row at
+  all.
+- **A MARKERPOST or STATION with qualifier `Unknown` and a valid value:** tier
+  `unverified`.
+- **Anything else:** `NOT_POSTED` or `MILEAGE_SENTINEL`. STRUCTURE records with `Unknown`
+  are not anchors.
+
+**Step B: the rules, checked in this order.** The first rule a record fails gives its single
+audit reason.
+1. Step A produced a value, else the Step A reason.
+2. `mp_unit == "Mile"`, else `UNIT_NOT_MILE`. TC values are miles by the inventory's
+   data dictionary, which Task 3 cites.
+3. The value is 0 or more and finite. This is already guaranteed by `parse_mileage`;
+   assert it.
 4. `track_nid` names at least one segment, else `TRACK_NOT_FOUND`.
 5. At least one of those segments is in a chain, else `TRACK_NOT_CHAINED`.
 6. The record's `sub_nid` equals that chain's `sub_nid`, else `SUBDIVISION_MISMATCH`.
@@ -596,6 +697,7 @@ Then merge, per chain:
   `mp_equal_tol_mi` become one anchor. Its `id` is the smallest NID, `s_m` is the mean,
   every NID goes in `member_nids`, and each merge gets an `ANCHOR_MERGED` (info) line.
 - If the group's values disagree, every member gets `ANCHOR_CONFLICT`.
+- A merged anchor takes the best tier among its members.
 - Records on other chains stay separate.
 
 Station, structure and markerpost records go through the same rules. Their `source` names
@@ -608,7 +710,19 @@ def test_posted_crossing_on_main_becomes_anchor_at_projected_s(tmp_path) -> None
 def test_posted_minus_one_is_rejected_as_posted_sentinel(tmp_path) -> None:
     anchors, audit = qualify(fixture(crossing_mp=-1.0, qualifier="Posted"))
     assert anchors == [] and [a.reason for a in audit] == ["POSTED_SENTINEL"]
-def test_unknown_qualifier_marker_post_is_not_an_anchor(tmp_path) -> None: ...   # NOT_POSTED
+def test_unknown_marker_post_and_station_become_unverified_tier(tmp_path) -> None: ...
+def test_unknown_structure_is_not_an_anchor(tmp_path) -> None: ...                # NOT_POSTED
+def test_unposted_crossing_with_joined_tc_row_becomes_tc_tier(tmp_path) -> None:
+    anchors, _ = qualify(fixture(qualifier="Unknown", tcid=501, tc_row=(501, 12.34, "Alpha")))
+    assert [(a.tier, a.mp) for a in anchors] == [("tc", 12.34)]
+def test_tc_spur_crossing_is_never_used(tmp_path) -> None:
+    anchors, audit = qualify(fixture(qualifier="Unknown", tcid=502,
+                                     tc_row=(502, 103.04, "Alpha"), spur_mile_point="2.04"))
+    assert anchors == [] and "TC_SPUR_CROSSING" in [a.reason for a in audit]
+def test_tc_subdivision_name_mismatch_is_not_joined(tmp_path) -> None: ...
+def test_posted_and_tc_disagreeing_over_005mi_excluded(tmp_path) -> None: ...     # SOURCE_DISAGREEMENT
+def test_posted_and_tc_agreeing_keeps_posted_tier(tmp_path) -> None: ...
+def test_posted_minus_one_with_tc_value_becomes_tc_tier(tmp_path) -> None: ...
 def test_crossing_on_siding_is_track_not_chained(tmp_path) -> None: ...
 def test_crossing_with_other_subdivision_is_mismatch(tmp_path) -> None: ...
 def test_residual_over_25m_rejected_and_25m_accepted(tmp_path) -> None: ...      # boundary 24.9 / 25.1
@@ -621,7 +735,7 @@ def test_projection_uses_the_referenced_segment_span_only(tmp_path) -> None:
 
 - [ ] **Step 2–4: Fail, implement, pass.**
 
-- [ ] **Step 5: Commit.** `feat(pipeline): qualify posted anchors and merge duplicate crossings`
+- [ ] **Step 5: Commit.** `feat(pipeline): qualify tiered anchors (posted, TC, unverified) and merge duplicate crossings`
 
 ---
 
@@ -648,13 +762,22 @@ def test_projection_uses_the_referenced_segment_span_only(tmp_path) -> None:
 ```text
 A = anchors on this chain sorted by (s_m, id)
 1. collapse: merge runs where |Δs| ≤ anchor_collapse_span_m and |Δmp| ≤ mp_equal_tol_mi
-   → one anchor at mean s (smallest id kept, member_nids unioned, ANCHOR_COLLAPSED)
+   → one anchor at mean s; it keeps the best-tier member's mp, id and tier
+   (ties: smallest id), member_nids unioned, ANCHOR_COLLAPSED
 2. pair_ok(i, j): Δs = s_j − s_i > 0, Δmp = mp_j − mp_i ≠ 0 beyond mp_equal_tol_mi,
    and (Δs < slope_min_span_m or | |Δmp|·1609.344/Δs − 1 | ≤ slope_tolerance)
 3. outliers: repeat until stable — for interior k, if not pair_ok(k−1,k) and
    not pair_ok(k,k+1) and pair_ok(k−1,k+1) and sign(Δmp) of (k−1,k+1) agrees with
-   the neighbouring pairs → drop k (ANCHOR_OUTLIER, detail has both slopes)
-4. split: walk consecutive pairs; the current interval has a direction sign set by its
+   the neighbouring pairs → drop k (ANCHOR_OUTLIER, detail has both slopes).
+   When several k qualify in one pass, drop the worst tier first (TIER_RANK, then
+   largest slope error, then id)
+4. unverified check, run on the higher tiers only:
+   H = the anchors with tier != "unverified", run through steps 2–3 on their own.
+   For each unverified anchor u whose s lies strictly between consecutive h1, h2 in H with
+   pair_ok(h1, h2): drop u if |u.mp − interpolate(h1, h2, u.s)| > unverified_max_deviation_mi
+   (UNVERIFIED_DEVIATION, detail has predicted and actual MP).
+   Unverified anchors outside such a pair are kept, and steps 2–3 still apply to them.
+5. split: walk consecutive pairs; the current interval has a direction sign set by its
    first pair. Close the interval before pair (i,i+1) when not pair_ok(i,i+1) or its
    sign differs. Intervals with < 2 anchors are not emitted (the anchor stays in the
    tile as an isolated anchor and is counted in the report).
@@ -675,6 +798,11 @@ def test_slope_outside_15_percent_splits_on_long_span() -> None: ...
 def test_close_equal_postings_collapse_to_mean_s() -> None: ...
 def test_equal_mp_far_apart_is_a_split() -> None: ...
 def test_interpolate_mp_reproduces_anchors_and_never_extrapolates() -> None: ...
+def test_unverified_within_005mi_of_posted_bracket_is_kept() -> None: ...
+def test_unverified_off_by_02mi_between_posted_is_dropped() -> None: ...       # UNVERIFIED_DEVIATION
+def test_unverified_only_stretch_still_forms_an_interval() -> None: ...       # rural gap, no posted
+def test_outlier_pass_drops_lower_tier_first() -> None: ...
+def test_collapse_keeps_posted_value_over_unverified() -> None: ...
 def test_property_emitted_intervals_satisfy_core_contract(data) -> None:
     # hypothesis: random anchors -> every interval sorted, strictly monotonic, len >= 2
 ```
@@ -697,7 +825,9 @@ def test_property_emitted_intervals_satisfy_core_contract(data) -> None:
   str])`. Its parts:
   - `AssetKind = Literal["crossing","bridge","moveableBridge","tunnel","culvert",
     "station","diamond"]`;
-  - `PostedMileage(mp, sub_nid)`, present only when the record passes anchor rules 1–3;
+  - `PostedMileage(mp, sub_nid, tier)`, present only when Task 5's Step A gives the record
+    a value. `tier` says where the value came from: NRWN Posted, TC or unverified. A
+    crossing whose TC value is used also keeps `tcMile` in `attrs`.
   - `ChainPosition(chain_id, s_start_m, s_end_m, residual_m, derived_mp_start:
     float | None, derived_mp_end: float | None)`.
 - `extract_assets(net, chains, intervals, anchors, cfg) -> list[Asset]`.
@@ -782,7 +912,7 @@ coordinate array is a delta-encoded integer microdegree array.
                 vertexStart, latE6[], lonE6[], sMm[] }]                      by id, vertexStart
   segments:  [{ key, nid, trackClass, status, subdivisionNid, subdivisionName,
                 operator, owner, useType, trackName, chainId|null, latE6[], lonE6[] }]  by key
-  anchors:   [{ id, chainId, sMm, mp, source, memberNids[] }]                by chainId, sMm, id
+  anchors:   [{ id, chainId, sMm, mp, source, tier, memberNids[] }]          by chainId, sMm, id
   intervals: [{ id, chainId, anchorIds[] }]                                  by id
   assets:    [{ id, kind, layer, name|null, latE6[], lonE6[], posted{mp,subdivisionNid}|null,
                 positions[{chainId,sStartMm,sEndMm,residualMm,derivedMpStart,derivedMpEnd}],
@@ -804,7 +934,8 @@ coordinate array is a delta-encoded integer microdegree array.
 - `datasetVersion`, `pipelineVersion`, `config` (the canonical object) and `configSha256`;
 - `attribution`;
 - `sources[]`, the full `SourceRecord`s;
-- `provinces{ sk: { chainKm, calibratedKm, anchors, isolatedAnchors, assetsByKind{},
+- `provinces{ sk: { chainKm, calibratedKm, calibratedKmPostedOnly, anchorsByTier{},
+  isolatedAnchors, assetsByKind{},
   tiles } }`;
 - `tiles[]`: `{ key, path: "tiles/<key>.json", sha256, bytes, gzipBytes, bounds,
   provinces[] }`, sorted by key.
@@ -852,14 +983,19 @@ def test_canonical_json_is_stable_across_hash_seeds() -> None: ...  # subprocess
 **Interfaces:**
 - `coverage_rows(chains, intervals, anchors, audit) -> list[CoverageRow]`.
   `CoverageRow(subdivision_nid, subdivision_name, operators, chain_km, calibrated_km,
-  calibrated_pct, anchors_by_source: dict[AnchorSource, int], rejected_by_reason:
+  calibrated_pct, calibrated_km_posted_only, anchors_by_source: dict[AnchorSource, int],
+  anchors_by_tier: dict[AnchorTier, int], rejected_by_reason:
   dict[str, int])`, where `calibrated_km = Σ (s_last − s_first)` over intervals.
+  `calibrated_km_posted_only` is the same sum over intervals rebuilt from `posted`
+  anchors alone. The gap between the two figures is what the extra tiers add.
 - The reports go to `reports/coverage-<pr>.json` and `reports/coverage-<pr>.md`. The
   Markdown version is a table with a totals row and a header that states the dataset
   version and source SHA-256. It also says "internal coverage, not surveyed accuracy".
 - The CLI, `python -m cantre_pipeline`, has two commands:
-  - `acquire --province PR [--record]`;
-  - `build --province PR --out DIR [--raw DIR] [--check-budget]`.
+  - `acquire --source ID [--record]`, where `ID` is a province or `tc-gci`;
+  - `build --province PR --out DIR [--raw DIR] [--check-budget]`. `build` uses
+    `tc-gci` automatically and fails with `HASH_MISMATCH` if its cached copy differs from
+    `sources/tc-gci.json`.
 - `build` writes this output tree:
   - `DIR/manifest.json` and `DIR/tiles/*.json`;
   - `DIR/audit/<pr>.jsonl`;
@@ -874,6 +1010,7 @@ def test_canonical_json_is_stable_across_hash_seeds() -> None: ...  # subprocess
   - a subdivision change;
   - reset and outlier;
   - merged and conflicting crossings;
+  - all three tiers, plus a TC spur row, a TC disagreement and an unverified deviation;
   - sentinels;
   - a diamond, a bridge and a culvert;
   - a chain crossing a tile edge.
@@ -909,13 +1046,13 @@ def test_cli_build_exit_code_on_budget_breach(tmp_path) -> None: ...
 - [ ] **Step 4: Run and see them pass.** Run the full Python and Node suites.
 
 - [ ] **Step 5: Real SK run.**
-  1. Run `acquire --province sk`, then `build --province sk --out build/sk
+  1. Run `acquire --source sk` and `acquire --source tc-gci`, then `build --province sk --out build/sk
      --check-budget`, twice into different directories, and compare the tree hashes.
   2. Record in RESEARCH.md:
      - the dataset version and source SHA-256;
      - run time, tile count, total and maximum gzip size;
-     - chain km, calibrated km and percentage;
-     - anchors by source, rejections by reason;
+     - chain km, calibrated km and percentage, and calibrated km from posted anchors only;
+     - anchors by source and by tier, rejections by reason;
      - the cycle count, and the subdivisions with 0 % calibration.
 
   These are measured values from the command output. Quote them, don't round them into
@@ -923,7 +1060,8 @@ def test_cli_build_exit_code_on_budget_breach(tmp_path) -> None: ...
 
 - [ ] **Step 6: CI.** In the `pipeline` job, after `pytest`:
   1. restore `.cache/raw` with `actions/cache` (SHA-pinned), keyed on `hashFiles('pipeline/sources/*.json')`;
-  2. run `python -m cantre_pipeline acquire --province sk` (verify mode: hash checked);
+  2. run `python -m cantre_pipeline acquire --source sk` and `acquire --source tc-gci`
+     (verify mode: hash checked);
   3. build twice into `build/a` and `build/b` with different `PYTHONHASHSEED`, then run
      `diff -r build/a build/b`;
   4. run `--check-budget`;
@@ -936,7 +1074,7 @@ def test_cli_build_exit_code_on_budget_breach(tmp_path) -> None: ...
     It also covers the datum note and the Z-ignored note.
   - Roadmap: M2 → "Built (PR pending)"; the tile and manifest contract line points to
     `pipeline/schema/`.
-  - RESEARCH.md: the M2 entry, and the six "Decisions beyond the spec" in the decision
+  - RESEARCH.md: the M2 entry, and the eight "Decisions beyond the spec" in the decision
     register.
   - README: link to the pipeline.
 

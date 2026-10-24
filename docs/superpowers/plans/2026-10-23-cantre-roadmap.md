@@ -27,7 +27,9 @@ These names and shapes are fixed here. A later plan may extend them but must not
 - **Chain position:** `s`, metres from the chain's first vertex (`alongM` in M1 functions).
 - **Anchor:** `{ id: string; s: number; mp: number; source: AnchorSource }`, where
   `AnchorSource = 'crossing' | 'station' | 'structure' | 'markerpost'`. M1 defines it, M2
-  produces it and M3 consumes it.
+  produces it and M3 consumes it. Extended on 2026-10-24 with `tier: AnchorTier`, where
+  `AnchorTier = 'posted' | 'tc' | 'unverified'` (spec §3). M2 writes it into tiles. M3 adds
+  it to core's `Anchor`, and every result reports the lower tier of its bracketing anchors.
 - **Calibrated interval:** an array of anchors sorted by `s` with strictly monotonic `mp`,
   never crossing a discontinuity (spec §5.5).
 - **Milepost result:** M1's `MilepostResult` is reused unchanged inside M3's `Result`.

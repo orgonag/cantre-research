@@ -14,7 +14,9 @@ contains research documentation only. Do not describe planned features as built.
   go-ahead. The owner chose MIT for independently authored code (2026-10-23); data
   stays under each source's own licence (NRWN: OGL-Canada). Never imply rights over
   material we did not author. Downloading every public NRWN province package for the
-  pipeline is authorized by the v1 spec.
+  pipeline is authorized by the v1 spec, as is the Transport Canada Grade Crossings
+  Inventory CSV (owner adopted it 2026-10-24). RAC and any other source still need a
+  go-ahead.
 - Public source ingestion must preserve publisher, licence, source URL, retrieval
   timestamp, version evidence, CRS, checksums and transformation recipe.
 - Do not record or upload phone location by default. Explicit user opt-in is required

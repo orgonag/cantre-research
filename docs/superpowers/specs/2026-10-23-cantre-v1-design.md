@@ -1,6 +1,7 @@
 # CANTRE v1 — design specification
 
-**CANTRE — Canada Track Rail Estimation.** Status: proposed for owner review, 2026-10-23.
+**CANTRE — Canada Track Rail Estimation.** Status: approved 2026-10-23; amended 2026-10-24
+(anchor tiers and the TC Grade Crossings Inventory, §3, §5.4–5.5).
 This spec supersedes the proposals in [IMPLEMENTATION.md](../../IMPLEMENTATION.md) where they
 differ (Leaflet, Cloudflare R2), replaces the stages in [PLAN.md](../../PLAN.md) with the
 milestones in §13, and turns the research handoff into a buildable v1. It does
@@ -61,7 +62,13 @@ These come from the research docs and are binding on implementation.
 | Source | Use | Licence | Status |
 |---|---|---|---|
 | NRCan National Railway Network (NRWN) 2.0, GeoBase, per-province SHP (English) | Track geometry, subdivisions, operators, anchors, assets | Open Government Licence – Canada | Primary. Packages dated 2019-07-25; feature revisions mostly 2016. |
+| Transport Canada Grade Crossings Inventory, national CSV (2023 update) | Second-tier crossing mileage, joined to NRWN crossings by TC number; cross-check of NRWN Posted values | Open Government Licence – Canada | Adopted by the owner 2026-10-24. Mileage and subdivision only; its coordinates (4–5 decimals) are not used for geometry. |
 | OpenFreeMap public vector tiles (OpenStreetMap data) | Basemap only, never used in calculation | ODbL data, attribution required | Default basemap. A public best-effort service. |
+
+Sources reviewed and not adopted (2026-10-24): the RAC Canadian Rail Atlas (shows mileposts,
+but has no download or reuse licence; usable only with RAC's written permission);
+OpenStreetMap milestones (about 510 in Canada, and ODbL share-alike would bind the tiles); TSB
+occurrence data (its locations are derived from NRWN, so it is not independent).
 
 **Observed NRWN 2.0 schema (Ontario package, inspected 2026-10-23):**
 
@@ -79,6 +86,23 @@ These come from the research docs and are binding on implementation.
 - `JUNCTION` (14,981): `TRAJUNCTYP` Switch/End/Administrative/**Diamond** (41 in Ontario).
 - CRS: NAD83(CSRS98) geographic. `GEOACCURA` is mostly `10`; its unit and meaning are
   unverified until checked against the NRWN data product specification (task in M2).
+
+**Anchor tiers** (owner decision, 2026-10-24). Every anchor carries one tier, and every
+milepost shown carries the lower tier of its two bracketing anchors:
+
+| Tier | Source | Rule |
+|---|---|---|
+| `posted` | NRWN record of any layer with qualifier `Posted` | As §5.4. |
+| `tc` | TC inventory `Mile` for an NRWN crossing that is not Posted | Joined by TC number. Not a spur crossing (`Spur Mile Point` empty). The subdivision name must match after normalisation. |
+| `unverified` | NRWN `MARKERPOST` and `STATION` records with qualifier `Unknown` and a valid value | Must also agree with the higher-tier anchors around it (§5.5). |
+
+Saskatchewan screening, 2026-10-24 (rough checks, not an evaluation):
+- **Marker posts and stations:** in a straight-line distance check against Posted crossings,
+  83 % of marker posts and 78 % of stations were consistent. Posted crossings scored 85 %
+  against each other.
+- **TC inventory:** after the spur and subdivision rules, 3,936 TC values agreed with NRWN
+  Posted values within 0.05 mi and 23 disagreed. The inventory adds 153 main-line crossings
+  that NRWN has no posted value for.
 
 **Datum note.** Phone GNSS reports WGS 84 (realised close to ITRF). NAD83(CSRS) differs from
 it by roughly 1–2 m across Canada, varying with location and epoch. v1 applies no
@@ -118,9 +142,9 @@ licences are re-checked.
 
 ## 5. Pipeline (`pipeline/`)
 
-1. **Acquire.** Download each province's `nrwn_rfn_<pr>_shp_en.zip`. Write
-   `sources/<pr>.json` with URL, HTTP date, size, SHA-256, retrieval UTC time and member
-   checksums. Raw bytes are cached outside git. In CI, a fixed cache key forces
+1. **Acquire.** Download each province's `nrwn_rfn_<pr>_shp_en.zip` and the national TC
+   Grade Crossings Inventory CSV. Write `sources/<id>.json` with URL, HTTP date, size,
+   SHA-256, retrieval UTC time and member checksums. Raw bytes are cached outside git. In CI, a fixed cache key forces
    re-verification of the hashes.
 2. **Parse and validate.** Read the DBF and SHP directly. Check unique IDs, sentinels
    (`-1`, `None`, `Unknown`), units, multipart geometry and coordinate ranges. Every rejected
@@ -140,10 +164,19 @@ licences are re-checked.
    record per track; records on the same chain that share `CROSSINGID` and agree in value
    are merged, and records on other chains stay separate.
    Anchors that conflict are flagged and excluded.
+   Each anchor gets a tier (§3). A crossing that is not Posted takes its TC value as a `tc`
+   anchor when the join rules hold. A Posted crossing whose TC value disagrees by more than
+   `tcMaxDisagreementMi` (default 0.05, experimental) is excluded as a source disagreement.
+   `Unknown`-qualified marker posts and stations become `unverified` anchors under the same
+   unit, sentinel, track, subdivision and residual rules.
 5. **Find discontinuities.** Along each chain, anchors sorted by `s` must have monotonic
    mileage (either direction) and a plausible slope: |ΔMP·1609.344 / Δs − 1| ≤
    `slopeTolerance`, default 0.15, experimental. Where a pair breaks monotonicity, the chain
-   splits into *calibrated intervals*. A single outlying anchor is excluded and reported.
+   splits into *calibrated intervals*. A single outlying anchor is excluded and reported;
+   when anchors of different tiers conflict, the lower-tier anchor is the one excluded. An
+   `unverified` anchor that lies between two higher-tier anchors in the same interval must
+   be within `unverifiedMaxDeviationMi` (default 0.05, experimental) of the milepost
+   interpolated from them, else it is excluded and reported.
    The milepost is never interpolated across a split.
 6. **Extract assets.** Crossings (with level, type, warning system, TCID), bridges, moveable
    bridges, tunnels, stations and diamond junctions, each with source mileage if Posted and a
@@ -185,8 +218,9 @@ from an explicit conversion (1 mi = 1.609344 km).
 **Uncertainty shown.** (a) Device accuracy radius as reported. (b) Cross-track residual.
 (c) *GPS-propagated MP band*: ± accuracy × |MP₂ − MP₁|/(s₂ − s₁), labelled "from GPS
 accuracy only". (d) Interval length, which tells the user how far apart the calibration
-points are. (e) The source's stated accuracy, once verified. These are never combined into
-a confidence interval.
+points are. (e) The source's stated accuracy, once verified. (f) The anchor tier (§3): the
+lower tier of the two bracketing anchors. These are never combined into a confidence
+interval.
 
 **Matching state machine.** Inputs are fix events `{lat, lon, timestamp, accuracyM,
 headingDeg?, speedMps?}` and user actions. Output is a `Result` carrying `status`, candidate
@@ -240,8 +274,8 @@ Illustrative layout (values invented):
 ```
 
 - **Status card:** subdivision, operator, track class, MP or an explicit reason, the
-  uncertainty fields from §6, the anchors used, data vintage, and a lock chip showing
-  `auto`/`locked`.
+  uncertainty fields from §6, the anchors used with their tier (an MP from `unverified`
+  anchors is visibly labelled), data vintage, and a lock chip showing `auto`/`locked`.
 - **Nearby assets:** sorted by along-chain distance ahead and behind, with type filters.
   Posted and derived mileage are labelled differently. Tapping an asset opens its source
   attributes.
@@ -285,7 +319,8 @@ a schema drift or a hash mismatch.
   assertions prove no trace persists. axe accessibility checks run in CI.
 - **Evaluation report (`docs/EVALUATION.md`, generated):** per-province coverage;
   leave-one-anchor-out residuals (predicted MP minus withheld posted MP, in metres and in
-  miles) with their distributions; and the matcher comparison on synthetic scenarios. The
+  miles) with their distributions, reported separately for each anchor tier and for
+  intervals with and without `unverified` anchors; and the matcher comparison on synthetic scenarios. The
   report states plainly that these measure internal consistency, not surveyed accuracy.
   Independent field validation stays an open item.
 
@@ -314,7 +349,9 @@ no independent truth), and references. Figures are generated from synthetic exam
 
 These are prepared but never done without Orgo's explicit go-ahead: making the repo public;
 enabling GitHub Pages (which needs a public repo on the free plan) and running deploy;
-announcing or submitting to NRC; adopting any non-NRWN data source.
+announcing or submitting to NRC; adopting any non-NRWN data source. The owner adopted the
+TC Grade Crossings Inventory on 2026-10-24; any further source, RAC included, still needs a
+go-ahead.
 
 ## 13. Milestones (input to the implementation plan)
 
@@ -331,12 +368,12 @@ announcing or submitting to NRC; adopting any non-NRWN data source.
 
 - NRWN feature vintage is mostly 2016: abandonments, new sidings and renamed subdivisions
   will be wrong. Vintage is shown everywhere.
-- Calibrated coverage may be thin where few crossings are Posted. The coverage report will
-  show this; Unknown-qualified marker posts are tested only as an *experimental* anchor class
-  in the evaluation, never in the app by default.
-- The meaning of `SUBD1START`/`SUBD1END` (subdivision extent vs. segment mileage) needs
-  verification. If they turn out to be segment-level, they become a second anchor class
-  after evaluation.
+- Calibrated coverage may be thin where few crossings are Posted. The coverage report
+  shows this per tier. `unverified` anchors fill rural gaps but could carry systematic
+  errors that the consistency checks miss; the per-tier evaluation (§9) is what decides
+  whether they stay on by default. Until it runs, the app labels them.
+- `SUBD1START`/`SUBD1END` were verified on SK (2026-10-24) to be subdivision extents,
+  constant across a subdivision's segments, not segment mileage. They are not anchors.
 - OpenFreeMap is best-effort. Fallback: the app still works with no basemap (tracks and
   assets only), and self-hosted PMTiles is a later option.
 - The 1% metric definition from the research log stays unresolved. v1 does not claim it.
