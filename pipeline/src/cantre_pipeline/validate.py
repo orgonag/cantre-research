@@ -31,7 +31,7 @@ from cantre_pipeline.config import PipelineConfig
 from cantre_pipeline.geodesy import LatLon, assert_lat_lon
 from cantre_pipeline.model import LineFeature, Network, NodeKey, PointFeature, Segment
 from cantre_pipeline.reader import RawFeature, read_layer
-from cantre_pipeline.schema_nrwn import DOMAINS, REQUIRED_FIELDS, parse_mileage
+from cantre_pipeline.schema_nrwn import DOMAINS, OPTIONAL_FIELDS, REQUIRED_FIELDS, parse_mileage
 
 __all__ = ["load_network", "parse_mileage"]
 
@@ -147,8 +147,11 @@ def _second_subdivision(layer: str, f: RawFeature, audit: list[AuditRecord]) -> 
 
 
 def _attrs(layer: str, f: RawFeature) -> Mapping[str, str]:
-    """Read-only view of the layer's required fields."""
-    return MappingProxyType({k: f.attrs[k] for k in sorted(REQUIRED_FIELDS[layer])})
+    """Read-only view of the layer's required fields plus any optional ones the DBF carries."""
+    names = REQUIRED_FIELDS[layer] | {
+        k for k in OPTIONAL_FIELDS.get(layer, frozenset()) if k in f.attrs
+    }
+    return MappingProxyType({k: f.attrs[k] for k in sorted(names)})
 
 
 def _mileage(f: RawFeature) -> tuple[float | None, str, str]:

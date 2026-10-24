@@ -39,18 +39,32 @@ Units: ``mp`` miles, ``s_m`` and ``residual_m`` metres.
 
 import math
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
 from cantre_pipeline.audit import AuditReason, AuditRecord
 from cantre_pipeline.chains import Chain, ChainSet
 from cantre_pipeline.config import PipelineConfig
-from cantre_pipeline.geodesy import project_onto_range
+from cantre_pipeline.geodesy import LatLon, project_onto_range
 from cantre_pipeline.model import LineFeature, Network, PointFeature, Segment
 from cantre_pipeline.reader import TcCrossing
 from cantre_pipeline.schema_nrwn import norm_subdivision
 
-__all__ = ["TIER_RANK", "AnchorSource", "AnchorTier", "QualifiedAnchor", "qualify_anchors"]
+__all__ = [
+    "TIER_RANK",
+    "AnchorFeature",
+    "AnchorSource",
+    "AnchorTier",
+    "AnchorValue",
+    "ChainFix",
+    "LocateFail",
+    "QualifiedAnchor",
+    "anchor_value",
+    "index_tracks",
+    "locate_on_chain",
+    "qualify_anchors",
+]
 
 AnchorSource = Literal["crossing", "station", "structure", "markerpost"]
 AnchorTier = Literal["posted", "tc", "unverified"]
@@ -92,11 +106,11 @@ class QualifiedAnchor:
     residual_m: float
 
 
-_Feature = PointFeature | LineFeature
+AnchorFeature = PointFeature | LineFeature
 
 
 @dataclass(frozen=True)
-class _Value:
+class AnchorValue:
     """Step A result: a mileage and its tier (``tier`` None means rejected with ``reason``)."""
 
     mp: float | None
@@ -106,7 +120,7 @@ class _Value:
 
 
 def _tc_join(
-    f: PointFeature, tc_rows: dict[str, TcCrossing], province: str
+    f: PointFeature, tc_rows: Mapping[str, TcCrossing], province: str
 ) -> tuple[float | None, AuditReason, str]:
     """Apply the Decision 7 join rule to crossing ``f``.
 
@@ -137,7 +151,7 @@ def _tc_join(
     return row.mile, "TC_NO_ROW", ""
 
 
-def _raw_negative(f: _Feature) -> bool:
+def _raw_negative(f: AnchorFeature) -> bool:
     """True when the stored ``SUBD1DIST`` is a negative number (the ``-1`` sentinel)."""
     try:
         return float(f.attrs["SUBD1DIST"]) < 0
@@ -145,9 +159,9 @@ def _raw_negative(f: _Feature) -> bool:
         return False
 
 
-def _step_a(
-    f: _Feature, tc_rows: dict[str, TcCrossing], cfg: PipelineConfig, province: str
-) -> _Value:
+def anchor_value(
+    f: AnchorFeature, tc_rows: Mapping[str, TcCrossing], cfg: PipelineConfig, province: str
+) -> AnchorValue:
     """Step A: choose the value and tier of ``f`` or the reason it has none (module docstring)."""
     mp = f.mp_value
     posted = f.mp_qualifier == "Posted"
@@ -156,31 +170,33 @@ def _step_a(
         if posted and mp is not None:
             # Decision 7: NRWN and TC values must agree; a larger gap excludes the record.
             if tc_mile is not None and abs(mp - tc_mile) > cfg.tc_max_disagreement_mi + _EPS_MI:
-                return _Value(
+                return AnchorValue(
                     None,
                     None,
                     "SOURCE_DISAGREEMENT",
                     f"NRWN posted {mp} mi vs TC {tc_mile} mi (limit {cfg.tc_max_disagreement_mi})",
                 )
-            return _Value(mp, "posted")
+            return AnchorValue(mp, "posted")
         if tc_mile is not None:
-            return _Value(tc_mile, "tc")  # not usable as posted: use the TC value
+            return AnchorValue(tc_mile, "tc")  # not usable as posted: use the TC value
         if reason != "TC_NO_ROW":
-            return _Value(None, None, reason, detail)
+            return AnchorValue(None, None, reason, detail)
         if posted:
-            return _Value(None, None, "POSTED_SENTINEL", "Posted crossing with mileage -1")
-        return _Value(None, None, "NOT_POSTED", f"qualifier {f.mp_qualifier!r}, no TC value")
+            return AnchorValue(None, None, "POSTED_SENTINEL", "Posted crossing with mileage -1")
+        return AnchorValue(None, None, "NOT_POSTED", f"qualifier {f.mp_qualifier!r}, no TC value")
     if mp is not None and posted:
-        return _Value(mp, "posted")
+        return AnchorValue(mp, "posted")
     if mp is not None and f.layer in ("MARKERPOST", "STATION") and f.mp_qualifier == "Unknown":
-        return _Value(mp, "unverified")
+        return AnchorValue(mp, "unverified")
     if mp is None and _raw_negative(f):
-        return _Value(None, None, "MILEAGE_SENTINEL", "mileage is the -1 sentinel")
-    return _Value(None, None, "NOT_POSTED", f"qualifier {f.mp_qualifier!r}, not a posted value")
+        return AnchorValue(None, None, "MILEAGE_SENTINEL", "mileage is the -1 sentinel")
+    return AnchorValue(
+        None, None, "NOT_POSTED", f"qualifier {f.mp_qualifier!r}, not a posted value"
+    )
 
 
 @dataclass(frozen=True)
-class _Fail:
+class LocateFail:
     """A Step B rule failure."""
 
     reason: AuditReason
@@ -188,12 +204,13 @@ class _Fail:
 
 
 @dataclass(frozen=True)
-class _Pos:
+class ChainFix:
     """Where a record sits: chain, ``s_m`` (metres) and residual (metres)."""
 
     chain: Chain
     s_m: float
     residual_m: float
+    seg_key: str = ""
 
 
 @dataclass(frozen=True)
@@ -210,13 +227,27 @@ class _Located:
     residual_m: float
 
 
-_Hit = tuple[Segment, Chain]
+_SegChain = tuple[Segment, Chain]
 """A TRACK segment with the chain that contains it."""
 
 
-def _locate(
-    f: _Feature, by_nid: dict[str, list[Segment]], chain_of: dict[str, Chain], cfg: PipelineConfig
-) -> _Pos | _Fail:
+def index_tracks(
+    net: Network, chains: ChainSet
+) -> tuple[dict[str, list[Segment]], dict[str, Chain]]:
+    """Lookup tables for :func:`locate_on_chain`: segments by NID and chain by segment key."""
+    by_nid: dict[str, list[Segment]] = defaultdict(list)
+    for s in net.segments:
+        by_nid[s.nid].append(s)
+    return by_nid, {k: c for c in chains.chains for k in c.segment_keys}
+
+
+def locate_on_chain(
+    f: AnchorFeature,
+    by_nid: Mapping[str, list[Segment]],
+    chain_of: Mapping[str, Chain],
+    cfg: PipelineConfig,
+    pt: LatLon | None = None,
+) -> ChainFix | LocateFail:
     """Step B rules 4-8: return ``(chain, s_m, residual_m)`` or ``(reason, detail)``.
 
     The record's ``TRACKNID`` may name several segments (a NID can repeat, Decision 1); each
@@ -226,40 +257,41 @@ def _locate(
     """
     segs = by_nid.get(f.track_nid)
     if not segs:
-        return _Fail("TRACK_NOT_FOUND", f"no TRACK with NID {f.track_nid!r}")
-    chained: list[_Hit] = [(s, chain_of[s.key]) for s in segs if s.key in chain_of]
+        return LocateFail("TRACK_NOT_FOUND", f"no TRACK with NID {f.track_nid!r}")
+    chained: list[_SegChain] = [(s, chain_of[s.key]) for s in segs if s.key in chain_of]
     if not chained:
-        return _Fail("TRACK_NOT_CHAINED", f"track {f.track_nid!r} is in no chain")
+        return LocateFail("TRACK_NOT_CHAINED", f"track {f.track_nid!r} is in no chain")
     hits = [h for h in chained if h[1].sub_nid == f.sub_nid]
     if not hits:
-        return _Fail(
+        return LocateFail(
             "SUBDIVISION_MISMATCH",
             f"record subdivision {f.sub_nid!r}, track chain subdivision {chained[0][1].sub_nid!r}",
         )
-    pt = f.pt if isinstance(f, PointFeature) else f.pts[0]  # a line anchors at its first vertex
-    found: list[tuple[float, str, Chain, float]] = []  # (residual m, chain id, chain, s m)
+    if pt is None:  # a line anchors at its first vertex unless the caller names another point
+        pt = f.pt if isinstance(f, PointFeature) else f.pts[0]
+    found: list[tuple[float, str, Chain, float, str]] = []  # residual, chain id, chain, s, seg
     for seg, chain in hits:
         i0, i1 = chain.segment_ranges[seg.key]
         r = project_onto_range(pt, chain.pts, chain.s_m, i0, i1)
-        found.append((r.cross_track_m, chain.id, chain, r.s_m))
+        found.append((r.cross_track_m, chain.id, chain, r.s_m, seg.key))
     found.sort(key=lambda x: (x[0], x[1], x[3]))
     best = found[0]
     for other in found[1:]:
         # Rule 7: a rival on a different chain within 1 m cannot be told apart.
         if other[2].id != best[2].id and other[0] - best[0] <= _AMBIGUITY_M:
-            return _Fail(
+            return LocateFail(
                 "AMBIGUOUS_TRACK",
                 f"chains {best[2].id} and {other[2].id} within {_AMBIGUITY_M} m "
                 f"({best[0]:.2f} m, {other[0]:.2f} m)",
             )
     if best[0] > cfg.anchor_max_residual_m:  # Rule 8
-        return _Fail(
+        return LocateFail(
             "RESIDUAL_TOO_LARGE", f"residual {best[0]:.2f} m exceeds {cfg.anchor_max_residual_m} m"
         )
-    return _Pos(best[2], best[3], best[0])
+    return ChainFix(best[2], best[3], best[0], best[4])
 
 
-def _candidates(net: Network) -> list[_Feature]:
+def _candidates(net: Network) -> list[AnchorFeature]:
     """Every record that can anchor, in a fixed layer order."""
     return [*net.crossings, *net.stations, *net.markerposts, *net.structures_pt, *net.structures_ln]
 
@@ -293,7 +325,7 @@ def _merge(group: list[_Located]) -> QualifiedAnchor:
 def qualify_anchors(
     net: Network,
     chains: ChainSet,
-    tc_rows: dict[str, TcCrossing],
+    tc_rows: Mapping[str, TcCrossing],
     cfg: PipelineConfig,
 ) -> tuple[list[QualifiedAnchor], list[AuditRecord]]:
     """Qualify every anchor candidate of ``net`` against ``chains`` (spec section 5.4).
@@ -308,14 +340,11 @@ def qualify_anchors(
     ``ANCHOR_MERGED`` info line. The result depends only on the set of records, not their order.
     """
     audit: list[AuditRecord] = []
-    by_nid: dict[str, list[Segment]] = defaultdict(list)
-    for s in net.segments:
-        by_nid[s.nid].append(s)
-    chain_of = {k: c for c in chains.chains for k in c.segment_keys}
+    by_nid, chain_of = index_tracks(net, chains)
 
     located: list[_Located] = []
     for f in _candidates(net):
-        value = _step_a(f, tc_rows, cfg, net.province)
+        value = anchor_value(f, tc_rows, cfg, net.province)
         if value.tier is None or value.mp is None:
             reason = value.reason or "NOT_POSTED"
             audit.append(AuditRecord(f.layer, f.nid, reason, "rejected", value.detail))
@@ -329,8 +358,8 @@ def qualify_anchors(
         # Rule 3 is guaranteed by parse_mileage / the TC join; fail loudly if that ever breaks.
         if not (math.isfinite(value.mp) and value.mp >= 0):  # pragma: no cover
             raise ValueError(f"{f.layer} {f.nid}: mileage {value.mp} is not finite and >= 0")
-        loc = _locate(f, by_nid, chain_of, cfg)
-        if isinstance(loc, _Fail):
+        loc = locate_on_chain(f, by_nid, chain_of, cfg)
+        if isinstance(loc, LocateFail):
             audit.append(AuditRecord(f.layer, f.nid, loc.reason, "rejected", loc.detail))
             continue
         located.append(

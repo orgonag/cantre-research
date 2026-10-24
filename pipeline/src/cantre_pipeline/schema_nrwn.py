@@ -60,6 +60,26 @@ REQUIRED_FIELDS: dict[str, frozenset[str]] = {
 }
 """Fields each layer must have (DBF names, 10 characters at most)."""
 
+OPTIONAL_FIELDS: dict[str, frozenset[str]] = {
+    "CROSSING": frozenset(
+        {
+            "LEVELCROSS",  # grade: At Grade / Over / Under
+            "CROSSINTYP",  # crossing type (road, pedestrian ...)
+            "WARNINGSYS",  # warning system (signals, gates ...)
+            "ROADCLASS",
+            "CROSSTYPNM",
+            "ROUTENUMBE",
+            "CROSACCES",  # public / private access
+        }
+    ),
+    "STATION": frozenset({"STNTYPE", "STNUSR1ENA"}),
+    "STRUCTURE_1": frozenset({"STRUENNAME"}),
+}
+"""Descriptive fields kept in ``attrs`` when the DBF has them (asset attributes, spec 5.6).
+
+Unlike ``REQUIRED_FIELDS`` a missing one is not schema drift: the attribute is simply absent.
+"""
+
 EXPECTED_SHAPE_TYPES: dict[str, frozenset[int]] = {
     "TRACK": frozenset({3, 13}),  # PolyLine, PolyLineZ (SK TRACK is 13)
     "STRUCTURE_1": frozenset({3, 13}),

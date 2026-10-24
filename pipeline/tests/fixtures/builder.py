@@ -13,7 +13,7 @@ numeric sentinel ``-1`` and a mileage of ``-1`` when ``mp`` is ``None``.
 from __future__ import annotations
 
 import csv
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import shapefile  # type: ignore[import-untyped,unused-ignore]
@@ -61,11 +61,35 @@ LAYER_FIELDS: dict[str, list[tuple[str, str, int, int]]] = {
         ("SUBDI2NID", _C, 32, 0),
         ("GEOACCURA", _N, 3, 0),
     ],
-    "CROSSING": [("NID", _C, 32, 0), ("CROSSINGID", _C, 32, 0), ("TCID", _N, 9, 0), *_SUB],
-    "STATION": [("NID", _C, 32, 0), ("STNENNAME", _C, 100, 0), *_SUB],
+    "CROSSING": [
+        ("NID", _C, 32, 0),
+        ("CROSSINGID", _C, 32, 0),
+        ("LEVELCROSS", _C, 30, 0),
+        ("CROSSINTYP", _C, 30, 0),
+        ("WARNINGSYS", _C, 60, 0),
+        ("ROADCLASS", _C, 30, 0),
+        ("CROSSTYPNM", _C, 60, 0),
+        ("ROUTENUMBE", _C, 30, 0),
+        ("CROSACCES", _C, 30, 0),
+        ("TCID", _N, 9, 0),
+        *_SUB,
+    ],
+    "STATION": [
+        ("NID", _C, 32, 0),
+        ("STNENNAME", _C, 100, 0),
+        ("STNTYPE", _C, 30, 0),
+        ("STNUSR1ENA", _C, 100, 0),
+        *_SUB,
+    ],
     "MARKERPOST": [("NID", _C, 32, 0), *_SUB],
     "STRUCTURE_0": [("NID", _C, 32, 0), ("STRUCID", _C, 32, 0), ("STRUCTYPE", _C, 15, 0), *_SUB],
-    "STRUCTURE_1": [("NID", _C, 32, 0), ("STRUCID", _C, 32, 0), ("STRUCTYPE", _C, 15, 0), *_SUB],
+    "STRUCTURE_1": [
+        ("NID", _C, 32, 0),
+        ("STRUCID", _C, 32, 0),
+        ("STRUENNAME", _C, 100, 0),
+        ("STRUCTYPE", _C, 15, 0),
+        *_SUB,
+    ],
     "JUNCTION": [("NID", _C, 32, 0), ("TRAJUNCTYP", _C, 15, 0)],
 }
 _SHAPE_TYPES = {
@@ -228,10 +252,11 @@ class NrwnFixture:
         track_class: str = "Main",
         unit: str = "Mile",
         sub2: str = "None",
+        attrs: Mapping[str, object] | None = None,
     ) -> None:
         """Add a CROSSING point. ``mp=None`` writes the ``-1`` mileage sentinel."""
         values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
-        values.update({"NID": nid, "CROSSINGID": crossing_id, "TCID": tcid})
+        values.update({"NID": nid, "CROSSINGID": crossing_id, "TCID": tcid, **(attrs or {})})
         self._add("CROSSING", None if pt is None else [[pt]], values)
 
     def station(
@@ -247,10 +272,11 @@ class NrwnFixture:
         unit: str = "Mile",
         sub2: str = "None",
         name: str = "Stn",
+        attrs: Mapping[str, object] | None = None,
     ) -> None:
         """Add a STATION point (NRWN stations in SK are all qualifier ``Unknown``)."""
         values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
-        values.update({"NID": nid, "STNENNAME": name})
+        values.update({"NID": nid, "STNENNAME": name, **(attrs or {})})
         self._add("STATION", None if pt is None else [[pt]], values)
 
     def markerpost(
@@ -284,10 +310,11 @@ class NrwnFixture:
         unit: str = "Mile",
         sub2: str = "None",
         kind: str = "Culvert",
+        attrs: Mapping[str, object] | None = None,
     ) -> None:
         """Add a STRUCTURE_0 point (culvert by default)."""
         values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
-        values.update({"NID": nid, "STRUCID": "", "STRUCTYPE": kind})
+        values.update({"NID": nid, "STRUCID": "", "STRUCTYPE": kind, **(attrs or {})})
         self._add("STRUCTURE_0", None if pt is None else [[pt]], values)
 
     def bridge(
@@ -304,10 +331,11 @@ class NrwnFixture:
         sub2: str = "None",
         kind: str = "Bridge",
         extra_parts: Sequence[Sequence[LatLon]] = (),
+        attrs: Mapping[str, object] | None = None,
     ) -> None:
         """Add a STRUCTURE_1 line (bridge by default). ``pts`` are ``(lat, lon)`` vertices."""
         values = self._anchor(track_nid, mp, qualifier, sub, track_class, unit, sub2)
-        values.update({"NID": nid, "STRUCID": "None", "STRUCTYPE": kind})
+        values.update({"NID": nid, "STRUCID": "None", "STRUCTYPE": kind, **(attrs or {})})
         self._add("STRUCTURE_1", self._line_parts(pts, extra_parts), values)
 
     def junction(self, nid: str, pt: LatLon | None, kind: str) -> None:

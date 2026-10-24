@@ -16,6 +16,7 @@ from cantre_pipeline.reader import (
 )
 from cantre_pipeline.schema_nrwn import (
     EXPECTED_SHAPE_TYPES,
+    OPTIONAL_FIELDS,
     REQUIRED_FIELDS,
     norm_subdivision,
     parse_mileage,
@@ -36,7 +37,7 @@ def _fx(tmp_path: Path) -> NrwnFixture:
 
 def test_fixture_fields_equal_required_fields() -> None:
     assert {k: {f[0] for f in v} for k, v in LAYER_FIELDS.items()} == {
-        k: set(v) for k, v in REQUIRED_FIELDS.items()
+        k: set(v) | OPTIONAL_FIELDS.get(k, frozenset()) for k, v in REQUIRED_FIELDS.items()
     }
 
 
