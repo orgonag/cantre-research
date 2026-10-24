@@ -1,6 +1,5 @@
 import type { LatLon } from './coords.js';
-import { toLocalM } from './coords.js';
-import { assertFinite } from './units.js';
+import { assertLatLonRange, toLocalM } from './coords.js';
 
 /** Longest segment treated as a single tangent-plane patch, in metres (spec §6: 2 km). */
 const MAX_PATCH_M = 2000;
@@ -22,19 +21,22 @@ function planarLengthM(a: LatLon, b: LatLon): number {
  * planar part lengths are summed, so no curvature is invented (spec §6: subdivided for distance
  * only).
  * Units: degrees in, metres out. Source: spec §6 (Geodesy), cross-checked against GeographicLib.
- * Error bound: per patch about L^3 tan^2(phi) / (24 R^2) with R about 6.4e6 m, i.e. below 1 mm for
- * L <= 2 km up to 83.5 deg N (tested against GeographicLib over 2000 random cases). Subdividing
- * keeps each patch under 2 km, but the interpolation path is a straight line in lat/lon, which
- * differs from the true geodesic by a second-order amount: 50 km at 45 deg azimuth is within
- * 0.05 % (tested).
- * Limits: no antimeridian wrap; no Canada-envelope check (only finiteness), so a segment may end
- * slightly outside the envelope. Throws `CoreInputError('NON_FINITE')` for NaN or infinite input.
+ * Error bound: for a segment along a parallel the tangent-plane error is about
+ * L^3 tan^2(phi) / (24 R^2) with R about 6.4e6 m (the same-parallel approximation, not the worst
+ * case). Measured worst case against GeographicLib for L = 2 km: 0.734 mm at lat 83.5 deg,
+ * azimuth about 56 deg (deterministic sweep, lat 80-83.5 x azimuth 0-359; 50000 random draws
+ * peaked at 0.727 mm), so the 1 mm target holds with about 27 % margin at the envelope edge and
+ * is far tighter at lower latitudes. Subdividing keeps each patch under 2 km, but the
+ * interpolation path is a straight line in lat/lon, which differs from the true geodesic by a
+ * second-order amount: 50 km at 45 deg azimuth is within 0.05 % (tested).
+ * Limits: no antimeridian wrap. Both points are checked with `assertLatLonRange` (finite, |lat| <= 90,
+ * |lon| <= 180) but not against the Canada envelope, so a segment may end slightly outside it. The
+ * range check also stops unit blunders (E7 integers, swapped lat/lon) before the subdivision count
+ * is computed. Throws `CoreInputError` (`NON_FINITE`, `LAT_OUT_OF_RANGE`, `LON_OUT_OF_RANGE`).
  */
 export function distanceM(a: LatLon, b: LatLon): number {
-  assertFinite(a.lat, 'a.lat');
-  assertFinite(a.lon, 'a.lon');
-  assertFinite(b.lat, 'b.lat');
-  assertFinite(b.lon, 'b.lon');
+  assertLatLonRange(a); // rejects unit blunders before the subdivision count is computed
+  assertLatLonRange(b);
   const rough = planarLengthM(a, b);
   if (rough <= MAX_PATCH_M) {
     return rough;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CANADA_ENVELOPE,
   assertLatLon,
+  assertLatLonRange,
   fromLocalM,
   metresPerDegree,
   toLocalM,
@@ -35,6 +36,23 @@ describe('assertLatLon', () => {
   });
 });
 
+describe('assertLatLonRange', () => {
+  it('accepts a point outside Canada (no envelope check)', () => {
+    expect(() => {
+      assertLatLonRange({ lat: -33.9, lon: 151.2 });
+    }).not.toThrow();
+  });
+  it.each([
+    [{ lat: Number.NaN, lon: 0 }, 'NON_FINITE'],
+    [{ lat: 91, lon: 0 }, 'LAT_OUT_OF_RANGE'],
+    [{ lat: 0, lon: 181 }, 'LON_OUT_OF_RANGE'],
+  ])('rejects %j with %s', (p, code) => {
+    expect(() => {
+      assertLatLonRange(p);
+    }).toThrow(expect.objectContaining({ code }));
+  });
+});
+
 describe('local tangent plane', () => {
   it('has the documented Canada envelope', () => {
     expect(CANADA_ENVELOPE).toEqual({ minLat: 41.5, maxLat: 83.5, minLon: -141.5, maxLon: -52 });
@@ -56,6 +74,14 @@ describe('local tangent plane', () => {
     const back = fromLocalM(o, toLocalM(o, p, 60.005), 60.005);
     expect(back.lat).toBeCloseTo(p.lat, 12);
     expect(back.lon).toBeCloseTo(p.lon, 12);
+  });
+  it('rejects scaleLat of 90 and out-of-range points', () => {
+    const o = { lat: 52, lon: -106 };
+    const bad = expect.objectContaining({ code: 'LAT_OUT_OF_RANGE' }) as unknown;
+    expect(() => toLocalM(o, o, 90)).toThrow(bad);
+    expect(() => fromLocalM(o, { x: 0, y: 0 }, -90)).toThrow(bad);
+    expect(() => toLocalM(o, { lat: -106.67, lon: 52.13 }, 52)).toThrow(bad);
+    expect(() => fromLocalM({ lat: 521300000, lon: 0 }, { x: 0, y: 0 }, 52)).toThrow(bad);
   });
   it('rejects a non-finite scale latitude', () => {
     const o = { lat: 52, lon: -106 };

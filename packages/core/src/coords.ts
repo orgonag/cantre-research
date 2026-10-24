@@ -24,18 +24,19 @@ export const CANADA_ENVELOPE = {
 } as const;
 
 /**
- * Validates a position, failing loudly instead of repairing it.
+ * Validates that a position is a real point on the globe, with no scope (envelope) check.
  *
  * Check order (the first failure wins, so the code names the most basic problem):
  * 1. both coordinates finite -> else `NON_FINITE`;
  * 2. |lat| <= 90 -> else `LAT_OUT_OF_RANGE` (also what a swapped lat/lon usually trips);
- * 3. |lon| <= 180 -> else `LON_OUT_OF_RANGE`;
- * 4. inside {@link CANADA_ENVELOPE} -> else `OUTSIDE_CANADA_ENVELOPE` (e.g. positive-west lon).
+ * 3. |lon| <= 180 -> else `LON_OUT_OF_RANGE`.
  *
- * Units: degrees. Source: spec §6. Limits: see {@link CANADA_ENVELOPE}. The envelope is
- * inclusive of its boundary. Throws `CoreInputError`.
+ * Units: degrees. Source: spec §6. Used by the geometry functions (distance, tangent plane) so
+ * a unit blunder, such as E7-scaled integers or swapped lat/lon, fails fast instead of yielding
+ * a confident wrong number. Limits: accepts any point on the globe, including outside Canada.
+ * Throws `CoreInputError`.
  */
-export function assertLatLon(p: LatLon): void {
+export function assertLatLonRange(p: LatLon): void {
   assertFinite(p.lat, 'lat');
   assertFinite(p.lon, 'lon');
   if (Math.abs(p.lat) > 90) {
@@ -50,11 +51,39 @@ export function assertLatLon(p: LatLon): void {
       `lon must be within [-180, 180], got ${String(p.lon)}`,
     );
   }
+}
+
+/**
+ * Validates a position for CANTRE v1, failing loudly instead of repairing it.
+ *
+ * Runs {@link assertLatLonRange} (finite, then |lat| <= 90, then |lon| <= 180), then requires the
+ * point to lie inside {@link CANADA_ENVELOPE} -> else `OUTSIDE_CANADA_ENVELOPE` (e.g. a
+ * positive-west longitude).
+ *
+ * Units: degrees. Source: spec §6. Limits: see {@link CANADA_ENVELOPE}. The envelope is
+ * inclusive of its boundary. Throws `CoreInputError`.
+ */
+export function assertLatLon(p: LatLon): void {
+  assertLatLonRange(p);
   const e = CANADA_ENVELOPE;
   if (p.lat < e.minLat || p.lat > e.maxLat || p.lon < e.minLon || p.lon > e.maxLon) {
     throw new CoreInputError(
       'OUTSIDE_CANADA_ENVELOPE',
       `(${String(p.lat)}, ${String(p.lon)}) is outside the Canada envelope; longitude is negative west of Greenwich`,
+    );
+  }
+}
+
+/**
+ * Throws unless `scaleLat` is finite (`NON_FINITE`) and |scaleLat| < 90 (`LAT_OUT_OF_RANGE`).
+ * At 90 degrees the east-west scale is zero, so the tangent plane is degenerate.
+ */
+function assertScaleLat(scaleLat: number): void {
+  assertFinite(scaleLat, 'scaleLat');
+  if (Math.abs(scaleLat) >= 90) {
+    throw new CoreInputError(
+      'LAT_OUT_OF_RANGE',
+      `scaleLat must be strictly within (-90, 90), got ${String(scaleLat)}`,
     );
   }
 }
@@ -70,14 +99,14 @@ export function assertLatLon(p: LatLon): void {
  * L^3 tan^2(phi) / (24 R^2) (R about 6.4e6 m); that is below 1 mm for L <= 2 km up to 83.5 deg
  * when `scaleLat` is the mid-latitude. It grows as L^3, so long lines must be subdivided.
  * Limits: no longitude wrap handling (Canada does not straddle the antimeridian); no envelope
- * check, so callers validate with {@link assertLatLon} where required. Throws `NON_FINITE`.
+ * check (only {@link assertLatLonRange}). `scaleLat` must be finite with |scaleLat| < 90. Throws
+ * `NON_FINITE`, `LAT_OUT_OF_RANGE` or `LON_OUT_OF_RANGE`.
  */
 export function toLocalM(origin: LatLon, p: LatLon, scaleLat: number): { x: number; y: number } {
-  assertFinite(origin.lat, 'origin.lat');
-  assertFinite(origin.lon, 'origin.lon');
-  assertFinite(p.lat, 'lat');
-  assertFinite(p.lon, 'lon');
-  const s = metresPerDegree(scaleLat); // also rejects a non-finite scaleLat
+  assertLatLonRange(origin);
+  assertLatLonRange(p);
+  assertScaleLat(scaleLat);
+  const s = metresPerDegree(scaleLat);
   return { x: (p.lon - origin.lon) * s.lonM, y: (p.lat - origin.lat) * s.latM };
 }
 
@@ -88,18 +117,18 @@ export function toLocalM(origin: LatLon, p: LatLon, scaleLat: number): { x: numb
  * Units: metres east/north in, degrees out. Source: spec §6.
  * Error bound: exact inverse of `toLocalM` for the same `origin` and `scaleLat` (rounding only,
  * about 1e-12 degrees); the tangent-plane error bound there applies to the physical meaning.
- * Limits: lonM tends to 0 at the poles, so the result is meaningless at |scaleLat| = 90.
- * Throws `NON_FINITE`.
+ * Limits: `origin` is range-checked, `scaleLat` must be finite with |scaleLat| < 90 (lonM is 0 at
+ * the poles); the returned point is not range-checked. Throws `NON_FINITE` or `LAT_OUT_OF_RANGE`.
  */
 export function fromLocalM(
   origin: LatLon,
   xy: { readonly x: number; readonly y: number },
   scaleLat: number,
 ): LatLon {
-  assertFinite(origin.lat, 'origin.lat');
-  assertFinite(origin.lon, 'origin.lon');
+  assertLatLonRange(origin);
   assertFinite(xy.x, 'x');
   assertFinite(xy.y, 'y');
+  assertScaleLat(scaleLat);
   const s = metresPerDegree(scaleLat);
   return { lat: origin.lat + xy.y / s.latM, lon: origin.lon + xy.x / s.lonM };
 }
