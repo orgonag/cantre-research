@@ -10,8 +10,11 @@ import { CoreInputError } from './errors.js';
  */
 export const METRES_PER_MILE = 1609.344;
 
-/** Throws `NON_FINITE` unless `value` is a finite number (rejects NaN and +/-Infinity). */
-function assertFinite(value: number, name: string): void {
+/**
+ * Throws `NON_FINITE` unless `value` is a finite number (rejects NaN and +/-Infinity).
+ * Shared by the geodesy modules; deliberately not re-exported from the package index.
+ */
+export function assertFinite(value: number, name: string): void {
   if (!Number.isFinite(value)) {
     throw new CoreInputError('NON_FINITE', `${name} must be a finite number, got ${String(value)}`);
   }
