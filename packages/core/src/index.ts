@@ -11,3 +11,5 @@ export {
 } from './coords.js';
 export type { LatLon } from './coords.js';
 export { distanceM } from './distance.js';
+export { projectOntoSegment } from './segment.js';
+export type { SegmentProjection } from './segment.js';
