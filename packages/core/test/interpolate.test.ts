@@ -61,10 +61,11 @@ describe('interpolateMilepost', () => {
     );
   });
 
-  it('rejects an interpolated milepost that overflows to infinity', () => {
+  it('rejects an interval whose milepost span overflows to infinity', () => {
+    // validateInterval reports NON_FINITE for the pair, so the call fails before interpolating.
     const iv = [a('A', 0, -1e308), a('B', 10, 1e308)];
     expect(() => interpolateMilepost(5, iv)).toThrow(
-      expect.objectContaining({ code: 'NON_FINITE' }),
+      expect.objectContaining({ code: 'INVALID_INTERVAL' }),
     );
   });
 
@@ -96,6 +97,12 @@ describe('validateInterval', () => {
     const codes = issues.map((i) => i.code);
     expect(codes).toContain('DUPLICATE_POSITION');
     expect(codes).toContain('NON_MONOTONIC_MILEPOST');
+  });
+
+  it('reports NON_FINITE when a span overflows even though both anchors are finite', () => {
+    // s2 - s1 = 2e308 and mp2 - mp1 = 2e308 both overflow to Infinity.
+    const issues = validateInterval([a('A', -1e308, -1e308), a('B', 1e308, 1e308)]);
+    expect(issues).toContainEqual({ code: 'NON_FINITE', anchorIds: ['A', 'B'] });
   });
 
   it('reports the anchor ids involved in an issue', () => {

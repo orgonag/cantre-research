@@ -115,10 +115,10 @@ intervals, milepost interpolation and the GPS band. See
 
 - `npm ci`: exit 0; summary line "found 0 vulnerabilities".
 - `npm run lint`, `npm run format:check`, `npm run typecheck`: each exit 0.
-- `npm run coverage`: 11 test files, 87 tests passed. Four property tests ran 1000 generated
+- `npm run coverage`: 11 test files, 89 tests passed. Four property tests ran 1000 generated
   cases each, 4000 property runs in total (perpendicular residual, monotonic `alongM`,
   interpolation between bracket mileposts, finite outputs). No property failed. Coverage of
-  `packages/core/src`: statements 98.59 %, branches 97.19 %, functions 100 %, lines 98.55 %,
+  `packages/core/src`: statements 98.62 %, branches 97.19 %, functions 100 %, lines 98.57 %,
   against a gate of lines 95, branches 90, functions 100.
 - Distance against GeographicLib on GRS80. The repo tests in
   `packages/core/test/distance.test.ts` assert only a 1 mm bound (a latitude 80-83.5 by azimuth

@@ -40,7 +40,9 @@ export type IntervalIssue = {
  *
  * Rules, applied to the anchors in the order given:
  * - TOO_FEW_ANCHORS: fewer than 2 anchors (reported once, with all ids).
- * - NON_FINITE: an anchor whose `s` or `mp` is NaN or infinite.
+ * - NON_FINITE: an anchor whose `s` or `mp` is NaN or infinite, or a consecutive pair of finite
+ *   anchors whose span s₂ − s₁ or mp₂ − mp₁ overflows to infinity (e.g. anchors at ±1e308; the
+ *   pair's two ids are reported and the pair is skipped for the other checks).
  * - UNSORTED: for each consecutive pair, `s` decreases.
  * - DUPLICATE_POSITION: for each consecutive pair, `s` is equal.
  * - NON_MONOTONIC_MILEPOST: for each consecutive pair with finite values, Δmp = mp₂ − mp₁ is
@@ -73,13 +75,20 @@ export function validateInterval(anchors: readonly Anchor[]): readonly IntervalI
     if (!isFiniteAnchor(prev) || !isFiniteAnchor(cur)) {
       continue; // already reported as NON_FINITE; deltas would be meaningless
     }
+    // Both anchors are finite, but a span such as 1e308 - (-1e308) can still overflow to Infinity;
+    // an infinite span would otherwise yield an interval no interpolation can use.
+    const ds = cur.s - prev.s; // metres
+    const delta = cur.mp - prev.mp; // miles
+    if (!Number.isFinite(ds) || !Number.isFinite(delta)) {
+      issues.push({ code: 'NON_FINITE', anchorIds: ids });
+      continue;
+    }
     if (cur.s < prev.s) {
       issues.push({ code: 'UNSORTED', anchorIds: ids });
     } else if (cur.s === prev.s) {
       issues.push({ code: 'DUPLICATE_POSITION', anchorIds: ids });
     }
 
-    const delta = cur.mp - prev.mp; // miles
     if (delta === 0) {
       issues.push({ code: 'NON_MONOTONIC_MILEPOST', anchorIds: ids });
     } else if (direction === 0) {
