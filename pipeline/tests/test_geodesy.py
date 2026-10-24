@@ -43,9 +43,16 @@ def test_distance_matches_geographiclib_within_1mm() -> None:
         assert abs(distance_m(LatLon(*case["a"]), LatLon(*case["b"])) - case["geodesicM"]) < 1e-3
 
 
-def test_distance_reproduces_recorded_python_values_exactly() -> None:
+# The golden file was written on Windows (UCRT libm) but CI runs on Linux (glibc). math.sin, cos
+# and pow may differ by 1 ulp between them, so recorded values are compared to an explicit
+# absolute tolerance (metres for distances, dimensionless for t) rather than with ==.
+GOLDEN_TOL = 1e-9
+
+
+def test_distance_reproduces_recorded_python_values_within_tolerance() -> None:
     for case in load_golden()["distance"]:
-        assert distance_m(LatLon(*case["a"]), LatLon(*case["b"])) == case["pythonM"]
+        d = distance_m(LatLon(*case["a"]), LatLon(*case["b"]))
+        assert abs(d - case["pythonM"]) < GOLDEN_TOL
 
 
 def test_golden_header_is_as_documented() -> None:
@@ -58,11 +65,9 @@ def test_golden_header_is_as_documented() -> None:
 def test_projection_matches_golden() -> None:
     for case in load_golden()["projection"]:
         r = project_onto_segment(LatLon(*case["p"]), LatLon(*case["a"]), LatLon(*case["b"]))
-        assert (r.t, r.cross_track_m, r.along_segment_m) == (
-            case["t"],
-            case["crossTrackM"],
-            case["alongM"],
-        )
+        assert abs(r.t - case["t"]) < GOLDEN_TOL
+        assert abs(r.cross_track_m - case["crossTrackM"]) < GOLDEN_TOL
+        assert abs(r.along_segment_m - case["alongM"]) < GOLDEN_TOL
 
 
 def test_projection_interior_endpoint_and_zero_length() -> None:
