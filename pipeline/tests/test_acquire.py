@@ -17,6 +17,7 @@ import pytest
 
 from cantre_pipeline import cli
 from cantre_pipeline.acquire import (
+    Member,
     SourceRecord,
     acquire,
     load_source,
@@ -71,16 +72,21 @@ class Served:
             packageVersion="2.0",
             crsWkt=PRJ,
             metadataMember=XML_NAME,
-            members=(),
+            members=tuple(
+                Member(n, len(d), hashlib.sha256(d).hexdigest())
+                for n, d in sorted(self.members.items())
+            ),
         )
         return replace(base, **changes)
 
 
-def serve(payload: bytes, members: dict[str, bytes]) -> Iterator[Served]:
+def serve(
+    payload: bytes, members: dict[str, bytes], declared: int | None = None
+) -> Iterator[Served]:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
             self.send_response(200)
-            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Content-Length", str(len(payload) if declared is None else declared))
             self.send_header("Last-Modified", LAST_MODIFIED)
             self.end_headers()
             self.wfile.write(payload)
@@ -352,3 +358,154 @@ def test_module_entry_point_exits_with_cli_status(monkeypatch: pytest.MonkeyPatc
     with pytest.raises(SystemExit) as e:
         runpy.run_module("cantre_pipeline", run_name="__main__")
     assert e.value.code == 2
+
+
+def leftovers(cache: Path) -> list[str]:
+    return sorted(
+        p.name for p in cache.iterdir() if p.name.endswith(".part") or ".stage-" in p.name
+    )
+
+
+def record(tmp_path: Path, served: Served, source: str = "sk") -> tuple[SourceRecord, Path]:
+    return acquire(
+        source,
+        cache_dir=tmp_path / "c",
+        sources_dir=tmp_path / "s",
+        record=True,
+        opener=served.opener,
+    )
+
+
+def test_short_body_against_content_length_is_truncated(tmp_path: Path) -> None:
+    payload = make_zip(MEMBERS)
+    for served in serve(payload, MEMBERS, declared=len(payload) + 10):
+        with pytest.raises(PipelineError) as e:
+            record(tmp_path, served)
+        assert e.value.code == "TRUNCATED_DOWNLOAD"
+    assert leftovers(tmp_path / "c") == [] and not (tmp_path / "s" / "sk.json").exists()
+
+
+def test_content_length_mismatch_is_detected_without_an_exception_from_http(
+    tmp_path: Path,
+) -> None:
+    class Response:
+        def __init__(self) -> None:
+            self.headers = {"Content-Length": "100", "Last-Modified": LAST_MODIFIED}
+            self.chunks = [b"abc", b""]
+
+        def read(self, _n: int) -> bytes:
+            return self.chunks.pop(0)
+
+        def __enter__(self) -> "Response":
+            return self
+
+        def __exit__(self, *_a: object) -> None:
+            return None
+
+    with pytest.raises(PipelineError) as e:
+        acquire(
+            "tc-gci",
+            cache_dir=tmp_path / "c",
+            sources_dir=tmp_path / "s",
+            record=True,
+            opener=lambda *_a, **_k: Response(),
+        )
+    assert e.value.code == "TRUNCATED_DOWNLOAD" and "received 3 bytes" in str(e.value)
+    assert leftovers(tmp_path / "c") == []
+
+
+def test_truncated_zip_with_honest_length_is_rejected(tmp_path: Path) -> None:
+    for served in serve(make_zip(MEMBERS)[:-30], MEMBERS):
+        with pytest.raises(PipelineError) as e:
+            record(tmp_path, served)
+        assert e.value.code == "TRUNCATED_DOWNLOAD"
+    assert leftovers(tmp_path / "c") == []
+
+
+def test_non_utf8_prj_is_schema_drift(tmp_path: Path) -> None:
+    members = {**MEMBERS, "NRWN_SK_2_0_TRACK.prj": b"\xff\xfe\x00bad"}
+    for served in serve(make_zip(members), members):
+        with pytest.raises(PipelineError) as e:
+            record(tmp_path, served)
+        assert e.value.code == "SCHEMA_DRIFT"
+
+
+def test_short_extraction_is_detected_in_record_mode(
+    tmp_path: Path, served_zip: Served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cantre_pipeline.acquire as mod
+
+    real = mod._write_member
+
+    def skip_dbf(target: Path, data: bytes) -> None:
+        if target.suffix != ".dbf":
+            real(target, data)
+
+    monkeypatch.setattr(mod, "_write_member", skip_dbf)
+    with pytest.raises(PipelineError) as e:
+        record(tmp_path, served_zip)
+    assert e.value.code == "INCOMPLETE_EXTRACTION" and "CANTRE_RAW_DIR" in str(e.value)
+    assert not (tmp_path / "s" / "sk.json").exists()
+    assert not (tmp_path / "c" / served_zip.sha256).exists() and leftovers(tmp_path / "c") == []
+
+
+def test_record_mode_members_come_from_the_zip_listing(tmp_path: Path, served_zip: Served) -> None:
+    rec, _ = record(tmp_path, served_zip)
+    assert [(m.name, m.size) for m in rec.members] == [
+        (n, len(MEMBERS[n])) for n in sorted(MEMBERS)
+    ]
+
+
+def test_short_extraction_is_detected_in_verify_mode(
+    tmp_path: Path, served_zip: Served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cantre_pipeline.acquire as mod
+
+    rec, _ = record(tmp_path, served_zip)
+    real = mod._write_member
+    monkeypatch.setattr(
+        mod, "_write_member", lambda t, d: None if t.suffix == ".shp" else real(t, d)
+    )
+    with pytest.raises(PipelineError) as e:
+        acquire(
+            "sk", cache_dir=tmp_path / "c", sources_dir=tmp_path / "s", opener=served_zip.opener
+        )
+    assert e.value.code == "INCOMPLETE_EXTRACTION" and "CANTRE_RAW_DIR" in str(e.value)
+    assert rec.members  # the recorded list was non-empty, so the shortfall was real
+
+
+def test_verify_mode_rejects_stale_recorded_members(tmp_path: Path, served_zip: Served) -> None:
+    stale = (Member("NRWN_SK_2_0_TRACK.shp", 1, "0" * 64),)
+    write_source(tmp_path / "s", served_zip.record_with(members=stale))
+    with pytest.raises(PipelineError) as e:
+        acquire(
+            "sk", cache_dir=tmp_path / "c", sources_dir=tmp_path / "s", opener=served_zip.opener
+        )
+    assert e.value.code == "INCOMPLETE_EXTRACTION" and "1 recorded" in str(e.value)
+
+
+def test_write_failure_names_cantre_raw_dir_and_path_length(
+    tmp_path: Path, served_zip: Served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import cantre_pipeline.acquire as mod
+
+    def boom(_t: Path, _d: bytes) -> None:
+        raise OSError("path too long")
+
+    monkeypatch.setattr(mod, "_write_member", boom)
+    with pytest.raises(PipelineError) as e:
+        record(tmp_path, served_zip)
+    assert e.value.code == "INCOMPLETE_EXTRACTION"
+    assert "CANTRE_RAW_DIR" in str(e.value) and "-character path" in str(e.value)
+    assert leftovers(tmp_path / "c") == []
+
+
+def test_corrupt_file_copy_is_detected(
+    tmp_path: Path, served_csv: Served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    monkeypatch.setattr(shutil, "copyfile", lambda _s, d: Path(d).write_bytes(b"junk"))
+    with pytest.raises(PipelineError) as e:
+        record(tmp_path, served_csv, "tc-gci")
+    assert e.value.code == "INCOMPLETE_EXTRACTION"

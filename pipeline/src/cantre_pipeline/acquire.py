@@ -12,12 +12,15 @@ Raw bytes live in the cache directory (git-ignored), never in the repository.
 """
 
 import hashlib
+import http.client
 import json
+import os
 import re
 import shutil
 import tempfile
 import urllib.request
 import zipfile
+import zlib
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -119,19 +122,31 @@ def _download(
     request = urllib.request.Request(spec.url, headers={"User-Agent": _USER_AGENT})  # noqa: S310
     digest = hashlib.sha256()
     size = 0
+    fd, name = tempfile.mkstemp(dir=cache_dir, suffix=".part")
+    part = Path(name)
     try:
-        with (
-            opener(request, timeout=120) as response,
-            tempfile.NamedTemporaryFile(dir=cache_dir, suffix=".part", delete=False) as tmp,
-        ):
+        with os.fdopen(fd, "wb") as tmp, opener(request, timeout=120) as response:
             last_modified = response.headers.get("Last-Modified")
+            declared = response.headers.get("Content-Length")
             while chunk := response.read(_CHUNK):
                 tmp.write(chunk)
                 digest.update(chunk)
                 size += len(chunk)
+        if declared is not None and int(declared) != size:
+            raise PipelineError(
+                "TRUNCATED_DOWNLOAD",
+                f"{spec.url}: received {size} bytes, Content-Length {declared}",
+            )
+    except http.client.HTTPException as exc:  # includes IncompleteRead
+        part.unlink(missing_ok=True)
+        raise PipelineError("TRUNCATED_DOWNLOAD", f"{spec.url}: {exc!r}") from exc
     except OSError as exc:  # URLError and HTTPError are OSError subclasses
+        part.unlink(missing_ok=True)
         raise PipelineError("DOWNLOAD_FAILED", f"cannot download {spec.url}: {exc}") from exc
-    return Path(tmp.name), digest.hexdigest(), size, last_modified
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    return part, digest.hexdigest(), size, last_modified
 
 
 def _check_member_name(name: str) -> str:
@@ -143,18 +158,46 @@ def _check_member_name(name: str) -> str:
     return posix
 
 
-def _extract(zip_path: Path, dest: Path) -> None:
-    """Extract ``zip_path`` into the existing directory ``dest``.
+def _write_member(target: Path, data: bytes) -> None:
+    """Write one extracted member (a seam so tests can simulate a short extraction)."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
 
-    All member names are validated before anything is written (zip-slip guard).
+
+def _extract(zip_path: Path, dest: Path) -> tuple[Member, ...]:
+    """Extract ``zip_path`` into ``dest``; return the archive's file list from the zip stream.
+
+    All member names are validated before anything is written (zip-slip guard). The returned
+    members (name, uncompressed size, SHA-256 of the bytes read from the zip, sorted by name) come
+    from the archive, not from the disk, so a short extraction cannot hide in them.
+
+    Raises:
+        PipelineError: ``UNSAFE_ARCHIVE``; ``TRUNCATED_DOWNLOAD`` for an unreadable zip;
+            ``INCOMPLETE_EXTRACTION`` when a file cannot be written (the message names
+            ``CANTRE_RAW_DIR`` and the path length, the usual Windows cause).
     """
-    with zipfile.ZipFile(zip_path) as zf:
-        infos = [i for i in zf.infolist() if not i.is_dir()]
-        names = {i.filename: _check_member_name(i.filename) for i in infos}
-        for info in infos:
-            target = dest / names[info.filename]
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(zf.read(info))
+    members: list[Member] = []
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            infos = [i for i in zf.infolist() if not i.is_dir()]
+            names = {i.filename: _check_member_name(i.filename) for i in infos}
+            for info in infos:
+                data = zf.read(info)
+                target = dest / names[info.filename]
+                try:
+                    _write_member(target, data)
+                except OSError as exc:
+                    raise PipelineError(
+                        "INCOMPLETE_EXTRACTION",
+                        f"cannot write {names[info.filename]} ({len(str(target))}-character path): "
+                        f"{exc}. Set CANTRE_RAW_DIR to a shorter directory.",
+                    ) from exc
+                members.append(
+                    Member(names[info.filename], len(data), hashlib.sha256(data).hexdigest())
+                )
+    except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+        raise PipelineError("TRUNCATED_DOWNLOAD", f"not a readable zip: {exc!r}") from exc
+    return tuple(sorted(members, key=lambda m: m.name))
 
 
 def _zip_metadata(members: tuple[Member, ...], root: Path) -> tuple[str, str, str]:
@@ -175,7 +218,11 @@ def _zip_metadata(members: tuple[Member, ...], root: Path) -> tuple[str, str, st
             "SCHEMA_DRIFT",
             "NRWN package needs NRWN_<pr>_<maj>_<min>_* members, a TRACK .prj and an RFN_*.xml",
         )
-    return version, (root / track_prj).read_text(encoding="utf-8"), metadata
+    try:
+        crs = (root / track_prj).read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise PipelineError("SCHEMA_DRIFT", f"{track_prj} is not UTF-8 text: {exc}") from exc
+    return version, crs, metadata
 
 
 def _file_version(spec: SourceSpec) -> str:
@@ -186,22 +233,45 @@ def _file_version(spec: SourceSpec) -> str:
     return f"{match.group(1)} update"
 
 
-def _materialise(spec: SourceSpec, raw: Path, sha256: str, cache_dir: Path) -> Path:
-    """Extract (zip) or copy (file) ``raw`` into ``cache_dir/<sha256>/``, replacing any old copy."""
+def _materialise(
+    spec: SourceSpec, raw: Path, sha256: str, cache_dir: Path, expected: tuple[Member, ...] | None
+) -> tuple[Path, tuple[Member, ...]]:
+    """Extract (zip) or copy (file) ``raw`` into ``cache_dir/<sha256>/``, replacing any old copy.
+
+    Returns the directory and the archive's file list. Before the directory is put in place, the
+    files on disk (names, sizes, SHA-256) must equal that list and, when ``expected`` is given,
+    the recorded ``members``; a file source's copy must hash to ``sha256``.
+
+    Raises:
+        PipelineError: ``INCOMPLETE_EXTRACTION`` on any difference.
+    """
     final = cache_dir / sha256
     staging = Path(tempfile.mkdtemp(dir=cache_dir, prefix=".stage-"))
     try:
         if spec.kind == "zip":
-            _extract(raw, staging)
+            listed = _extract(raw, staging)
+            on_disk = _members_of(staging)
+            if on_disk != listed or (expected is not None and on_disk != expected):
+                recorded = f", {len(expected)} recorded" if expected is not None else ""
+                raise PipelineError(
+                    "INCOMPLETE_EXTRACTION",
+                    f"extracted files differ from the archive list ({len(on_disk)} on disk, "
+                    f"{len(listed)} in the zip{recorded}). "
+                    "Set CANTRE_RAW_DIR to a shorter directory if paths are long.",
+                )
         else:
-            shutil.copyfile(raw, staging / Path(unquote(urlparse(spec.url).path)).name)
+            listed = ()
+            copy = staging / Path(unquote(urlparse(spec.url).path)).name
+            shutil.copyfile(raw, copy)
+            if _sha256_file(copy) != sha256:
+                raise PipelineError("INCOMPLETE_EXTRACTION", f"copy of {copy.name} is corrupt")
         if final.exists():
             shutil.rmtree(final)
         staging.rename(final)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    return final
+    return final, listed
 
 
 def acquire(
@@ -228,7 +298,8 @@ def acquire(
 
     Raises:
         PipelineError: ``UNKNOWN_PROVINCE``, ``DOWNLOAD_FAILED``, ``HASH_MISMATCH``,
-            ``UNSAFE_ARCHIVE`` or ``SCHEMA_DRIFT``.
+            ``UNSAFE_ARCHIVE``, ``TRUNCATED_DOWNLOAD``, ``INCOMPLETE_EXTRACTION`` or
+            ``SCHEMA_DRIFT``.
     """
     spec = source_spec(source_id)
     suffix = ".zip" if spec.kind == "zip" else ".bin"
@@ -249,16 +320,17 @@ def acquire(
             )
         raw = cache_dir / f"{sha256}{suffix}"
         part.replace(raw)
-    extracted = _materialise(spec, raw, sha256, cache_dir)
+    extracted, members = _materialise(
+        spec, raw, sha256, cache_dir, known.members if known is not None else None
+    )
     if known is not None:
         return known, extracted
     if spec.kind == "zip":
-        members = _members_of(extracted)
         version, crs, metadata = _zip_metadata(members, extracted)
         crs_wkt: str | None = crs
         metadata_member: str | None = metadata
     else:
-        members, version, crs_wkt, metadata_member = (), _file_version(spec), None, None
+        version, crs_wkt, metadata_member = _file_version(spec), None, None
     rec = SourceRecord(
         sourceId=source_id,
         kind=spec.kind,

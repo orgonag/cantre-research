@@ -113,8 +113,8 @@ were retrieved 2026-10-24:
 | Document | Title in the PDF | SHA-256 | What it establishes |
 |---|---|---|---|
 | `GeoBase_nrwn_en_Distribution_Formats.pdf` | GeoBase - Product Distribution Formats, Edition 1.0 | `a5ab02394e9b8f490fa6e27c35b2b870b97aba5a7e080f4c582ebcf0f8014744` | Field table: `geometryPlanimetricAccuracy` is `GEOACCURA`, `NUMBER(3)`, in shapefile, GML and KML. |
-| `GeoBase_nrwn_en_Catalogue.pdf` | GeoBase - Feature Catalogue, Edition 1.0 | `68ef8439c2fd936d75e448e384dda59d9296ad7b4e39a70d11f15a25fdb84002` | `GeometryObjectMD.planimetricAccuracy`, an Integer: planimetric accuracy of the object, in metres, as a circular map accuracy standard (CMAS). |
-| `GeoBase_nrwn_en_Specifications.pdf` | GeoBase - Data Product Specifications, Edition 1.0 | `1b665ffab8d84e42197586b70df2e80c85d9fc1e923f52b84628803706c568b1` | Section 6.3.1, absolute external positional accuracy: given per feature, in CMAS; product aim "10 meters or better". |
+| `GeoBase_nrwn_en_Catalogue.pdf` | GeoBase - Feature Catalogue, Edition 1.0 | `68ef8439c2fd936d75e448e384dda59d9296ad7b4e39a70d11f15a25fdb84002` | `GeometryObjectMD.planimetricAccuracy`, an Integer attribute that the catalogue defines as expressed "in meters as a circular map accuracy standard" (CMAS). |
+| `GeoBase_nrwn_en_Specifications.pdf` | GeoBase - Data Product Specifications, Edition 1.0 | `1b665ffab8d84e42197586b70df2e80c85d9fc1e923f52b84628803706c568b1` | Section 6.3.1, absolute external positional accuracy: given per feature, in CMAS; the product aim is 10 m or better. |
 | `GeoBase_nrwn_en_Release_Notes.pdf` | (release notes, 2017-09-12) | `870f4d8509e75a0b3f3fcb4bdadac9c3c563b8d5ebc5dc9f6530a2873eb16b8c` | Read for edition context only; says nothing about accuracy. |
 
 - Unit: metres, horizontal (planimetric).
@@ -122,8 +122,8 @@ were retrieved 2026-10-24:
   as `c = 0.7071 (x² + y²)^½` with `x`, `y` the standard deviations on each axis, and
   `CMAS = 2.1460 c`.
 - The package metadata XML (`RFN_SK_2.0_20161006-135018.xml`) repeats this definition, and its
-  minimum/maximum accuracy elements read "horizontal positional accuracy of the source dataset in
-  meters". For federal source data it states a generally 30 m or better CMAS, which is a
+  minimum and maximum accuracy elements describe the horizontal positional accuracy of the source
+  dataset in metres. For federal source data it states a generally 30 m or better CMAS, which is a
   statement about source data and is looser than the 10 m product aim.
 - Method and limits: the specification says the evaluation method is set by the data provider,
   and that no systematic validation of accuracy is performed during maintenance. The value is
@@ -134,7 +134,7 @@ were retrieved 2026-10-24:
   `archive/` subdirectories were not opened).
 - SK values counted 2026-10-24 with pyshp: `10` on all 7,084 TRACK and 5,163 JUNCTION records,
   and `-1` on every record of the other five layers (7,660 CROSSING, 2,430 MARKERPOST, 256
-  STATION, 4 STRUCTURE_0, 451 STRUCTURE_1). The catalogue uses `-1` as its "unknown" code for coded attributes; it does not
+  STATION, 4 STRUCTURE_0, 451 STRUCTURE_1). The catalogue uses `-1` as its unknown code for coded attributes; it does not
   define `-1` for `planimetricAccuracy`, so `-1` is read as unknown by that convention.
 - How v1 uses it: the value is shown as the source's stated accuracy (a CMAS in metres), never as
   a confidence interval and never combined into an uncertainty (spec §6e).

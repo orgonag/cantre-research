@@ -9,8 +9,17 @@ PipelineErrorCode = Literal[
     "DOWNLOAD_FAILED",
     "UNKNOWN_PROVINCE",
     "UNSAFE_ARCHIVE",
+    "TRUNCATED_DOWNLOAD",
+    "INCOMPLETE_EXTRACTION",
 ]
-"""Closed set of fatal error codes; callers branch on ``PipelineError.code``."""
+"""Closed set of fatal error codes; callers branch on ``PipelineError.code``.
+
+``UNSAFE_ARCHIVE``: a zip member name is absolute or contains ``..``.
+``TRUNCATED_DOWNLOAD``: fewer bytes arrived than ``Content-Length`` promised, or the bytes are not
+a readable zip.
+``INCOMPLETE_EXTRACTION``: the files on disk differ from the archive's file list (names, sizes or
+SHA-256), for example because a write failed or a Windows path was too long.
+"""
 
 
 class PipelineError(Exception):
