@@ -219,16 +219,90 @@ def test_unverified_between_posted_pair_that_is_not_ok_is_kept() -> None:
     assert "u1" in [a.id for a in kept]
 
 
-def test_unverified_exactly_at_a_higher_tier_position_is_not_tested() -> None:
+@pytest.mark.parametrize("uid", ["u1", "a1", "zz", "p1"])
+def test_coincident_lower_tier_is_dropped_whatever_its_id(uid: str) -> None:
     anchors = [
         anchor("p0", 0.0, 10.0),
-        anchor("u1", MILE, 10.9, "unverified"),
+        anchor(uid, MILE, 10.9, "unverified"),
         anchor("p2", MILE, 11.0),
         anchor("p3", 2 * MILE, 12.0),
     ]
+    ivs, kept, audit = build(anchors)
+    assert [a.id for a in kept] == ["p0", "p2", "p3"]
+    assert [i.anchor_ids for i in ivs] == [("p0", "p2", "p3")]
+    c = [a for a in audit if a.reason == "ANCHOR_CONFLICT"]
+    assert [(a.nid, a.severity) for a in c] == [(uid, "rejected")]
+    assert "p2" in c[0].detail and "10.900" in c[0].detail and "11.000" in c[0].detail
+
+
+def test_coincident_same_tier_conflict_drops_both() -> None:
+    anchors = [
+        anchor("p0", 0.0, 10.0),
+        anchor("b1", MILE, 10.9),
+        anchor("b2", MILE + 5.0, 11.0),
+        anchor("p3", 2 * MILE, 12.0),
+    ]
+    ivs, kept, audit = build(anchors)
+    assert [a.id for a in kept] == ["p0", "p3"]
+    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["b1", "b2"]
+    assert len(ivs) == 1
+
+
+def test_coincident_conflict_drops_only_the_loser() -> None:
+    # u loses to p. q (posted, equal mp to p) is not touched through the dropped u.
+    anchors = [
+        anchor("p", MILE, 11.0),
+        anchor("u", MILE, 11.4, "unverified"),
+        anchor("q", MILE + 1.0, 11.0),
+    ]
     _, kept, audit = build(anchors)
-    assert "UNVERIFIED_DEVIATION" not in reasons(audit)  # not strictly between p0 and p2
-    assert [a.id for a in kept] == ["p0", "p2", "u1", "p3"]
+    assert [a.id for a in kept] == ["p", "q"]
+    assert [a.nid for a in audit if a.reason == "ANCHOR_CONFLICT"] == ["u"]
+
+
+def test_h_subpass_outlier_stays_in_main_set_and_h_is_the_reference() -> None:
+    # x is an outlier among the higher tiers alone (ref = p0, p2) but not in the main set,
+    # where the unverified u sits 161 m before it. u is tested against the filtered H.
+    anchors = [
+        anchor("p0", 0.0, 10.0),
+        anchor("u", 1.9 * MILE, 12.3, "unverified"),
+        anchor("x", 2.0 * MILE, 12.4),
+        anchor("p2", 4.0 * MILE, 14.0),
+    ]
+    _, kept, audit = build(anchors)
+    assert "x" in [a.id for a in kept]
+    assert [a.nid for a in audit if a.reason == "UNVERIFIED_DEVIATION"] == ["u"]
+    assert "ANCHOR_OUTLIER" not in reasons(audit)
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    data=st.lists(
+        st.tuples(
+            st.integers(0, 40).map(lambda v: v * 20.0),
+            st.integers(0, 600).map(lambda v: v / 100),
+            st.sampled_from(["posted", "tc", "unverified"]),
+        ),
+        max_size=20,
+    ),
+    flip=st.booleans(),
+)
+def test_property_renaming_ids_does_not_change_membership(
+    data: list[tuple[float, float, AnchorTier]], flip: bool
+) -> None:
+    def shape(names: list[str]) -> list[tuple[tuple[float, float, str], ...]]:
+        anchors = [anchor(n, s, mp, tier) for n, (s, mp, tier) in zip(names, data, strict=True)]
+        ivs, kept, _ = build(anchors)
+        by_id = {a.id: a for a in kept}
+        return [tuple((a.s_m, a.mp, a.tier) for a in members_of(iv, by_id)) for iv in ivs]
+
+    def members_of(iv: Interval, by_id: dict[str, QualifiedAnchor]) -> list[QualifiedAnchor]:
+        return [by_id[i] for i in iv.anchor_ids]
+
+    n = len(data)
+    plain = [f"a{i:03d}" for i in range(n)]
+    renamed = [f"a{(n - i) if flip else i + n:03d}" for i in range(n)]
+    assert shape(plain) == shape(renamed)
 
 
 def test_outlier_pass_drops_lower_tier_first() -> None:
@@ -374,3 +448,12 @@ def test_real_sk_interval_contract() -> None:  # pragma: no cover - env-gated
             assert all(v > 0 for v in d) or all(v < 0 for v in d)
             total += 1
     assert total > 0
+
+
+def test_pair_rules_are_defensive_about_non_advancing_pairs() -> None:
+    from cantre_pipeline.intervals import _pair_ok, _slope
+
+    a, b = anchor("a", 100.0, 1.0), anchor("b", 100.0, 2.0)
+    assert _slope(a, b) == float("inf")
+    assert not _pair_ok(a, b, CFG)
+    assert not _pair_ok(b, anchor("c", 50.0, 3.0), CFG)

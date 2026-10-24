@@ -13,6 +13,13 @@ of core's ``interpolateMilepost``; across an interval boundary nothing is ever i
    A run becomes one anchor at the mean ``s``; it keeps the ``mp``, id, tier and source of the
    best-tier member (Decision 8; ties: smallest id), the union of the ``member_nids`` and the
    largest residual. Every member gets an ``ANCHOR_COLLAPSED`` info line.
+1b. **Coincident conflicts** (spec section 5.5, ruling R10). Two anchors with
+   ``|Δs| <= anchor_collapse_span_m`` and ``|Δmp| > mp_equal_tol_mi`` (the equal-mp ones were
+   merged by step 1) cannot both be right. Pairs are visited in sort order; a pair with an
+   already dropped member is skipped. Different tiers: the lower tier is dropped. Same tier:
+   both are dropped (no basis to choose). Each drop is an ``ANCHOR_CONFLICT`` ``rejected`` line.
+   The sort key everywhere is ``(s_m, TIER_RANK[tier], id)``, so the outcome never depends on id
+   spelling except to break ties between equal tier and equal ``s``.
 2. **pair_ok(a, b)**, for ``a`` before ``b``: ``Δs = s_b - s_a > 0``; ``|Δmp| > mp_equal_tol_mi``;
    and either ``Δs < slope_min_span_m`` (too short for the slope to mean anything) or
    ``| |Δmp| * 1609.344 / Δs - 1 | <= slope_tolerance``. A true track mile is 1609.344 m, so the
@@ -195,6 +202,44 @@ def _collapse(
     return out
 
 
+def _resolve_conflicts(
+    anchors: list[QualifiedAnchor], cfg: PipelineConfig, audit: list[AuditRecord]
+) -> list[QualifiedAnchor]:
+    """Step 1b (ruling R10): drop the lower tier of each coincident conflict, or both if equal."""
+    dropped: set[int] = set()
+    for i, a in enumerate(anchors):
+        if i in dropped:
+            continue
+        for j in range(i + 1, len(anchors)):
+            b = anchors[j]
+            if b.s_m - a.s_m > cfg.anchor_collapse_span_m:
+                break
+            if j in dropped or i in dropped:
+                continue
+            if not abs(b.mp - a.mp) > cfg.mp_equal_tol_mi + _EPS_MI:
+                continue
+            ra, rb = TIER_RANK[a.tier], TIER_RANK[b.tier]
+            if ra == rb:
+                losers = [(i, a, b), (j, b, a)]
+                detail = "same tier, no basis to choose"
+            else:
+                losers = [(j, b, a)] if rb > ra else [(i, a, b)]
+                detail = "lower tier dropped"
+            for idx, lose, other in losers:
+                dropped.add(idx)
+                audit.append(
+                    _audit(
+                        lose,
+                        "ANCHOR_CONFLICT",
+                        "rejected",
+                        f"within {cfg.anchor_collapse_span_m} m of {other.id}: "
+                        f"MP {lose.mp:.3f} vs {other.mp:.3f} ({detail}"
+                        f"{'' if ra == rb else '; kept anchor ' + other.id})",
+                    )
+                )
+    return [a for i, a in enumerate(anchors) if i not in dropped]
+
+
 def _outliers(
     anchors: list[QualifiedAnchor], cfg: PipelineConfig, audit: list[AuditRecord] | None
 ) -> list[QualifiedAnchor]:
@@ -304,14 +349,19 @@ def build_intervals(
     Applies steps 1 to 5 of the module docstring to the anchors whose ``chain_id`` is the
     chain's (others are ignored), after sorting by ``(s_m, id)``. Units: metres, miles.
     Returns ``(intervals, kept, audit)``: the intervals (ids ``f"{chain.id}.i{n}"``, ``n`` from
-    0 along ``s``), every anchor left after collapsing and outlier removal (in ``s`` order, a
-    superset of the interval anchors) and the audit lines. The result depends only on the set of
+    0 along ``s``), every anchor left after collapsing and after the ANCHOR_CONFLICT,
+    ANCHOR_OUTLIER and UNVERIFIED_DEVIATION drops (in ``s`` order, a superset of the interval
+    anchors) and the audit lines. The result depends only on the set of
     anchors. Every emitted interval has at least two anchors, strictly increasing ``s`` and a
     strictly monotonic ``mp``, so core's ``validateInterval`` accepts it.
     """
     audit: list[AuditRecord] = []
-    own = sorted((a for a in anchors if a.chain_id == chain.id), key=lambda a: (a.s_m, a.id))
+    own = sorted(
+        (a for a in anchors if a.chain_id == chain.id),
+        key=lambda a: (a.s_m, TIER_RANK[a.tier], a.id),
+    )
     collapsed = _collapse(own, cfg, audit)  # step 1
+    collapsed = _resolve_conflicts(collapsed, cfg, audit)  # step 1b (ruling R10)
     main = _outliers(collapsed, cfg, audit)  # step 3 on the full set
     # Step 4 reference: the higher tiers alone, outlier pass on their own (ruling R4). Its drops
     # are not audited here; the main pass decides what leaves the set.
