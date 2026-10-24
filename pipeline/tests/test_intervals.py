@@ -248,16 +248,57 @@ def test_coincident_same_tier_conflict_drops_both() -> None:
     assert len(ivs) == 1
 
 
-def test_coincident_conflict_drops_only_the_loser() -> None:
-    # u loses to p. q (posted, equal mp to p) is not touched through the dropped u.
+def test_chained_conflict_cluster_with_two_posted_is_dropped_whole() -> None:
+    # p-u and u-q conflict, so {p, u, q} is one cluster with two posted members: all dropped.
     anchors = [
         anchor("p", MILE, 11.0),
         anchor("u", MILE, 11.4, "unverified"),
         anchor("q", MILE + 1.0, 11.0),
     ]
     _, kept, audit = build(anchors)
-    assert [a.id for a in kept] == ["p", "q"]
-    assert [a.nid for a in audit if a.reason == "ANCHOR_CONFLICT"] == ["u"]
+    assert kept == []
+    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["p", "q", "u"]
+    assert all("[p, q, u]" in a.detail or "[p, u, q]" in a.detail for a in audit)
+
+
+def test_cluster_with_one_posted_and_two_unverified_keeps_the_posted() -> None:
+    anchors = [
+        anchor("p0", 0.0, 10.0),
+        anchor("u1", MILE, 10.9, "unverified"),
+        anchor("u2", MILE + 3.0, 11.2, "unverified"),
+        anchor("b", MILE + 5.0, 11.0),
+        anchor("p3", 2 * MILE, 12.0),
+    ]
+    ivs, kept, audit = build(anchors)
+    assert [a.id for a in kept] == ["p0", "b", "p3"]
+    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["u1", "u2"]
+    assert len(ivs) == 1
+
+
+def test_lower_tier_cannot_survive_after_higher_tier_conflict_drops_both() -> None:
+    anchors = [
+        anchor("p0", 0.0, 10.0),
+        anchor("b1", MILE, 10.8),
+        anchor("b2", MILE, 11.2),
+        anchor("u", MILE, 11.0, "unverified"),
+        anchor("p9", 2 * MILE, 12.0),
+    ]
+    _, kept, _ = build(anchors)
+    assert [a.id for a in kept] == ["p0", "p9"]
+
+
+def test_three_way_same_tier_cluster_is_id_independent() -> None:
+    from itertools import permutations
+
+    results = set()
+    for names in permutations(["x1", "x2", "x3"]):
+        anchors = [anchor("p0", 0.0, 10.0), anchor("p9", 2 * MILE, 12.0)] + [
+            anchor(n, MILE, mp) for n, mp in zip(names, (10.8, 10.9, 11.1), strict=True)
+        ]
+        _, kept, audit = build(anchors)
+        results.add(tuple(a.id for a in kept))
+        assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["x1", "x2", "x3"]
+    assert results == {("p0", "p9")}
 
 
 def test_h_subpass_outlier_stays_in_main_set_and_h_is_the_reference() -> None:
@@ -279,7 +320,7 @@ def test_h_subpass_outlier_stays_in_main_set_and_h_is_the_reference() -> None:
 @given(
     data=st.lists(
         st.tuples(
-            st.integers(0, 40).map(lambda v: v * 20.0),
+            st.integers(0, 12).map(lambda v: v * 20.0 if v % 3 else 1609.0),
             st.integers(0, 600).map(lambda v: v / 100),
             st.sampled_from(["posted", "tc", "unverified"]),
         ),

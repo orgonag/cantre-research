@@ -13,13 +13,16 @@ of core's ``interpolateMilepost``; across an interval boundary nothing is ever i
    A run becomes one anchor at the mean ``s``; it keeps the ``mp``, id, tier and source of the
    best-tier member (Decision 8; ties: smallest id), the union of the ``member_nids`` and the
    largest residual. Every member gets an ``ANCHOR_COLLAPSED`` info line.
-1b. **Coincident conflicts** (spec section 5.5, ruling R10). Two anchors with
-   ``|Δs| <= anchor_collapse_span_m`` and ``|Δmp| > mp_equal_tol_mi`` (the equal-mp ones were
-   merged by step 1) cannot both be right. Pairs are visited in sort order; a pair with an
-   already dropped member is skipped. Different tiers: the lower tier is dropped. Same tier:
-   both are dropped (no basis to choose). Each drop is an ``ANCHOR_CONFLICT`` ``rejected`` line.
-   The sort key everywhere is ``(s_m, TIER_RANK[tier], id)``, so the outcome never depends on id
-   spelling except to break ties between equal tier and equal ``s``.
+1b. **Coincident conflicts** (spec section 5.5, ruling R11). After the collapse, two anchors
+   *conflict* when ``|Δs| <= anchor_collapse_span_m`` and ``|Δmp| > mp_equal_tol_mi``. The
+   connected components of the conflict graph are *clusters*; anchors with no conflict are
+   untouched. In a cluster, if exactly one anchor holds the best tier, it is kept and every
+   other member is dropped (``ANCHOR_CONFLICT``, detail names the kept id and both mp). If two
+   or more members share the best tier there is no basis to choose and the whole cluster is
+   dropped (detail lists the cluster ids). Clusters depend only on ``s``, ``mp`` and tier, so
+   the result is independent of id strings and input order. The sort key is
+   ``(s_m, TIER_RANK[tier], id)``; ids only break ties between equal ``s`` and equal tier,
+   which can only matter to the order of audit lines, never to which anchors survive.
 2. **pair_ok(a, b)**, for ``a`` before ``b``: ``Δs = s_b - s_a > 0``; ``|Δmp| > mp_equal_tol_mi``;
    and either ``Δs < slope_min_span_m`` (too short for the slope to mean anything) or
    ``| |Δmp| * 1609.344 / Δs - 1 | <= slope_tolerance``. A true track mile is 1609.344 m, so the
@@ -205,38 +208,54 @@ def _collapse(
 def _resolve_conflicts(
     anchors: list[QualifiedAnchor], cfg: PipelineConfig, audit: list[AuditRecord]
 ) -> list[QualifiedAnchor]:
-    """Step 1b (ruling R10): drop the lower tier of each coincident conflict, or both if equal."""
-    dropped: set[int] = set()
+    """Step 1b (ruling R11): resolve each conflict cluster by tier; see the module docstring."""
+    n = len(anchors)
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    in_conflict = [False] * n
     for i, a in enumerate(anchors):
-        if i in dropped:
-            continue
-        for j in range(i + 1, len(anchors)):
+        for j in range(i + 1, n):
             b = anchors[j]
             if b.s_m - a.s_m > cfg.anchor_collapse_span_m:
-                break
-            if j in dropped or i in dropped:
-                continue
-            if not abs(b.mp - a.mp) > cfg.mp_equal_tol_mi + _EPS_MI:
-                continue
-            ra, rb = TIER_RANK[a.tier], TIER_RANK[b.tier]
-            if ra == rb:
-                losers = [(i, a, b), (j, b, a)]
-                detail = "same tier, no basis to choose"
-            else:
-                losers = [(j, b, a)] if rb > ra else [(i, a, b)]
-                detail = "lower tier dropped"
-            for idx, lose, other in losers:
-                dropped.add(idx)
-                audit.append(
-                    _audit(
-                        lose,
-                        "ANCHOR_CONFLICT",
-                        "rejected",
-                        f"within {cfg.anchor_collapse_span_m} m of {other.id}: "
-                        f"MP {lose.mp:.3f} vs {other.mp:.3f} ({detail}"
-                        f"{'' if ra == rb else '; kept anchor ' + other.id})",
+                break  # sorted by s: nothing further can be within the span
+            if abs(b.mp - a.mp) > cfg.mp_equal_tol_mi + _EPS_MI:
+                in_conflict[i] = in_conflict[j] = True
+                parent[find(i)] = find(j)
+    clusters: dict[int, list[int]] = {}
+    for i in range(n):
+        if in_conflict[i]:
+            clusters.setdefault(find(i), []).append(i)
+    dropped: set[int] = set()
+    for members in clusters.values():  # members are in sort order
+        best = min(TIER_RANK[anchors[i].tier] for i in members)
+        top = [i for i in members if TIER_RANK[anchors[i].tier] == best]
+        if len(top) == 1:
+            keep = anchors[top[0]]
+            for i in members:
+                if i != top[0]:
+                    dropped.add(i)
+                    lose = anchors[i]
+                    detail = (
+                        f"conflicts with {keep.id}: MP {lose.mp:.3f} vs {keep.mp:.3f} "
+                        f"(lower tier dropped; kept anchor {keep.id})"
                     )
+                    audit.append(_audit(lose, "ANCHOR_CONFLICT", "rejected", detail))
+        else:
+            ids = ", ".join(anchors[i].id for i in members)
+            for i in members:
+                dropped.add(i)
+                lose = anchors[i]
+                detail = (
+                    f"MP {lose.mp:.3f} in conflict cluster [{ids}] with several anchors of the "
+                    f"best tier; whole cluster dropped"
                 )
+                audit.append(_audit(lose, "ANCHOR_CONFLICT", "rejected", detail))
     return [a for i, a in enumerate(anchors) if i not in dropped]
 
 
