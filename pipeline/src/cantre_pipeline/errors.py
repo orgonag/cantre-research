@@ -3,7 +3,12 @@
 from typing import Literal
 
 PipelineErrorCode = Literal[
-    "SCHEMA_DRIFT", "HASH_MISMATCH", "CRS_MISMATCH", "DOWNLOAD_FAILED", "UNKNOWN_PROVINCE"
+    "SCHEMA_DRIFT",
+    "HASH_MISMATCH",
+    "CRS_MISMATCH",
+    "DOWNLOAD_FAILED",
+    "UNKNOWN_PROVINCE",
+    "UNSAFE_ARCHIVE",
 ]
 """Closed set of fatal error codes; callers branch on ``PipelineError.code``."""
 
