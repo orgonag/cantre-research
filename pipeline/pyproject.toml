@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cantre-pipeline"
+version = "0.1.0"
+description = "CANTRE data pipeline: NRWN rail network to chains, anchors, intervals and tiles."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = ["pyshp==3.1.6"]
+
+[project.optional-dependencies]
+dev = [
+  "geographiclib==2.1",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "hypothesis==6.168.5",
+  "ruff==0.17.0",
+  "mypy==2.4.0",
+  "jsonschema==4.26.0",
+]
+
+[project.scripts]
+cantre-pipeline = "cantre_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Paths below are relative to this file, so they work whether tools are run from the repo root
+# (`pytest pipeline`) or from `pipeline/`.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "S", "D", "RUF"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D"]
+"scripts/**" = ["D103"]
+
+[tool.mypy]
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--cov=cantre_pipeline --cov-fail-under=95"
