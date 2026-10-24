@@ -6,43 +6,45 @@ strictly decreases. Between two anchors of an interval the milepost is the linea
 of core's ``interpolateMilepost``; across an interval boundary nothing is ever interpolated.
 
 ``build_intervals`` applies these steps in this order to the anchors of one chain, sorted by
-``(s_m, id)``. All distances are metres, all mileposts miles, ``1 mi = 1609.344 m``.
+``(s_m, TIER_RANK[tier], id)``. Distances are metres, mileposts miles, ``1 mi = 1609.344 m``.
 
-1. **Collapse** (Decision 4). Consecutive anchors with ``|Δs| <= anchor_collapse_span_m`` and
+1. **Coincident conflicts** (spec section 5.5, ruling R12). Two anchors *conflict* when
+   ``|Δs| <= anchor_collapse_span_m`` and ``|Δmp| > mp_equal_tol_mi``. The connected components
+   of the conflict graph are *clusters*; anchors with no conflict are untouched. In a cluster,
+   look at the members holding the cluster's best tier. If no conflict edge joins two of them,
+   they agree with each other: all of them are kept and every other member is dropped
+   (``ANCHOR_CONFLICT`` ``rejected``, detail names the kept ids and their mp). If a conflict edge
+   joins two best-tier members there is no basis to choose and the whole cluster is dropped
+   (detail lists the cluster ids). Clusters depend only on ``s``, ``mp`` and tier, so the result
+   is independent of id strings and input order. The sort key is ``(s_m, TIER_RANK[tier], id)``;
+   ids only break ties between equal ``s`` and equal tier, which can matter to the order of
+   audit lines but never to which anchors survive. This runs before the collapse so that a
+   conflicting lower-tier anchor sitting between two agreeing postings cannot keep them apart.
+2. **Collapse** (Decision 4). Consecutive anchors with ``|Δs| <= anchor_collapse_span_m`` and
    ``|Δmp| <= mp_equal_tol_mi`` form a run (each member is compared with the previous member).
    A run becomes one anchor at the mean ``s``; it keeps the ``mp``, id, tier and source of the
    best-tier member (Decision 8; ties: smallest id), the union of the ``member_nids`` and the
    largest residual. Every member gets an ``ANCHOR_COLLAPSED`` info line.
-1b. **Coincident conflicts** (spec section 5.5, ruling R11). After the collapse, two anchors
-   *conflict* when ``|Δs| <= anchor_collapse_span_m`` and ``|Δmp| > mp_equal_tol_mi``. The
-   connected components of the conflict graph are *clusters*; anchors with no conflict are
-   untouched. In a cluster, if exactly one anchor holds the best tier, it is kept and every
-   other member is dropped (``ANCHOR_CONFLICT``, detail names the kept id and both mp). If two
-   or more members share the best tier there is no basis to choose and the whole cluster is
-   dropped (detail lists the cluster ids). Clusters depend only on ``s``, ``mp`` and tier, so
-   the result is independent of id strings and input order. The sort key is
-   ``(s_m, TIER_RANK[tier], id)``; ids only break ties between equal ``s`` and equal tier,
-   which can only matter to the order of audit lines, never to which anchors survive.
-2. **pair_ok(a, b)**, for ``a`` before ``b``: ``Δs = s_b - s_a > 0``; ``|Δmp| > mp_equal_tol_mi``;
+3. **pair_ok(a, b)**, for ``a`` before ``b``: ``Δs = s_b - s_a > 0``; ``|Δmp| > mp_equal_tol_mi``;
    and either ``Δs < slope_min_span_m`` (too short for the slope to mean anything) or
    ``| |Δmp| * 1609.344 / Δs - 1 | <= slope_tolerance``. A true track mile is 1609.344 m, so the
    implied slope of an honest pair is 1.
-3. **Outliers.** Repeat until stable: an interior anchor ``k`` is an outlier when neither
+4. **Outliers.** Repeat until stable: an interior anchor ``k`` is an outlier when neither
    ``pair_ok(k-1, k)`` nor ``pair_ok(k, k+1)`` holds, ``pair_ok(k-1, k+1)`` holds, and the sign
    of that bridge agrees with every neighbouring pair ``(k-2, k-1)`` and ``(k+1, k+2)`` that is
    itself ok. Several candidates in one pass: drop one only, the worst first (highest
    ``TIER_RANK``, then the largest slope error of its two bad pairs, then id), then re-test.
    Each drop is an ``ANCHOR_OUTLIER`` ``rejected`` line carrying both slopes.
-4. **Unverified check** (Decision 3, ruling R4). ``H`` is the collapsed anchors whose tier is not
-   ``unverified``, run through steps 2 and 3 on their own. For an unverified anchor ``u`` of the
-   main set that lies strictly between consecutive ``h1, h2`` in ``H`` with ``pair_ok(h1, h2)``,
-   the anchor is dropped when ``|u.mp - interpolate(h1, h2, u.s)| > unverified_max_deviation_mi``
-   (``UNVERIFIED_DEVIATION`` ``rejected``, detail has predicted and actual MP). ``H`` is only
-   the reference set: anchors the sub-pass removed from ``H`` stay in the main set unless the
-   main step 3 removed them. Unverified anchors outside such a pair are kept. Step 3 is not
-   re-run after step 4 drops anchors (simple and documented; the split in step 5 handles any
-   pair that this leaves bad).
-5. **Split.** Walk consecutive pairs. The current interval's direction is the sign of its
+5. **Unverified check** (Decision 3, ruling R4). ``H`` is the anchors left after step 2 whose
+   tier is not ``unverified``, run through steps 3 and 4 on their own. For an unverified anchor
+   ``u`` of the main set that lies strictly between consecutive ``h1, h2`` in ``H`` with
+   ``pair_ok(h1, h2)``, the anchor is dropped when
+   ``|u.mp - interpolate(h1, h2, u.s)| > unverified_max_deviation_mi`` (``UNVERIFIED_DEVIATION``
+   ``rejected``, detail has predicted and actual MP). ``H`` is only the reference set: anchors
+   the sub-pass removed from ``H`` stay in the main set unless the main step 4 removed them.
+   Unverified anchors outside such a pair are kept. Step 4 is not re-run after step 5 drops
+   anchors (simple and documented; the split in step 6 handles any pair that this leaves bad).
+6. **Split.** Walk consecutive pairs. The current interval's direction is the sign of its
    first pair. The interval is closed before pair ``(i, i+1)`` when ``pair_ok`` fails or the
    sign differs; the pair is not interpolated and the next interval starts at anchor ``i+1``.
    Intervals with fewer than two anchors are not emitted; their anchor stays in the kept set
@@ -118,7 +120,7 @@ def _lerp(lower: QualifiedAnchor, upper: QualifiedAnchor, s_m: float) -> float:
 def isolated_anchors(
     kept: Sequence[QualifiedAnchor], intervals: Sequence[Interval]
 ) -> list[QualifiedAnchor]:
-    """Anchors of ``kept`` that belong to no interval (step 5), in the order given."""
+    """Anchors of ``kept`` that belong to no interval (step 6), in the order given."""
     used = {i for iv in intervals for i in iv.anchor_ids}
     return [a for a in kept if a.id not in used]
 
@@ -132,7 +134,7 @@ def _slope(a: QualifiedAnchor, b: QualifiedAnchor) -> float:
 
 
 def _pair_ok(a: QualifiedAnchor, b: QualifiedAnchor, cfg: PipelineConfig) -> bool:
-    """Step 2 rule for ``a`` before ``b`` (module docstring)."""
+    """Step 3 rule for ``a`` before ``b`` (module docstring)."""
     ds = b.s_m - a.s_m
     if not ds > 0:
         return False
@@ -167,7 +169,7 @@ def _audit(a: QualifiedAnchor, reason: AuditReason, severity: Severity, detail: 
 def _collapse(
     anchors: list[QualifiedAnchor], cfg: PipelineConfig, audit: list[AuditRecord]
 ) -> list[QualifiedAnchor]:
-    """Step 1 (Decision 4): merge runs of near-identical postings; see the module docstring."""
+    """Step 2 (Decision 4): merge runs of near-identical postings; see the module docstring."""
     runs: list[list[QualifiedAnchor]] = []
     for a in anchors:
         prev = runs[-1][-1] if runs else None
@@ -208,7 +210,7 @@ def _collapse(
 def _resolve_conflicts(
     anchors: list[QualifiedAnchor], cfg: PipelineConfig, audit: list[AuditRecord]
 ) -> list[QualifiedAnchor]:
-    """Step 1b (ruling R11): resolve each conflict cluster by tier; see the module docstring."""
+    """Step 1 (ruling R12): resolve each conflict cluster by tier; see the module docstring."""
     n = len(anchors)
     parent = list(range(n))
 
@@ -218,51 +220,46 @@ def _resolve_conflicts(
             x = parent[x]
         return x
 
-    in_conflict = [False] * n
+    edges: list[tuple[int, int]] = []
     for i, a in enumerate(anchors):
         for j in range(i + 1, n):
             b = anchors[j]
             if b.s_m - a.s_m > cfg.anchor_collapse_span_m:
                 break  # sorted by s: nothing further can be within the span
             if abs(b.mp - a.mp) > cfg.mp_equal_tol_mi + _EPS_MI:
-                in_conflict[i] = in_conflict[j] = True
+                edges.append((i, j))
                 parent[find(i)] = find(j)
     clusters: dict[int, list[int]] = {}
-    for i in range(n):
-        if in_conflict[i]:
-            clusters.setdefault(find(i), []).append(i)
+    for i in sorted({k for e in edges for k in e}):
+        clusters.setdefault(find(i), []).append(i)
     dropped: set[int] = set()
     for members in clusters.values():  # members are in sort order
         best = min(TIER_RANK[anchors[i].tier] for i in members)
-        top = [i for i in members if TIER_RANK[anchors[i].tier] == best]
-        if len(top) == 1:
-            keep = anchors[top[0]]
-            for i in members:
-                if i != top[0]:
-                    dropped.add(i)
-                    lose = anchors[i]
-                    detail = (
-                        f"conflicts with {keep.id}: MP {lose.mp:.3f} vs {keep.mp:.3f} "
-                        f"(lower tier dropped; kept anchor {keep.id})"
-                    )
-                    audit.append(_audit(lose, "ANCHOR_CONFLICT", "rejected", detail))
-        else:
-            ids = ", ".join(anchors[i].id for i in members)
-            for i in members:
-                dropped.add(i)
-                lose = anchors[i]
+        top = {i for i in members if TIER_RANK[anchors[i].tier] == best}
+        clash = any(i in top and j in top for i, j in edges)  # conflict between best-tier members
+        keep = [] if clash else sorted(top)
+        ids = ", ".join(anchors[i].id for i in members)
+        for i in members:
+            if i in keep:
+                continue
+            dropped.add(i)
+            lose = anchors[i]
+            if clash:
                 detail = (
-                    f"MP {lose.mp:.3f} in conflict cluster [{ids}] with several anchors of the "
-                    f"best tier; whole cluster dropped"
+                    f"MP {lose.mp:.3f} in conflict cluster [{ids}] with conflicting anchors of "
+                    f"the best tier; whole cluster dropped"
                 )
-                audit.append(_audit(lose, "ANCHOR_CONFLICT", "rejected", detail))
+            else:
+                kept_txt = ", ".join(f"{anchors[k].id} (MP {anchors[k].mp:.3f})" for k in keep)
+                detail = f"MP {lose.mp:.3f} conflicts with higher-tier anchors; kept {kept_txt}"
+            audit.append(_audit(lose, "ANCHOR_CONFLICT", "rejected", detail))
     return [a for i, a in enumerate(anchors) if i not in dropped]
 
 
 def _outliers(
     anchors: list[QualifiedAnchor], cfg: PipelineConfig, audit: list[AuditRecord] | None
 ) -> list[QualifiedAnchor]:
-    """Step 3: drop interior outliers, one per round, worst first, until stable."""
+    """Step 4: drop interior outliers, one per round, worst first, until stable."""
     cur = list(anchors)
     while True:
         best: tuple[tuple[int, float, str], int] | None = None
@@ -303,7 +300,7 @@ def _unverified_check(
     cfg: PipelineConfig,
     audit: list[AuditRecord],
 ) -> list[QualifiedAnchor]:
-    """Step 4 (Decision 3, ruling R4): drop unverified anchors far from the higher-tier line."""
+    """Step 5 (Decision 3, ruling R4): drop unverified anchors far from the higher-tier line."""
     ref_s = [h.s_m for h in ref]
     kept: list[QualifiedAnchor] = []
     for u in main:
@@ -335,7 +332,7 @@ def _unverified_check(
 
 
 def _split(chain_id: str, anchors: list[QualifiedAnchor], cfg: PipelineConfig) -> list[Interval]:
-    """Step 5: cut at every failed pair and at every change of mileage direction."""
+    """Step 6: cut at every failed pair and at every change of mileage direction."""
     runs: list[list[QualifiedAnchor]] = []
     cur: list[QualifiedAnchor] = []
     direction = 0
@@ -365,7 +362,7 @@ def build_intervals(
 ) -> tuple[list[Interval], list[QualifiedAnchor], list[AuditRecord]]:
     """Split ``chain``'s anchors into calibrated intervals (spec section 5.5).
 
-    Applies steps 1 to 5 of the module docstring to the anchors whose ``chain_id`` is the
+    Applies steps 1 to 6 of the module docstring to the anchors whose ``chain_id`` is the
     chain's (others are ignored), after sorting by ``(s_m, id)``. Units: metres, miles.
     Returns ``(intervals, kept, audit)``: the intervals (ids ``f"{chain.id}.i{n}"``, ``n`` from
     0 along ``s``), every anchor left after collapsing and after the ANCHOR_CONFLICT,
@@ -379,11 +376,11 @@ def build_intervals(
         (a for a in anchors if a.chain_id == chain.id),
         key=lambda a: (a.s_m, TIER_RANK[a.tier], a.id),
     )
-    collapsed = _collapse(own, cfg, audit)  # step 1
-    collapsed = _resolve_conflicts(collapsed, cfg, audit)  # step 1b (ruling R10)
-    main = _outliers(collapsed, cfg, audit)  # step 3 on the full set
-    # Step 4 reference: the higher tiers alone, outlier pass on their own (ruling R4). Its drops
+    resolved = _resolve_conflicts(own, cfg, audit)  # step 1 (ruling R12)
+    collapsed = _collapse(resolved, cfg, audit)  # step 2
+    main = _outliers(collapsed, cfg, audit)  # step 4 on the full set
+    # Step 5 reference: the higher tiers alone, outlier pass on their own (ruling R4). Its drops
     # are not audited here; the main pass decides what leaves the set.
     ref = _outliers([a for a in collapsed if a.tier != "unverified"], cfg, None)
     kept = _unverified_check(main, ref, cfg, audit)
-    return _split(chain.id, kept, cfg), kept, audit  # step 5
+    return _split(chain.id, kept, cfg), kept, audit  # step 6

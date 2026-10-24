@@ -248,17 +248,16 @@ def test_coincident_same_tier_conflict_drops_both() -> None:
     assert len(ivs) == 1
 
 
-def test_chained_conflict_cluster_with_two_posted_is_dropped_whole() -> None:
-    # p-u and u-q conflict, so {p, u, q} is one cluster with two posted members: all dropped.
+def test_agreeing_posted_pair_survives_a_conflicting_unverified_between_them() -> None:
     anchors = [
         anchor("p", MILE, 11.0),
         anchor("u", MILE, 11.4, "unverified"),
         anchor("q", MILE + 1.0, 11.0),
     ]
     _, kept, audit = build(anchors)
-    assert kept == []
-    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["p", "q", "u"]
-    assert all("[p, q, u]" in a.detail or "[p, u, q]" in a.detail for a in audit)
+    assert [(a.id, a.member_nids) for a in kept] == [("p", ("p", "q"))]
+    assert [a.nid for a in audit if a.reason == "ANCHOR_CONFLICT"] == ["u"]
+    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_COLLAPSED") == ["p", "q"]
 
 
 def test_cluster_with_one_posted_and_two_unverified_keeps_the_posted() -> None:
@@ -271,7 +270,9 @@ def test_cluster_with_one_posted_and_two_unverified_keeps_the_posted() -> None:
     ]
     ivs, kept, audit = build(anchors)
     assert [a.id for a in kept] == ["p0", "b", "p3"]
-    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["u1", "u2"]
+    conf = [a for a in audit if a.reason == "ANCHOR_CONFLICT"]
+    assert sorted(a.nid for a in conf) == ["u1", "u2"]
+    assert all("kept b (MP 11.000)" in a.detail for a in conf)
     assert len(ivs) == 1
 
 
