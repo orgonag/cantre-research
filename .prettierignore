@@ -1,0 +1,7 @@
+**/*.md
+.superpowers/
+dist/
+coverage/
+node_modules/
+package-lock.json
+.tsc-check/

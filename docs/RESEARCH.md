@@ -105,3 +105,31 @@ Inspected the Ontario NRWN 2.0 SHP package (2019-07-25) to ground the spec: CRS 
 NAD83(CSRS98); 8,747 of 12,718 crossing records carry Posted mileage, all 671 stations are
 Posted, but 3,745 of 3,867 marker posts are Unknown-qualified; 41 diamond junctions. See
 [the v1 spec](superpowers/specs/2026-10-23-cantre-v1-design.md). No code is built yet.
+
+## 2026-10-24 — M1 calculation core built
+
+Built `@cantre/core` (milestone M1) on branch `feat/m1-calculation-core`: units, GRS80
+radii, coordinate checks, tangent-plane distance, segment and polyline projection, anchor
+intervals, milepost interpolation and the GPS band. See
+[the package README](../packages/core/README.md). Commands run and results:
+
+- `npm ci`: exit 0; summary line "found 0 vulnerabilities".
+- `npm run lint`, `npm run format:check`, `npm run typecheck`: each exit 0.
+- `npm run coverage`: 11 test files, 87 tests passed. Four property tests ran 1000 generated
+  cases each, 4000 property runs in total (perpendicular residual, monotonic `alongM`,
+  interpolation between bracket mileposts, finite outputs). No property failed. Coverage of
+  `packages/core/src`: statements 98.59 %, branches 97.19 %, functions 100 %, lines 98.55 %,
+  against a gate of lines 95, branches 90, functions 100.
+- Distance against GeographicLib on GRS80. The repo tests in
+  `packages/core/test/distance.test.ts` assert only a 1 mm bound (a latitude 80-83.5 by azimuth
+  0-359 sweep and 2000 random draws). The measured maxima come from the committed script
+  `packages/core/scripts/measure-distance-error.mjs` (`npm run measure:distance -w
+  @cantre/core`, GeographicLib on GRS80). It printed: sweep maximum 0.734 mm (latitude 83.5
+  degrees, azimuth 56 degrees, d = 2000 m); 50000 seeded random draws (seed 20261023) peaked at
+  0.660 mm; a 50 km due-east segment at latitude 83 had relative error 1.69e-4. Segments over
+  2 km are subdivided for distance only. Projection agreed within 0.1 % at a 5 km
+  cross-track offset.
+
+Not done or not claimed: no datum transform (NAD83(CSRS) used as-is against WGS 84, roughly
+1 to 2 m bias, spec section 3); along-chain ambiguity is flagged, not resolved (milestone M3);
+no real track data was used, only synthetic geometry.

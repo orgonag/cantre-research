@@ -1,0 +1,32 @@
+{
+  "name": "cantre",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CANTRE (Canada Track Rail Estimation): research tool that calculates railway mileposts from GPS.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@vitest/coverage-v8": "5.0.5",
+    "eslint": "10.13.0",
+    "fast-check": "4.10.2",
+    "geographiclib-geodesic": "2.2.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
+  }
+}

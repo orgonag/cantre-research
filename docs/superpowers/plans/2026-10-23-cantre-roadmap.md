@@ -9,7 +9,7 @@ the contracts that cross milestone boundaries, so the plans agree with each othe
 
 | # | Plan | Builds | Status |
 |---|---|---|---|
-| M1 | [Calculation core](2026-10-23-m1-calculation-core.md) | Monorepo, CI, `@cantre/core` geodesy, projection, polyline and interpolation | Plan written |
+| M1 | [Calculation core](2026-10-23-m1-calculation-core.md) | Monorepo, CI, `@cantre/core` geodesy, projection, polyline and interpolation | Built (PR pending) |
 | M2 | Pipeline: one province (SK) | `pipeline/` ingest, audit, chains, anchors, tiles, manifest, coverage report | Plan after M1 |
 | M3 | Matching state machine | `@cantre/core` `match/`, synthetic scenario replays | Plan after M2 |
 | M4 | App MVP on SK | `app/`, `@cantre/data-client`, Playwright, privacy and axe tests | Plan after M3 |

@@ -14,3 +14,7 @@ fixtures/private/
 *.gpkg
 node_modules/
 .DS_Store
+dist/
+coverage/
+.superpowers/
+.tsc-check/
