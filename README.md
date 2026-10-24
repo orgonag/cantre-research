@@ -32,7 +32,8 @@ movement authority, protection limit or substitute for railway rules.
 ## Start here
 
 - [Illustrated learning journal — October 20](docs/lessons/2026-10-20-projection/README.md): projection math, anchors and track choice.
-- [Learning roadmap](docs/LEARNING.md): the approved teach-and-build-together method.
+- [v1 design spec](docs/superpowers/specs/2026-10-23-cantre-v1-design.md): what CANTRE v1 will be and how it is built.
+- [Learning roadmap](docs/LEARNING.md): the earlier teach-and-build-together method (superseded 2026-10-23).
 - [Controlled source comparison](docs/SOURCE-COMPARISON.md): verified aggregate findings.
 - [Prior-art study](docs/PRIOR-ART.md): TrackPilot lessons and limits, without copying.
 - [Additional public layers](docs/LAYERS.md): schema evidence and proposed audits.

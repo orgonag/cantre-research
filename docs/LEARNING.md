@@ -1,8 +1,12 @@
-# Learning and building together — approved working method
+# Learning and building together — earlier working method
+
+> [!NOTE]
+> **Superseded on 2026-10-23.** The owner asked for CANTRE to be built to research
+> grade and made release-ready instead of line by line. See [AGENTS.md](../AGENTS.md)
+> and [the v1 spec](superpowers/specs/2026-10-23-cantre-v1-design.md). This page stays
+> as the record of the method and lessons up to that date.
 
 This is a research project and a way for the owner to learn math and coding with AI.
-The method takes precedence over any earlier instruction that sounds like autonomous
-end-to-end app delivery. No implementation is authorized by the roadmap alone.
 
 ## One small step at a time
 
