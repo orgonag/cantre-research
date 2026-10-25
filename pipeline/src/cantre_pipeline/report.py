@@ -10,9 +10,10 @@ Figures, per subdivision (rows) and for the whole province (totals row):
 * ``chain_km``: sum of chain lengths, ``s_m[-1] / 1000``.
 * ``calibrated_km``: ``sum(s_last - s_first)`` over the calibrated intervals, km.
 * ``calibrated_pct``: ``100 * calibrated_km / chain_km`` (0 when there is no chain).
-* ``calibrated_km_posted_only``: the same sum over intervals rebuilt from ``posted`` anchors
-  alone (ruling R3, by calling :func:`~cantre_pipeline.intervals.build_intervals` again on each
-  chain). The gap between the two figures is what the ``tc`` and ``unverified`` tiers add. It is
+* ``calibrated_km_posted_only``: the same sum over intervals rebuilt from the qualified ``posted``
+  anchors alone (rulings R3 and R17: :func:`~cantre_pipeline.intervals.build_intervals` is run
+  again on each chain from the output of ``qualify_anchors``, not from the anchors the all-tier
+  pass kept). The gap is what the ``tc`` and ``unverified`` tiers change. It is
   a difference of two independently built interval sets, so it is not guaranteed to be positive.
 * anchor counts by source and by tier, and rejected audit lines by reason.
 
@@ -91,6 +92,7 @@ def _km(metres: float) -> float:
 
 
 def _pct(part: float, whole: float) -> float:
+    """``100 * part / whole`` rounded to 3 decimals; 0.0 when ``whole`` is not positive."""
     return round(100.0 * part / whole, 3) if whole > 0 else 0.0
 
 
@@ -112,19 +114,26 @@ def coverage_rows(
     cfg: PipelineConfig,
     *,
     sub_of: Mapping[tuple[str, str], str] | None = None,
+    qualified_posted: Sequence[QualifiedAnchor] | None = None,
 ) -> list[CoverageRow]:
     """Return one :class:`CoverageRow` per subdivision that has a chain, sorted by (name, nid).
 
     ``anchors`` are the anchors kept by ``build_intervals`` (they are counted, and the interval
     ends are looked up in them), ``intervals`` all intervals, ``audit`` every audit line of the
     build and ``sub_of`` the attribution of audit lines to subdivisions (see the module doc;
-    ``None`` attributes nothing). ``calibrated_km_posted_only`` re-runs ``build_intervals`` on each
-    chain with its posted-tier anchors alone (ruling R3). Units: km; percentages 0 to 100.
+    ``None`` attributes nothing).
+
+    ``qualified_posted`` (ruling R17, refines R3) are the ``posted``-tier anchors exactly as
+    ``qualify_anchors`` returned them, before any interval step. ``calibrated_km_posted_only``
+    re-runs ``build_intervals`` on each chain with these alone, so it does not inherit a lower
+    tier's decision (for example a posted anchor dropped as an outlier because an unverified
+    anchor bridged it). ``None`` falls back to the posted subset of ``anchors``, which does
+    inherit those decisions. Units: km; percentages 0 to 100.
     """
     by_key = {(a.chain_id, a.id): a for a in anchors}
     sub_of_chain = {c.id: c.sub_nid for c in chains.chains}
     posted: dict[str, list[QualifiedAnchor]] = defaultdict(list)
-    for a in anchors:
+    for a in anchors if qualified_posted is None else qualified_posted:
         if a.tier == "posted":
             posted[a.chain_id].append(a)
 
@@ -190,6 +199,7 @@ def totals_row(rows: Sequence[CoverageRow], audit: Sequence[AuditRecord]) -> Cov
 
 
 def _row_json(r: CoverageRow) -> dict[str, Any]:
+    """The JSON-ready (camelCase, key-sorted maps) form of one coverage row."""
     return {
         "subdivisionNid": r.subdivision_nid,
         "subdivisionName": r.subdivision_name,
@@ -241,6 +251,7 @@ def build_report(
 
 
 def _table_row(r: dict[str, Any], label: str) -> str:
+    """One Markdown table line for a JSON row, under ``label``."""
     tiers = r["anchorsByTier"]
     return (
         f"| {label} | {', '.join(r['operators'])} | {r['chainKm']:.3f} | {r['calibratedKm']:.3f} "

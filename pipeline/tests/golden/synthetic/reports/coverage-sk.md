@@ -16,10 +16,11 @@ Source `tc-gci` SHA-256: `111111111111111111111111111111111111111111111111111111
 | Eta | CN | 8.442 | 0.000 | 0.000 | 0.000 | 1 / 0 / 0 | 0 |
 | Gamma | CN | 6.776 | 6.098 | 90.000 | 6.098 | 3 / 0 / 0 | 0 |
 | Iota | CN | 6.589 | 5.930 | 90.000 | 0.000 | 1 / 1 / 0 | 0 |
+| Kappa | CN | 5.902 | 3.935 | 66.667 | 2.951 | 1 / 0 / 1 | 2 |
 | Theta A | CN | 3.310 | 2.648 | 80.000 | 2.648 | 2 / 0 / 0 | 0 |
 | Theta B | CN | 3.310 | 2.648 | 80.000 | 2.648 | 2 / 0 / 0 | 0 |
 | Zeta | CN | 13.365 | 9.356 | 70.000 | 9.356 | 4 / 0 / 0 | 0 |
-| **Total** | CN | 81.338 | 55.243 | 67.918 | 49.313 | 30 / 2 / 2 | 14 |
+| **Total** | CN | 87.240 | 59.178 | 67.833 | 52.264 | 31 / 2 / 3 | 16 |
 
 Chain cycles: 1. Subdivisions with 0 % calibration: 1.
 
@@ -29,7 +30,7 @@ Chain cycles: 1. Subdivisions with 0 % calibration: 1.
 |---|---:|---:|
 | ANCHOR_CONFLICT | 2 | 0 |
 | ANCHOR_MERGED | 0 | 2 |
-| ANCHOR_OUTLIER | 1 | 0 |
+| ANCHOR_OUTLIER | 2 | 0 |
 | ASSET_UNPOSITIONED | 0 | 3 |
 | CHAIN_CYCLE | 0 | 1 |
 | MILEAGE_SENTINEL | 3 | 0 |
@@ -42,4 +43,4 @@ Chain cycles: 1. Subdivisions with 0 % calibration: 1.
 | TC_DUPLICATE_NUMBER | 0 | 1 |
 | TC_SPUR_CROSSING | 1 | 0 |
 | TRACK_NOT_CHAINED | 1 | 0 |
-| UNVERIFIED_DEVIATION | 1 | 0 |
+| UNVERIFIED_DEVIATION | 2 | 0 |

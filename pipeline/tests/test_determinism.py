@@ -21,26 +21,40 @@ def json_of(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def assert_same_tree(actual: Path, expected: Path) -> None:
+    """Fail naming the first path (sorted) whose presence or bytes differ, then check the hash."""
+    paths = sorted(
+        {p.relative_to(root).as_posix() for root in (actual, expected) for p in root.rglob("*")}
+    )
+    for rel in paths:
+        a, e = actual / rel, expected / rel
+        assert a.is_file() == e.is_file(), f"{rel}: present in only one tree"
+        if a.is_file():
+            assert a.read_bytes() == e.read_bytes(), f"{rel}: bytes differ"
+    assert tree_sha256(actual) == tree_sha256(expected)
+
+
 def test_synthetic_build_matches_committed_golden(tmp_path: Path) -> None:
     build_synthetic(tmp_path)
-    assert tree_sha256(tmp_path) == tree_sha256(GOLDEN_DIR)
+    assert_same_tree(tmp_path, GOLDEN_DIR)
 
 
 def test_build_is_byte_identical_across_runs_and_hash_seeds(tmp_path: Path) -> None:
     env = {**os.environ, "PYTHONPATH": str(PIPELINE / "src")}
-    hashes = []
+    outs = []
     for seed in ("0", "12345"):
         out = tmp_path / f"seed{seed}"
         env["PYTHONHASHSEED"] = seed
         subprocess.run([sys.executable, str(SCRIPT), str(out)], env=env, check=True)  # noqa: S603
-        hashes.append(tree_sha256(out))
-    assert hashes[0] == hashes[1] == tree_sha256(GOLDEN_DIR)
+        outs.append(out)
+    assert_same_tree(outs[0], outs[1])
+    assert_same_tree(outs[0], GOLDEN_DIR)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_shuffled_records_and_reversed_lines_give_the_same_bytes(tmp_path: Path, seed: int) -> None:
     build_synthetic(tmp_path, shuffle_seed=seed)
-    assert tree_sha256(tmp_path) == tree_sha256(GOLDEN_DIR)
+    assert_same_tree(tmp_path, GOLDEN_DIR)
 
 
 def test_golden_paths_are_short_enough_for_windows_checkouts() -> None:
@@ -54,7 +68,7 @@ def test_golden_validates_against_the_published_schemas() -> None:
     manifest = Draft202012Validator(json_of(schemas / "manifest.schema.json"))
     manifest.validate(json_of(GOLDEN_DIR / "manifest.json"))
     tiles = sorted((GOLDEN_DIR / "tiles").glob("*.json"))
-    assert len(tiles) == 16
+    assert len(tiles) == 18
     for path in tiles:
         tile.validate(json_of(path))
 

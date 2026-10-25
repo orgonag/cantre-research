@@ -144,7 +144,15 @@ def build_province(
         *tc_duplicate_audit(inventory),
     ]
     sub_of = _attribution(net, {c.id: c.sub_nid for c in chains.chains}, qualified)
-    rows = coverage_rows(chains, intervals, kept, audit, cfg, sub_of=sub_of)
+    rows = coverage_rows(
+        chains,
+        intervals,
+        kept,
+        audit,
+        cfg,
+        sub_of=sub_of,
+        qualified_posted=[a for a in qualified if a.tier == "posted"],
+    )
     total = totals_row(rows, audit)
     report = build_report(province, rows, audit, chains, sources, DATASET_VERSION)
 

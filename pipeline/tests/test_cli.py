@@ -84,7 +84,7 @@ def test_cli_build_writes_the_output_tree(
         f"tiles/{p.stem}.json" for p in (out / "tiles").iterdir()
     )
     assert [s["sourceId"] for s in manifest["sources"]] == ["sk", "tc-gci"]
-    assert "built sk: 16 tiles" in capsys.readouterr().out
+    assert "built sk: 18 tiles" in capsys.readouterr().out
 
 
 def test_cli_build_exit_code_on_budget_breach(

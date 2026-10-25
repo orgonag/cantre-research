@@ -138,4 +138,6 @@ order. The coverage report's `auditByReason` reproduces these counts exactly.
 ```
 
 Regenerate the geodesy golden file with `python pipeline/scripts/make_geodesy_golden.py` and the
-synthetic build golden with `python pipeline/scripts/make_golden.py`.
+synthetic build golden with `python pipeline/scripts/make_golden.py`. `measure_residuals.py` and
+`diagnose_posted_only.py` (both read the acquired raw cache) print the evidence behind two
+RESEARCH.md findings.

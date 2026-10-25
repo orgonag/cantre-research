@@ -111,3 +111,16 @@ def test_empty_province_has_no_rows_and_a_zero_percent_total() -> None:
     assert (total.chain_km, total.calibrated_pct, dict(total.rejected_by_reason)) == (0.0, 0.0, {})
     report = build_report("sk", [], [], chains, SYNTHETIC_SOURCES, "v")
     assert report["subdivisions"] == [] and report["zeroCalibrationSubdivisions"] == []
+
+
+def test_posted_only_rebuild_keeps_a_posted_anchor_the_all_tier_pass_dropped(built: Path) -> None:
+    """Ruling R17: KX (posted) is an outlier only because unverified KM1-KM2 bridge it."""
+    report = load(built, "reports/coverage-sk.json")
+    kappa = by_name(report)["Kappa"]
+    outliers = [line for line in audit_lines(built) if line["reason"] == "ANCHOR_OUTLIER"]
+    assert any(line["nid"] == "KX" and "KM1-KM2" in line["detail"] for line in outliers)
+    assert kappa["anchorsByTier"] == {"posted": 1, "tc": 0, "unverified": 1}  # KX is not kept
+    # Posted-only still counts KX: K0 to KX is about 2.95 km. Rebuilt from the kept posted
+    # anchors alone (K0) it would be 0.
+    assert kappa["calibratedKmPostedOnly"] == pytest.approx(2.951, abs=0.002)
+    assert kappa["calibratedKm"] == pytest.approx(3.935, abs=0.002)

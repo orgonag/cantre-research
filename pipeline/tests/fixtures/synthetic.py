@@ -21,6 +21,8 @@ Band      Sub     Scenario
 53.60     Theta   A subdivision change at a shared node.
 53.80     Iota    A posted anchor and a Transport Canada anchor: calibrated only with the
                   extra tier (posted-only coverage is 0).
+54.00     Kappa   A posted anchor dropped as an outlier only because unverified anchors bridge
+                  it: the all-tier pass loses it, the posted-only rebuild (ruling R17) keeps it.
 ========  ======  =====================================================================
 
 ``build_synthetic`` writes the fixture into a temporary directory and runs
@@ -219,6 +221,21 @@ def _others(fx: NrwnFixture) -> None:
     fx.crossing("I0", a, "IT", mp=60.0, sub=sub)
     fx.crossing("I1", b, "IT", mp=None, qualifier="Unknown", tcid=1100, sub=sub)
     fx.tc_row(1100, mile=mp(a, b, 60.0), subdivision="Iota")
+    # Kappa: posted X agrees with posted A (slope 0.88) but not with the unverified M1 and M2
+    # around it, which agree with each other (slope 1.0). The all-tier pass bridges M1-M2 and
+    # drops X as ANCHOR_OUTLIER; the posted-only rebuild sees only A and X and keeps both.
+    lat = 54.0
+    sub = ("S11", "Kappa")
+    fx.track("KT", [P(i, lat) for i in range(0, 10)], sub=sub)
+    origin = P(0.5, lat)
+
+    def base(i: float) -> float:
+        return mp(origin, P(i, lat), 0.0)
+
+    fx.crossing("K0", origin, "KT", mp=30.0, sub=sub)
+    fx.markerpost("KM1", P(3.5, lat), "KT", mp=round(30.0 + 1.12 * base(3.5), 2), sub=sub)
+    fx.crossing("KX", P(5.0, lat), "KT", mp=round(30.0 + 0.88 * base(5.0), 2), sub=sub)
+    fx.markerpost("KM2", P(6.5, lat), "KT", mp=round(30.0 + 1.12 * base(3.5) + 1.236, 2), sub=sub)
 
 
 def scenarios(tmp_path: Path, shuffle_seed: int | None = None) -> NrwnFixture:

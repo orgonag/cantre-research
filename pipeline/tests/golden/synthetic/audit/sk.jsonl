@@ -1,3 +1,5 @@
+{"detail":"predicted MP 31.073 from K0-KX, actual MP 31.370 (limit 0.05 mi)","layer":"ANCHOR","nid":"KM1","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
+{"detail":"slope to previous 0.393, slope to next 1.620; bridge KM1-KM2 is consistent","layer":"ANCHOR","nid":"KX","reason":"ANCHOR_OUTLIER","severity":"rejected"}
 {"detail":"predicted MP 13.615 from X9-X3, actual MP 14.020 (limit 0.05 mi)","layer":"ANCHOR","nid":"M2","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
 {"detail":"slope to previous 4.133, slope to next 5.261; bridge M1-ST2 is consistent","layer":"ANCHOR","nid":"X5","reason":"ANCHOR_OUTLIER","severity":"rejected"}
 {"detail":"4 segments close on themselves in subdivision S7","layer":"CHAIN","nid":"ch_25ba407aa1ab2ac2","reason":"CHAIN_CYCLE","severity":"info"}
