@@ -57,6 +57,7 @@ class BuildResult:
         over_budget: ``(tile key, gzip bytes)`` of every tile above ``tile_budget_gzip_bytes``.
         gzip_bytes: Gzip size of every tile by key.
         audit_lines: Number of audit lines written.
+        tiles: The tile objects by key, as written (a national build merges them).
     """
 
     manifest: dict[str, Any]
@@ -65,6 +66,7 @@ class BuildResult:
     over_budget: list[tuple[str, int]]
     gzip_bytes: dict[str, int]
     audit_lines: int
+    tiles: dict[str, dict[str, Any]]
 
 
 def _attribution(
@@ -178,4 +180,4 @@ def build_province(
 
     sizes = {key: gzip_size(data) for key, data in tiles_bytes.items()}
     over = sorted((k, n) for k, n in sizes.items() if n > cfg.tile_budget_gzip_bytes)
-    return BuildResult(manifest, rows, total, over, sizes, len(audit))
+    return BuildResult(manifest, rows, total, over, sizes, len(audit), tiles)

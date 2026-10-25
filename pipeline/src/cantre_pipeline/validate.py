@@ -30,7 +30,7 @@ from cantre_pipeline.audit import AuditReason, AuditRecord
 from cantre_pipeline.config import PipelineConfig
 from cantre_pipeline.geodesy import LatLon, assert_lat_lon
 from cantre_pipeline.model import LineFeature, Network, NodeKey, PointFeature, Segment
-from cantre_pipeline.reader import RawFeature, read_layer
+from cantre_pipeline.reader import OPTIONAL_LAYERS, RawFeature, layer_published, read_layer
 from cantre_pipeline.schema_nrwn import DOMAINS, OPTIONAL_FIELDS, REQUIRED_FIELDS, parse_mileage
 
 __all__ = ["load_network", "parse_mileage"]
@@ -283,7 +283,21 @@ def load_network(raw_dir: Path, province: str, cfg: PipelineConfig) -> Network:
     :func:`~cantre_pipeline.audit.write_audit_jsonl` for output.
     """
     audit: list[AuditRecord] = []
-    raw = {layer: read_layer(raw_dir, province, layer) for layer in REQUIRED_FIELDS}
+    raw: dict[str, list[RawFeature]] = {}
+    for layer in REQUIRED_FIELDS:
+        if layer in OPTIONAL_LAYERS and not layer_published(raw_dir, province, layer):
+            raw[layer] = []
+            audit.append(
+                AuditRecord(
+                    layer,
+                    "-",
+                    "LAYER_ABSENT",
+                    "info",
+                    f"the {province.upper()} package publishes no {layer} layer; read as empty",
+                )
+            )
+        else:
+            raw[layer] = read_layer(raw_dir, province, layer)
     for layer, feats in raw.items():
         _identity_audit(layer, feats, audit)
     segments = _segments(raw["TRACK"], cfg, audit)

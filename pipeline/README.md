@@ -22,6 +22,7 @@ py -3.12 -m venv .venv
 python -m cantre_pipeline acquire --source sk          # download (once), verify the SHA-256
 python -m cantre_pipeline acquire --source tc-gci
 python -m cantre_pipeline build --province sk --out build/sk --check-budget
+python -m cantre_pipeline national --out build/national     # every province, one snapshot
 ```
 
 - `acquire --source ID` takes a province code or `tc-gci`. It checks the cached bytes against
@@ -33,6 +34,13 @@ python -m cantre_pipeline build --province sk --out build/sk --check-budget
   mode, so a changed cached copy stops the build before anything is written. It exits 0 on
   success, 2 on a `PipelineError` and 3 when `--check-budget` finds a tile over the budget (the
   output is still written for inspection).
+- `national --out DIR [--raw DIR] [--snapshot-date YYYY-MM-DD] [--check-budget]` builds every
+  registered province as `build` does, stamps all of them with one national dataset version, merges
+  them into one network and writes `snapshot.bin.gz`, `asset-details.json.gz` and `manifest.json`
+  (see "National output"). The exit codes are those of `build`; a published file over 100 MB stops
+  the build (`SIZE_GATE`), and an id that two provinces describe differently stops it
+  (`MERGE_CONFLICT`). `snapshotDate` is the latest `retrievedUtc` date among the source records
+  used, not the wall clock, unless `--snapshot-date` overrides it.
 - Raw bytes are cached in `.cache/raw/` (override with `--raw` or `CANTRE_RAW_DIR`); build output
   goes where you say. Both are git-ignored. **Windows deep checkouts need a short
   `CANTRE_RAW_DIR`** (for example `C:\cv-raw`): the extracted NRWN files sit under a 64-character
@@ -60,6 +68,24 @@ carries a `tier` and can be `unverified` (a marker post or station whose qualifi
 A line asset (bridge, tunnel) has `sStartMm <= sEndMm`: **its direction is not preserved**, and
 neither is the stored vertex direction of a segment or line asset (vertices are written in a
 canonical direction so reversing a record cannot change a byte).
+
+### National output
+
+```
+DIR/snapshot.bin.gz          the whole network in one lean binary file (schema/snapshot.md)
+DIR/asset-details.json.gz    layer and source attributes of every asset, by asset id
+DIR/manifest.json            cantre.manifest/1 with snapshot, assetDetails, snapshotDate; tiles: []
+DIR/build/<pr>/              each province's ordinary build tree (tiles, audit, reports)
+```
+
+The byte layout of the snapshot is the contract in [`schema/snapshot.md`](schema/snapshot.md); the
+app's decoder is written from it. The provinces' tiles are built (and size-checked against the
+tile budget) but not published: the manifest lists no tiles. Provinces are merged by id; chains
+are never joined across a province border, because NRWN clips each province at its border.
+
+A package may leave a layer out when NRCan has no features for it (`MARKERPOST` in NL and YT,
+`STRUCTURE_0` in MB). Such a layer reads as empty and the build writes one `LAYER_ABSENT` audit
+line; any other missing layer, or a layer with only some of its files, is still `SCHEMA_DRIFT`.
 
 ### Pipeline stages
 

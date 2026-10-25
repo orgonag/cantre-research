@@ -7,6 +7,7 @@ the committed source records), so the same inputs give the same bytes.
 """
 
 import hashlib
+import re
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -21,8 +22,10 @@ from cantre_pipeline.tiles import ATTRIBUTION, DATASET_VERSION, tile_bounds
 
 __all__ = [
     "MANIFEST_SCHEMA",
+    "FileRef",
     "ProvinceTotals",
     "build_manifest",
+    "build_national_manifest",
     "national_dataset_version",
     "write_build",
 ]
@@ -71,13 +74,51 @@ def national_dataset_version(packages: Mapping[str, str], pipeline_version: str)
         packages: Province code to the SHA-256 (64 hex characters) of its NRWN package.
         pipeline_version: The pipeline's own version, so a code change is a new dataset version.
 
+    Include the Transport Canada file's hash under the key ``"tc-gci"`` (a national build does):
+    it changes the anchors, so a new inventory must be a new dataset version.
+
     Limits: 8 hex characters (32 bits) identify a build, not authenticate it; the full hashes are
     in the manifest ``sources``. Each province's NRWN version is listed in
     ``provinces[].packageVersion``.
+
+    Raises:
+        ValueError: if ``packages`` is empty or a hash is not 64 lower-case hex characters.
     """
+    if not packages:
+        raise ValueError("national_dataset_version needs at least one package hash")
+    for code, digest in packages.items():
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise ValueError(f"hash for {code!r} is not 64 lower-case hex characters")
     lines = "\n".join(f"{code}={packages[code]}" for code in sorted(packages))
     sha8 = hashlib.sha256(lines.encode("utf-8")).hexdigest()[:8]
     return f"nrwn-national-{sha8}+cantre.{pipeline_version}"
+
+
+@dataclass(frozen=True)
+class FileRef:
+    """A published national file as the manifest lists it.
+
+    Attributes:
+        path: File name, relative to the manifest.
+        sha256: SHA-256 of the file at ``path`` exactly as served (the gzip bytes), so a client
+            can reject a damaged or half-downloaded file before decoding it.
+        bytes: Size of the decompressed content, bytes.
+        gzip_bytes: Size of the file at ``path``, bytes.
+    """
+
+    path: str
+    sha256: str
+    bytes: int
+    gzip_bytes: int
+
+    def to_json(self) -> dict[str, Any]:
+        """The manifest form: ``{path, sha256, bytes, gzipBytes}``."""
+        return {
+            "path": self.path,
+            "sha256": self.sha256,
+            "bytes": self.bytes,
+            "gzipBytes": self.gzip_bytes,
+        }
 
 
 def _province_json(t: ProvinceTotals, package_version: str) -> dict[str, Any]:
@@ -152,6 +193,39 @@ def build_manifest(
         "sources": [_source_json(s) for s in sorted(sources, key=lambda s: s.sourceId)],
         "provinces": {p: _province_json(t, package_versions[p]) for p, t in sorted(totals.items())},
         "tiles": entries,
+    }
+
+
+def build_national_manifest(
+    province_manifests: Mapping[str, Mapping[str, Any]],
+    sources: Sequence[SourceRecord],
+    cfg: PipelineConfig,
+    dataset_version: str,
+    snapshot: FileRef,
+    asset_details: FileRef,
+    snapshot_date: str,
+) -> dict[str, Any]:
+    """Return the national manifest (``cantre.manifest/1`` with the national fields set).
+
+    It describes the two files a deployment serves and lists **no tiles** (``"tiles": []``): the
+    per-province builds make tiles and check their size, but only the snapshot and the asset
+    details are published. ``province_manifests`` maps province code to the manifest its
+    :func:`~cantre_pipeline.build.build_province` returned; each province's totals entry is copied
+    from it. ``snapshot_date`` is ``YYYY-MM-DD`` (see :mod:`cantre_pipeline.national`).
+    """
+    return {
+        "schema": MANIFEST_SCHEMA,
+        "datasetVersion": dataset_version,
+        "pipelineVersion": __version__,
+        "attribution": ATTRIBUTION,
+        "config": asdict(cfg),
+        "configSha256": config_sha256(cfg),
+        "sources": [_source_json(s) for s in sorted(sources, key=lambda s: s.sourceId)],
+        "provinces": {p: m["provinces"][p] for p, m in sorted(province_manifests.items())},
+        "tiles": [],
+        "snapshot": snapshot.to_json(),
+        "assetDetails": asset_details.to_json(),
+        "snapshotDate": snapshot_date,
     }
 
 

@@ -36,16 +36,33 @@ Band      Sub     Scenario
 
 import hashlib
 import random
+import shutil
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 from cantre_pipeline.acquire import SourceRecord
 from cantre_pipeline.build import BuildResult, build_province
 from cantre_pipeline.config import PipelineConfig
 from cantre_pipeline.geodesy import METRES_PER_MILE, LatLon, distance_m
+from cantre_pipeline.national import NationalResult, ProvinceInput, build_national
+from cantre_pipeline.snapshot import NetworkMerger, encode_snapshot, gzip_bytes
+from cantre_pipeline.tiles import ATTRIBUTION
 from fixtures.builder import NrwnFixture
 
-__all__ = ["SYNTHETIC_SOURCES", "build_synthetic", "scenarios", "tree_sha256"]
+__all__ = [
+    "NATIONAL_FILES",
+    "NATIONAL_SOURCES",
+    "SYNTHETIC_SOURCES",
+    "border_province",
+    "build_golden",
+    "build_synthetic",
+    "build_synthetic_national",
+    "national_fixtures",
+    "national_inputs",
+    "scenarios",
+    "tree_sha256",
+]
 
 CFG = PipelineConfig()
 
@@ -292,3 +309,95 @@ def tree_sha256(root: Path) -> str:
         digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
         digest.update(hashlib.sha256(path.read_bytes()).hexdigest().encode("ascii") + b"\n")
     return digest.hexdigest()
+
+
+# --- two fake provinces sharing a border (M4 Task 2) --------------------------------------------
+
+AB_SOURCE = replace(
+    SYNTHETIC_SOURCES[0],
+    sourceId="ab",
+    url="synthetic://nrwn-ab",
+    catalogueUrl="synthetic://nrwn-ab",
+    sha256="2" * 64,
+    retrievedUtc="2026-01-02T00:00:00Z",
+    packageVersion="synthetic-ab",
+)
+NATIONAL_SOURCES = {"ab": AB_SOURCE, "sk": SYNTHETIC_SOURCES[0]}
+"""Provenance of the fake provinces. ``ab`` was retrieved a day later than ``sk``, so the national
+snapshot date is 2026-01-02."""
+
+NATIONAL_FILES = ("manifest.json", "snapshot.bin.gz", "asset-details.json.gz")
+"""The files a national build publishes, and the committed golden bundle holds."""
+
+
+def border_province(root: Path) -> NrwnFixture:
+    """Fake province ``ab``: a line starting exactly where the ``sk`` Alpha main line ends.
+
+    The border is the point (52.10, -105.90) (``i == 10`` on band 52.10), the end of the ``sk``
+    chain. ``ab`` has its own subdivision, a restarted mileage and its own ids, and its chain
+    begins at that same point. Two crossings calibrate it; a station and a culvert are assets.
+    """
+    fx = NrwnFixture(root, province="ab")
+    lat, sub = 52.10, ("S20", "Border East")
+    fx.track("ABT", [P(i, lat) for i in range(10, 21)], sub=sub)
+    a, b, c = P(12.5, lat), P(18.5, lat), P(15.0, lat)
+    fx.crossing("ABX0", a, "ABT", mp=200.0, sub=sub)
+    fx.crossing("ABX1", b, "ABT", mp=mp(a, b, 200.0), sub=sub)
+    fx.station("ABST", c, "ABT", mp=mp(a, c, 200.0), sub=sub)
+    fx.culvert("ABCU", P(14.0, lat + 0.0001), "ABT", sub=sub)
+    fx.junction("ABJ0", P(10, lat), "End")
+    fx.junction("ABJ1", P(20, lat), "End")
+    return fx
+
+
+def national_fixtures(root: Path, shuffle_seed: int | None = None) -> dict[str, NrwnFixture]:
+    """The two fake provinces (not yet written): ``sk`` is the whole synthetic network."""
+    return {
+        "ab": border_province(root / "ab"),
+        "sk": scenarios(root / "sk", shuffle_seed),
+    }
+
+
+def national_inputs(
+    root: Path, shuffle_seed: int | None = None
+) -> tuple[list[ProvinceInput], Path, SourceRecord]:
+    """Write the fake provinces; return their inputs (sorted by code), the TC CSV and its record."""
+    fixtures = national_fixtures(root, shuffle_seed)
+    inputs = [
+        ProvinceInput(code, fx.write(), NATIONAL_SOURCES[code])
+        for code, fx in sorted(fixtures.items())
+    ]
+    return inputs, fixtures["sk"].tc_path, SYNTHETIC_SOURCES[1]
+
+
+def build_synthetic_national(out: Path, shuffle_seed: int | None = None) -> NationalResult:
+    """Run the real national build on the fake provinces; copy its three files into ``out``.
+
+    The per-province build trees (tiles, audit, reports) stay in a temporary directory; ``out``
+    gets only the files a deployment would publish.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        inputs, tc_csv, tc_record = national_inputs(root / "in", shuffle_seed)
+        result = build_national(inputs, tc_csv, tc_record, root / "out", CFG)
+        out.mkdir(parents=True, exist_ok=True)
+        for name in NATIONAL_FILES:
+            shutil.copyfile(root / "out" / name, out / name)
+    return result
+
+
+def build_golden(out: Path, shuffle_seed: int | None = None) -> BuildResult:
+    """Everything under ``tests/golden/synthetic/``: the province tree, the golden snapshot of its
+    tiles and the two-province ``national/`` bundle."""
+    result = build_synthetic(out, shuffle_seed)
+    net = NetworkMerger()
+    net.add_tiles("sk", result.tiles)
+    snapshot = encode_snapshot(
+        net,
+        snapshot_date=SYNTHETIC_SOURCES[0].retrievedUtc[:10],
+        attribution=ATTRIBUTION,
+        package_versions={"sk": SYNTHETIC_SOURCES[0].packageVersion},
+    )
+    (out / "snapshot.bin.gz").write_bytes(gzip_bytes(snapshot))
+    build_synthetic_national(out / "national", shuffle_seed)
+    return result

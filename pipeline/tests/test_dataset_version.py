@@ -3,6 +3,8 @@
 import hashlib
 import re
 
+import pytest
+
 from cantre_pipeline import __version__
 from cantre_pipeline.manifest import national_dataset_version
 
@@ -29,3 +31,16 @@ def test_pipeline_version_and_province_set_matter() -> None:
     base = national_dataset_version(HASHES, "0.1.0")
     assert national_dataset_version(HASHES, "0.2.0") != base
     assert national_dataset_version({"sk": HASHES["sk"]}, "0.1.0") != base
+
+
+def test_empty_mapping_is_refused() -> None:
+    with pytest.raises(ValueError, match="at least one"):
+        national_dataset_version({}, "0.1.0")
+
+
+@pytest.mark.parametrize(
+    "bad", ["", "a" * 63, "a" * 65, "A" * 64, "g" * 64, " " + "a" * 63, "a" * 64 + "\n"]
+)
+def test_hash_must_be_64_lower_case_hex(bad: str) -> None:
+    with pytest.raises(ValueError, match="64 lower-case hex"):
+        national_dataset_version({"sk": HASHES["sk"], "ab": bad}, "0.1.0")
