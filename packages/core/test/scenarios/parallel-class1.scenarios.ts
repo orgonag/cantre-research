@@ -110,11 +110,12 @@ export const parallelDiverge: Scenario = {
 /**
  * Continuity: the first fix is on A (0 m vs 12 m, so MATCHED). Noisy fixes between the lines would
  * be AMBIGUOUS on a cold start (previous scenario) but keep A while A stays in the
- * indistinguishable set (CONTINUITY). A fix that drops A out of the set holds A for under 5 s
- * (CONTINUITY_HOLD, Decision 3), then the evidence wins and the result moves to B.
+ * indistinguishable set (CONTINUITY). A fix that drops A out of the set while I holds only the
+ * other railway is NOT held (ruling R23): the result moves to B at once, never showing A's
+ * milepost against evidence for a different railway.
  */
 export const parallelContinuity: Scenario = {
-  name: 'parallel-class1: noisy fixes keep A by continuity, a sustained shift moves to B after 5 s',
+  name: 'parallel-class1: noisy fixes keep A by continuity; a shift to the other railway moves to B at once',
   net: parallelNet,
   steps: [
     // On A: residuals 0 and 12 -> only A in I.
@@ -160,33 +161,28 @@ export const parallelContinuity: Scenario = {
       mpApprox: mpA(1000),
     }),
     // 14 m north of A, 2 m from B: I = {B} (A at 14 > 2 + 10). A is the previous match and is
-    // within the radius, so it is HELD. The contradiction starts at t = 6000 ms.
+    // within the radius, but I holds a DIFFERENT railway (sub-B / CPKC), so there is no hold
+    // (ruling R23, amends Decision 3 step 6b): holding A would show A's milepost while the
+    // evidence points at another railway. The result moves to B at once, from the evidence.
+    // (The bounded same-railway hold is replayed in the junction scenario.)
     fixStep(6000, 1200, 14, {
-      status: 'MATCHED',
-      chainId: 'A',
-      reasons: ['CONTINUITY_HOLD'],
-      candidates: ['B'],
-      mpApprox: mpA(1200),
-    }),
-    fixStep(7000, 1400, 14, {
-      status: 'MATCHED',
-      chainId: 'A',
-      reasons: ['CONTINUITY_HOLD'],
-      mpApprox: mpA(1400),
-    }),
-    // 4000 ms after the first contradicting fix (< 5000): still held.
-    fixStep(10000, 1800, 14, {
-      status: 'MATCHED',
-      chainId: 'A',
-      reasons: ['CONTINUITY_HOLD'],
-      mpApprox: mpA(1800),
-    }),
-    // Exactly 5000 ms after it: the hold has run out, the evidence wins: MATCHED on B.
-    fixStep(11000, 1900, 14, {
       status: 'MATCHED',
       chainId: 'B',
       reasons: [],
-      mpApprox: 200 + metresToMiles(1900),
+      candidates: ['B'],
+      mpApprox: 200 + metresToMiles(1200),
+    }),
+    fixStep(7000, 1400, 14, {
+      status: 'MATCHED',
+      chainId: 'B',
+      reasons: [],
+      mpApprox: 200 + metresToMiles(1400),
+    }),
+    fixStep(10000, 1800, 14, {
+      status: 'MATCHED',
+      chainId: 'B',
+      reasons: [],
+      mpApprox: 200 + metresToMiles(1800),
     }),
     // Between the lines again (3 m from A, 9 m from B): B is now the previous match and is in I.
     fixStep(12000, 1950, 3, {

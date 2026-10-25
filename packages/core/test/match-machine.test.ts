@@ -67,6 +67,21 @@ function twoRoutes(): NetworkView {
   });
 }
 
+/**
+ * A on the origin line; B 30 m north of it on the SAME subdivision and operator (two tracks of one
+ * railway), so a bounded continuity hold may apply between them (ruling R23).
+ */
+function twoTracks(): NetworkView {
+  const net = twoRoutes();
+  return {
+    ...net,
+    chains: [
+      straightChain('A', ORIGIN, 0, 2000, { sub: 'sub-A' }),
+      straightChain('B', ORIGIN, 0, 2000, { sub: 'sub-A', lateralM: -30 }),
+    ],
+  };
+}
+
 describe('permission and location errors', () => {
   it('starts NO_FIX, NO_PERMISSION on denial, back to NO_FIX on grant', () => {
     const net = oneChain();
@@ -384,7 +399,7 @@ describe('MATCHED_SUBDIVISION range (Decision 9, ruling R11)', () => {
 
 describe('stale, continuity and time', () => {
   it('STALE after 15 s carries the last result as historical; the next fresh fix re-selects without continuity', () => {
-    const net = twoRoutes();
+    const net = twoTracks();
     // t=1000 on A: MATCHED A. t=2000 on B's line: A is held (CONTINUITY_HOLD).
     let s = play(net, [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 2000))]);
     const held = currentResult(s, 2000);
@@ -422,7 +437,7 @@ describe('stale, continuity and time', () => {
   });
 
   it('continuity holds up to continuityMaxMs from the first contradiction, then re-selects', () => {
-    const net = twoRoutes();
+    const net = twoTracks();
     const base = [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 2000))];
     const during = currentResult(play(net, [...base, fixEvent(fixAt(500, 30, 6999))]), 6999);
     expect(during.chosen?.chainId).toBe('A');
@@ -456,13 +471,20 @@ describe('stale, continuity and time', () => {
   it('R12 (a): a gap longer than staleAfterMs drops continuity, so a contradicting fix re-selects', () => {
     // MATCHED A at t=1000 with no contradiction; at t=22000 B's line is nearest, A is in the
     // radius but not in I. Without the gap rule this would be a CONTINUITY_HOLD on A.
-    const s = play(twoRoutes(), [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 22000))]);
+    const s = play(twoTracks(), [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 22000))]);
     const r = currentResult(s, 22000);
     expect(r.chosen?.chainId).toBe('B');
     expect(r.reasons).not.toContain('CONTINUITY_HOLD');
     // Control: the same two fixes 2 s apart do hold A.
-    const held = play(twoRoutes(), [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 3000))]);
+    const held = play(twoTracks(), [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 3000))]);
     expect(currentResult(held, 3000).reasons).toContain('CONTINUITY_HOLD');
+    // R23: the same two fixes on two DIFFERENT railways are never held.
+    const routes = play(twoRoutes(), [
+      fixEvent(fixAt(500, 0, 1000)),
+      fixEvent(fixAt(500, 30, 3000)),
+    ]);
+    expect(currentResult(routes, 3000).chosen?.chainId).toBe('B');
+    expect(currentResult(routes, 3000).reasons).not.toContain('CONTINUITY_HOLD');
   });
 
   it('R12 (b): continuity does not resolve an ambiguity across a gap longer than staleAfterMs', () => {
@@ -485,7 +507,7 @@ describe('stale, continuity and time', () => {
   });
 
   it('a non-matched result clears continuity', () => {
-    const net = twoRoutes();
+    const net = twoTracks();
     // Matched A, then an off-network fix, then B's line: no hold, so B.
     const s = play(net, [
       fixEvent(fixAt(500, 0, 1000)),

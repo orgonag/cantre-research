@@ -186,11 +186,12 @@ const onBranch = (t: number, x: number, expectation: Parameters<typeof fixStep>[
 
 /**
  * Different subdivisions, driving through the switch on M and on to Br. The approach on M gives
- * continuity at the switch; once the fixes are on Br and M falls outside the margin, M is HELD
- * for under 5 s (it is the previous match and within the radius), then the result moves to Br.
+ * continuity at the switch. Once the fixes are on Br and M falls outside the margin, I holds only
+ * Br, a DIFFERENT railway, so M is not held (ruling R23, amends Decision 3 step 6b): the result
+ * moves to Br at once from the evidence, never showing M's milepost against it.
  */
 export const junctionApproachThenBranch: Scenario = {
-  name: 'junction: approach on M, continuity at the switch, 5 s hold, then Br',
+  name: 'junction: approach on M, continuity at the switch, a different-railway branch is not held',
   net: junctionNet(false),
   steps: [
     fixStep(1000, 1300, 0, { status: 'MATCHED', chainId: 'M', reasons: [], mpApprox: mpM(1300) }),
@@ -199,6 +200,7 @@ export const junctionApproachThenBranch: Scenario = {
       status: 'MATCHED',
       chainId: 'M',
       reasons: ['CONTINUITY'],
+      candidatesAnyOrder: ['M', 'Br'],
       mpApprox: mpM(1500),
     }),
     // On Br 60 m on (M is 6 m away): both in I, M is previous.
@@ -206,44 +208,19 @@ export const junctionApproachThenBranch: Scenario = {
       status: 'MATCHED',
       chainId: 'M',
       reasons: ['CONTINUITY'],
+      candidates: ['Br', 'M'],
       mpApprox: mpM(1560),
     }),
-    // On Br at x = 1650 (y = 15): I = {Br}; M (15 m) is previous and in the radius: hold from 4000.
+    // On Br at x = 1650 (y = 15): I = {Br}, another railway; M (15 m) is previous and in the
+    // radius, but R23 forbids holding it: MATCHED on Br at once.
     onBranch(4000, 1650, {
       status: 'MATCHED',
-      chainId: 'M',
-      reasons: ['CONTINUITY_HOLD'],
+      chainId: 'Br',
+      reasons: [],
       candidates: ['Br'],
-      mpApprox: mpM(1650),
+      mpApprox: mpBr(1650),
     }),
-    onBranch(5000, 1700, {
-      status: 'MATCHED',
-      chainId: 'M',
-      reasons: ['CONTINUITY_HOLD'],
-      mpApprox: mpM(1700),
-    }),
-    onBranch(6000, 1750, {
-      status: 'MATCHED',
-      chainId: 'M',
-      reasons: ['CONTINUITY_HOLD'],
-      mpApprox: mpM(1750),
-    }),
-    onBranch(7000, 1800, {
-      status: 'MATCHED',
-      chainId: 'M',
-      reasons: ['CONTINUITY_HOLD'],
-      mpApprox: mpM(1800),
-    }),
-    // 4000 ms after the first contradicting fix: still held.
-    onBranch(8000, 1850, {
-      status: 'MATCHED',
-      chainId: 'M',
-      reasons: ['CONTINUITY_HOLD'],
-      mpApprox: mpM(1850),
-    }),
-    // 5000 ms after it: the hold has run out and the result is Br, from the evidence. The mp the
-    // user sees does not jump (M and Br agree at the switch and run at the same slope).
-    onBranch(9000, 1900, {
+    onBranch(5000, 1900, {
       status: 'MATCHED',
       chainId: 'Br',
       reasons: [],
@@ -253,9 +230,50 @@ export const junctionApproachThenBranch: Scenario = {
   after: noMpJump,
 };
 
+/**
+ * Same subdivision and operator: the bounded continuity hold (Decision 3 step 6b as amended by
+ * ruling R23). The train is matched on M at x = 1480 (Br's start is 20 m away, outside the
+ * margin). The next fix is already on Br at x = 1650: I = {Br}, which is in M's own group (same
+ * subdivision and operator), and M is within the radius, so M is HELD from t = 2000 ms. The hold
+ * lasts while (t - 2000) < continuityMaxMs = 5000 ms: still held at 6999 ms, re-selected at
+ * EXACTLY 7000 ms (the boundary is exclusive), when the evidence wins and the result is Br.
+ */
+export const junctionSameRailwayHold: Scenario = {
+  name: 'junction: same railway, M is held for under 5000 ms, re-selected at exactly 5000 ms',
+  net: junctionNet(true),
+  steps: [
+    fixStep(1000, 1480, 0, { status: 'MATCHED', chainId: 'M', reasons: [], mpApprox: mpM(1480) }),
+    onBranch(2000, 1650, {
+      status: 'MATCHED',
+      chainId: 'M',
+      reasons: ['CONTINUITY_HOLD'],
+      candidates: ['Br'],
+      mpApprox: mpM(1650),
+    }),
+    onBranch(4000, 1700, { status: 'MATCHED', chainId: 'M', reasons: ['CONTINUITY_HOLD'] }),
+    onBranch(6000, 1750, { status: 'MATCHED', chainId: 'M', reasons: ['CONTINUITY_HOLD'] }),
+    // 4999 ms after the first contradicting fix: still held.
+    onBranch(6999, 1760, {
+      status: 'MATCHED',
+      chainId: 'M',
+      reasons: ['CONTINUITY_HOLD'],
+      mpApprox: mpM(1760),
+    }),
+    // Exactly 5000 ms after it: the hold has run out; the evidence wins.
+    onBranch(7000, 1770, {
+      status: 'MATCHED',
+      chainId: 'Br',
+      reasons: [],
+      candidates: ['Br'],
+      mpApprox: mpBr(1770),
+    }),
+  ],
+};
+
 export const scenarios: readonly Scenario[] = [
   junctionSameSubdivision,
   junctionColdMain,
   junctionColdBranch,
   junctionApproachThenBranch,
+  junctionSameRailwayHold,
 ];

@@ -145,10 +145,14 @@ function applyHeading(
  *    (HEADING_USED / HEADING_INCONSISTENT), see `applyHeading`. It never changes d_min.
  * 6. a diamond near any candidate (ruling R7: computed over all candidates within the radius,
  *    because a diamond is registered on one chain only) -> AMBIGUOUS_ROUTE (DIAMOND_NEARBY).
- * 6b. continuity hold (Decision 3, ruling R9): the previous chain is in C but not in I and
- *    the contradiction began less than `continuityMaxMs` ago -> MATCHED on the previous chain
- *    (CONTINUITY_HOLD). Not used when coverage is 'partial' (R9). A previous chain outside the
- *    radius is never held. The hold is bounded; after it the evidence wins.
+ * 6b. continuity hold (Decision 3, rulings R9, R23): the previous chain is in C but not in I,
+ *    EVERY member of I is in the held chain's own group (same subdivisionNid and operator), and
+ *    the contradiction began less than `continuityMaxMs` ago (fix.timestampMs - start <
+ *    continuityMaxMs, milliseconds; exactly continuityMaxMs is no longer held) -> MATCHED on the
+ *    previous chain (CONTINUITY_HOLD). A different railway in I ends the hold at once and the
+ *    fix is re-selected (R23: a held milepost of one railway must never be shown against
+ *    evidence for another). Not used when coverage is 'partial' (R9). A previous chain outside
+ *    the radius is never held. The hold is bounded; after it the evidence wins.
  * 7. group I by (subdivisionNid, operator). More than one group: when the previous chain is in
  *    I keep its group (CONTINUITY), else AMBIGUOUS_ROUTE (MULTIPLE_ROUTES).
  * 8. coverage 'partial' with one group -> AMBIGUOUS_ROUTE (PARTIAL_COVERAGE): unloaded tiles
@@ -226,7 +230,9 @@ export function selectCandidate(input: SelectionInput): Selection {
   // Step 6b. Decision 3 + ruling R9.
   if (previous !== null && coverage !== 'partial') {
     const held = sorted.find((c) => c.chainId === previous.chainId);
-    if (held !== undefined && !positionI.includes(held)) {
+    const sameRailway =
+      held !== undefined && positionI.every((c) => groupKey(c) === groupKey(held)); // R23
+    if (held !== undefined && sameRailway && !positionI.includes(held)) {
       const startMs = previous.sinceContradictionMs ?? fix.timestampMs;
       if (fix.timestampMs - startMs < cfg.continuityMaxMs) {
         return {

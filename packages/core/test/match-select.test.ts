@@ -254,8 +254,9 @@ describe('selectCandidate rules', () => {
   });
 
   it('6b. holds the previous chain when it is in C but outside I, for under 5 s', () => {
+    // R23: every member of I ('new') is in the held chain's group (sub-1, CN), so a hold applies.
     const prev: PreviousMatch = { chainId: 'old', sinceContradictionMs: null };
-    const cands = [cand('new', 3, { subdivisionNid: 'sub-2' }), cand('old', 40)];
+    const cands = [cand('new', 3), cand('old', 40)];
     const s = direct(cands, { previous: prev });
     expect(s.status).toBe('MATCHED');
     expect(s.chosen?.chainId).toBe('old');
@@ -263,10 +264,35 @@ describe('selectCandidate rules', () => {
     expect(s.reasons).toEqual(['CONTINUITY_HOLD']);
     expect(s.contradictionStartMs).toBe(100000); // started at this fix
     expect(s.group.map((c) => c.chainId)).toEqual(['new']);
+    expect(s.candidates.map((c) => c.chainId)).toEqual(['new']); // chosen is NOT in candidates
   });
 
-  it('6b. continuity hold ends after continuityMaxMs (4999 ms holds, 5001 ms re-selects)', () => {
-    const cands = [cand('new', 3, { subdivisionNid: 'sub-2' }), cand('old', 40)];
+  it('6b. R23: no hold when I holds a different railway; the evidence re-selects at once', () => {
+    const prev: PreviousMatch = { chainId: 'old', sinceContradictionMs: null };
+    const otherSub = direct([cand('new', 3, { subdivisionNid: 'sub-2' }), cand('old', 40)], {
+      previous: prev,
+    });
+    expect(otherSub.status).toBe('MATCHED');
+    expect(otherSub.chosen?.chainId).toBe('new');
+    expect(otherSub.reasons).toEqual([]);
+    expect(otherSub.contradictionStartMs).toBeNull();
+    // Same subdivision, other operator: also a different railway.
+    const otherOp = direct([cand('new', 3, { operator: 'CPKC' }), cand('old', 40)], {
+      previous: { chainId: 'old', sinceContradictionMs: 99000 },
+    });
+    expect(otherOp.chosen?.chainId).toBe('new');
+    expect(otherOp.reasons).toEqual([]);
+    // One same-railway track and one other railway in I: the other railway ends the hold.
+    const mixed = direct(
+      [cand('new', 3), cand('x', 5, { subdivisionNid: 'sub-2' }), cand('old', 40)],
+      { previous: prev },
+    );
+    expect(mixed.status).toBe('AMBIGUOUS_ROUTE');
+    expect(mixed.reasons).toEqual(['MULTIPLE_ROUTES']);
+  });
+
+  it('6b. continuity hold ends after continuityMaxMs (4999 ms holds, 5000 ms re-selects)', () => {
+    const cands = [cand('new', 3), cand('old', 40)];
     const at = (nowMs: number): Selection =>
       direct(cands, {
         fix: { ...fixAt(0, 0), timestampMs: nowMs },
@@ -275,6 +301,10 @@ describe('selectCandidate rules', () => {
     const held = at(104999);
     expect(held.chosen?.chainId).toBe('old');
     expect(held.contradictionStartMs).toBe(100000);
+    const exact = at(105000); // T5: exactly continuityMaxMs is no longer a hold (strict <)
+    expect(exact.chosen?.chainId).toBe('new');
+    expect(exact.reasons).toEqual([]);
+    expect(exact.contradictionStartMs).toBeNull();
     const over = at(105001);
     expect(over.status).toBe('MATCHED');
     expect(over.chosen?.chainId).toBe('new');
@@ -283,7 +313,7 @@ describe('selectCandidate rules', () => {
   });
 
   it('6b. no hold when the previous chain is outside the radius, in I, or coverage is partial', () => {
-    const newer = cand('new', 3, { subdivisionNid: 'sub-2' });
+    const newer = cand('new', 3);
     const prev: PreviousMatch = { chainId: 'old', sinceContradictionMs: null };
     expect(direct([newer], { previous: prev }).chosen?.chainId).toBe('new');
     expect(direct([newer, cand('old', 40)], { previous: prev, coverage: 'partial' }).status).toBe(
