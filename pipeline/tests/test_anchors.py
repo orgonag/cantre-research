@@ -238,7 +238,12 @@ def test_every_unrun_tc_cross_check_of_a_posted_crossing_is_an_info_line(
     fx = base(tmp_path)
     fx.crossing("X1", P(0.5), "T1", mp=10.00, tcid=tcid)
     if row is not None:
-        fx.tc_row(tcid, **{"mile": 9.0, "subdivision": "Alpha", **row})
+        fx.tc_row(
+            tcid,
+            mile=row.get("mile", 9.0),
+            subdivision=row.get("subdivision", "Alpha"),
+            spur_mile_point=row.get("spur_mile_point", "-"),
+        )
     anchors, audit = qualify_raw(fx)
     assert [(a.tier, a.mp) for a in anchors] == [("posted", 10.0)]
     assert [(a.nid, a.reason, a.severity) for a in audit] == [("X1", reason, "info")]
