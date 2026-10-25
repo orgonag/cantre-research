@@ -24,6 +24,9 @@ const source = (relative: string): string => fileURLToPath(new URL(relative, imp
  *   (ruling P30: they belong to the map library, outside the shell budget).
  * - The maplibre files are cached only at run time, same-origin, after the map was opened once.
  *   That adds no request of its own: it keeps the response of a request the page already made.
+ *   The cache has no Workbox size limit, because that keeps its records in IndexedDB and this
+ *   app leaves IndexedDB empty (tested). `public/sw-cleanup.js` empties the cache whenever a new
+ *   service worker activates, so it holds one release's library files at most.
  * - No runtime caching of any other URL, and none of any other host (the basemap tiles are not
  *   stored by this app). Nothing the user did, and no position, is ever in a cached URL.
  * - `registerType: 'prompt'` with no prompt in the UI: a new service worker waits until every
@@ -70,12 +73,14 @@ export default defineConfig({
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/\/data\//],
         cleanupOutdatedCaches: true,
+        // Empties the maplibre run-time cache when a new service worker activates (no IndexedDB).
+        importScripts: ['sw-cleanup.js'],
         runtimeCaching: [
           {
             urlPattern: ({ url, sameOrigin }) =>
               sameOrigin && /\/assets\/maplibre-gl[^/]*$/.test(url.pathname),
             handler: 'CacheFirst',
-            options: { cacheName: 'cantre-shell-maplibre', expiration: { maxEntries: 8 } },
+            options: { cacheName: 'cantre-shell-maplibre' },
           },
         ],
       },
