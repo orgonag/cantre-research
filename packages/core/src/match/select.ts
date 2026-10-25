@@ -82,12 +82,15 @@ function unmatched(
 }
 
 /**
- * Heading filter (Decision 2, spec §6). Applies only when speed > `headingMinSpeedMps` and a
- * heading is given (a slow or stationary GPS heading is noise). Keeps candidates whose track
- * bearing is within `headingToleranceDeg` of the heading on the AXIS (a train may run either
- * way, so a bearing and its reverse agree). If that would keep nothing the filter is NOT applied
- * (the heading contradicts every nearby track, so it is distrusted, not obeyed).
- * Units: degrees, metres per second. Limits: removes only candidates; never adds one.
+ * Heading filter (Decision 2 as amended by ruling R22, spec §6). Applies only when speed >
+ * `headingMinSpeedMps` and a heading is given (a slow or stationary GPS heading is noise). It is
+ * given ONLY the position-based indistinguishable set I and keeps the members whose track bearing
+ * is within `headingToleranceDeg` of the heading on the AXIS (a train may run either way, so a
+ * bearing and its reverse agree). If that would keep nothing the filter is NOT applied (the
+ * heading contradicts every indistinguishable track, so it is distrusted, not obeyed).
+ * Units: degrees, metres per second. Limits: removes only members of I; it never changes d_min,
+ * never adds a candidate and never promotes one that position rejected (R22: validated evidence
+ * for automatic choice).
  */
 function applyHeading(
   fix: Fix,
@@ -116,18 +119,20 @@ function applyHeading(
  * Steps, the first that settles the status wins:
  * 1. coverage 'outside' -> NO_COVERAGE (OUTSIDE_LOADED_TILES).
  * 2. no candidates -> OFF_NETWORK (NO_CANDIDATE_IN_RADIUS).
- * 3. heading filter -> C' (HEADING_USED / HEADING_INCONSISTENT), see `applyHeading`.
- * 4. d_min = min residual in C'. I = { c in C' : residualM <= d_min + max(accuracyM,
- *    indistinguishableMinM) } (all metres). Spec §6; the 10 m floor is experimental.
- *    Candidates inside this band cannot be told apart by position alone: a small residual is
- *    not a confidence interval, and the margin does not improve GPS precision.
- * 5. lock (Decision 7, rulings R4/R8): L = candidates of C' inside the lock. Empty L, or the
+ * 3. d_min = min residual over ALL candidates C. I = { c in C : residualM <= d_min +
+ *    max(accuracyM, indistinguishableMinM) } (all metres). Spec §6; the 10 m floor is
+ *    experimental. Candidates inside this band cannot be told apart by position alone: a small
+ *    residual is not a confidence interval, and the margin does not improve GPS precision.
+ * 4. lock (Decision 7, rulings R4/R8): L = candidates of C inside the lock. Empty L, or the
  *    best of L outside I, is LOCK_CONFLICT (LOCK_NOT_SUPPORTED); the lock is kept, never
- *    switched. Otherwise I := I intersect L, origin 'user', LOCKED_BY_USER, and steps 6-8 are
- *    skipped (the user's choice replaces them). Several tracks left -> MATCHED_SUBDIVISION.
+ *    switched. Otherwise I := I intersect L, origin 'user', LOCKED_BY_USER, and steps 5-8 are
+ *    skipped (the user's choice replaces them; the heading is not consulted, ruling R22).
+ *    Several tracks left -> MATCHED_SUBDIVISION.
+ * 5. heading filter within I only (ruling R22, amends Decision 2's order) -> I'
+ *    (HEADING_USED / HEADING_INCONSISTENT), see `applyHeading`. It never changes d_min.
  * 6. a diamond near any candidate (ruling R7: computed over all candidates within the radius,
  *    because a diamond is registered on one chain only) -> AMBIGUOUS_ROUTE (DIAMOND_NEARBY).
- * 6b. continuity hold (Decision 3, ruling R9): the previous chain is in C' but not in I and
+ * 6b. continuity hold (Decision 3, ruling R9): the previous chain is in C but not in I and
  *    the contradiction began less than `continuityMaxMs` ago -> MATCHED on the previous chain
  *    (CONTINUITY_HOLD). Not used when coverage is 'partial' (R9). A previous chain outside the
  *    radius is never held. The hold is bounded; after it the evidence wins.
@@ -158,19 +163,15 @@ export function selectCandidate(input: SelectionInput): Selection {
   const sorted = [...input.candidates].sort(compareCandidates);
   const reasons: MatchReason[] = [];
 
-  // Step 3. Decision 2.
-  const heading = applyHeading(fix, sorted, cfg);
-  reasons.push(...heading.reasons);
-  const cPrime = heading.kept;
-
-  // Step 4. Indistinguishable set; d_min in metres.
-  const dMinM = Math.min(...cPrime.map((c) => c.residualM)); // cPrime is non-empty
+  // Step 3. Indistinguishable set from position alone; d_min in metres over ALL candidates.
+  const dMinM = Math.min(...sorted.map((c) => c.residualM)); // sorted is non-empty
   const cutM = dMinM + Math.max(fix.accuracyM, cfg.indistinguishableMinM);
-  let inI = cPrime.filter((c) => c.residualM <= cutM);
+  const positionI = sorted.filter((c) => c.residualM <= cutM);
+  let inI = positionI;
 
-  // Step 5. Decision 7.
+  // Step 4. Decision 7; no heading under a lock (ruling R22).
   if (lock !== null) {
-    const best = cPrime.find((c) => inLock(c, lock));
+    const best = sorted.find((c) => inLock(c, lock));
     if (best === undefined || best.residualM > cutM) {
       return unmatched('LOCK_CONFLICT', inI, [...reasons, 'LOCK_NOT_SUPPORTED']);
     }
@@ -196,6 +197,11 @@ export function selectCandidate(input: SelectionInput): Selection {
     };
   }
 
+  // Step 5. Decision 2 as amended by ruling R22: narrows I only.
+  const heading = applyHeading(fix, inI, cfg);
+  reasons.push(...heading.reasons);
+  inI = [...heading.kept];
+
   // Step 6. Spec §6 + ruling R7.
   if (diamonds.length > 0) {
     return unmatched('AMBIGUOUS_ROUTE', inI, [...reasons, 'DIAMOND_NEARBY']);
@@ -203,8 +209,8 @@ export function selectCandidate(input: SelectionInput): Selection {
 
   // Step 6b. Decision 3 + ruling R9.
   if (previous !== null && coverage !== 'partial') {
-    const held = cPrime.find((c) => c.chainId === previous.chainId);
-    if (held !== undefined && !inI.includes(held)) {
+    const held = sorted.find((c) => c.chainId === previous.chainId);
+    if (held !== undefined && !positionI.includes(held)) {
       const startMs = previous.sinceContradictionMs ?? fix.timestampMs;
       if (fix.timestampMs - startMs < cfg.continuityMaxMs) {
         return {

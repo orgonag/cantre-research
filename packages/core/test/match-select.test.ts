@@ -158,6 +158,38 @@ describe('selectCandidate rules', () => {
     expect(s.reasons).toEqual(['HEADING_INCONSISTENT']);
   });
 
+  it('3. R22: the heading never promotes a candidate that position rejected (d_min unchanged)', () => {
+    // a at 3 m runs north-south, b at 20 m runs east-west; heading 90 at 10 m/s. Position alone
+    // gives I = {a} (20 > 3 + 10). The heading would remove every member of I, so it is not
+    // applied: MATCHED a with HEADING_INCONSISTENT, never b.
+    const s = direct([cand('a', 3, { bearingDeg: 0 }), cand('b', 20, { bearingDeg: 90 })], {
+      fix: fixAt(0, 0, 5, { headingDeg: 90, speedMps: 10 }),
+    });
+    expect(s.status).toBe('MATCHED');
+    expect(s.chosen?.chainId).toBe('a');
+    expect(s.reasons).toEqual(['HEADING_INCONSISTENT']);
+  });
+
+  it('3. R22: the heading narrows only within I and keeps a same-route choice', () => {
+    const s = direct([cand('a', 3, { bearingDeg: 0 }), cand('b', 12, { bearingDeg: 90 })], {
+      fix: fixAt(0, 0, 5, { headingDeg: 90, speedMps: 10 }),
+    });
+    expect(s.status).toBe('MATCHED');
+    expect(s.chosen?.chainId).toBe('b');
+    expect(s.reasons).toEqual(['HEADING_USED']);
+  });
+
+  it('3. R22: the heading filter does not apply under a lock', () => {
+    // The locked candidate a contradicts the heading; under a lock the heading is not consulted.
+    const s = direct([cand('a', 3, { bearingDeg: 0 }), cand('b', 4, { bearingDeg: 90 })], {
+      fix: fixAt(0, 0, 5, { headingDeg: 90, speedMps: 10 }),
+      lock: { kind: 'chain', chainId: 'a' },
+    });
+    expect(s.status).toBe('MATCHED');
+    expect(s.chosen?.chainId).toBe('a');
+    expect(s.reasons).toEqual(['LOCKED_BY_USER']);
+  });
+
   it('4. I = residual <= d_min + max(accuracy, 10 m), boundary included', () => {
     // accuracy 5 -> margin 10: 3 and 13 are inside (13 = 3 + 10), 13.001 is outside.
     const inside = direct([cand('a', 3), cand('b', 13, { chainId: 'b', subdivisionNid: 'sub-1' })]);
@@ -382,6 +414,41 @@ describe('selectCandidate scenarios on real geometry', () => {
     const s = run({ net, lock: { kind: 'chain', chainId: 'cp' } });
     expect(s.status).toBe('MATCHED');
     expect(s.chosen?.chainId).toBe('cp');
+    expect(s.selectionOrigin).toBe('user');
+    expect(s.reasons).toEqual(['LOCKED_BY_USER']);
+  });
+
+  it('R22 probe: 2 m from CN (N-S), 40 m from CPKC (E-W), heading 90 at 4 m/s stays on CN', () => {
+    // Final review probe: the heading filter used to drop CN, recompute d_min = 40 and match CPKC.
+    const ns = straightChain('cn', ORIGIN, -1000, 1000, {
+      bearingDeg: 0,
+      lateralM: 502,
+      sub: 'sub-cn',
+      op: 'CN',
+    });
+    const s = run({
+      chains: [ns, cp('cp', 40)],
+      fix: fixAt(500, 0, 5, { headingDeg: 90, speedMps: 4 }),
+    });
+    expect(s.status).toBe('MATCHED');
+    expect(s.chosen?.chainId).toBe('cn');
+    expect(s.reasons).toEqual(['HEADING_INCONSISTENT']);
+  });
+
+  it('R22: a lock on a line the heading contradicts still matches it (no heading under a lock)', () => {
+    const ns = straightChain('ns', ORIGIN, -1000, 1000, {
+      bearingDeg: 0,
+      lateralM: 509,
+      sub: 'sub-ns',
+      op: 'CP',
+    });
+    const s = run({
+      chains: [cn('cn', 4), ns],
+      fix: fixAt(500, 0, 5, { headingDeg: 90, speedMps: 10 }),
+      lock: { kind: 'chain', chainId: 'ns' },
+    });
+    expect(s.status).toBe('MATCHED');
+    expect(s.chosen?.chainId).toBe('ns');
     expect(s.selectionOrigin).toBe('user');
     expect(s.reasons).toEqual(['LOCKED_BY_USER']);
   });
