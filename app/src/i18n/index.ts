@@ -21,6 +21,15 @@ export const DATA_CLIENT_CODES = [
   'NOT_INSTALLED',
 ] as const satisfies readonly DataClientCode[];
 
+// Compile-time exhaustiveness: if `DataClientCode` gains a code that the list above lacks, this
+// line stops compiling (the left side becomes that code, not `never`).
+export const DATA_CLIENT_CODES_COMPLETE: Exclude<
+  DataClientCode,
+  (typeof DATA_CLIENT_CODES)[number]
+> extends never
+  ? true
+  : never = true;
+
 export type Lang = 'en' | 'fr';
 
 /** Every key of the English catalogue. Typed, so a misspelt key is a compile error. */

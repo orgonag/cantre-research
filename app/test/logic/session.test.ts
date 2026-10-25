@@ -109,6 +109,17 @@ describe('createSession', () => {
     expect(s.state.lockClearedByUpdate).toBe(false);
   });
 
+  it('keeps a pending "lock cleared" notice through a second version change (until dismissed)', () => {
+    const s = createSession(emptyNet('v1'), 'v1');
+    s.lock(lockedChain);
+    s.replaceNetwork(emptyNet('v2'), 'v2');
+    expect(s.state.lockClearedByUpdate).toBe(true);
+    s.replaceNetwork(emptyNet('v3'), 'v3');
+    expect(s.state.lockClearedByUpdate).toBe(true);
+    s.dismissNotice();
+    expect(s.state.lockClearedByUpdate).toBe(false);
+  });
+
   it('mirrors "a lock is set" to the flag, and only that', () => {
     const calls: string[] = [];
     const flag: LockFlag = { set: () => calls.push('set'), clear: () => calls.push('clear') };

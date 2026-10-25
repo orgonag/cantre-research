@@ -115,3 +115,181 @@ button {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Status card, lock chip, route chooser and asset list (Task 5). */
+.muted {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+ul.plain {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card,
+.chooser,
+.assets {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.card--historical {
+  border-style: dashed;
+  border-color: var(--warn-fg);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.card--historical .muted {
+  color: var(--warn-fg);
+}
+
+.card h3,
+.chooser h3,
+.assets h3 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.card__top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card p {
+  margin: 0.5rem 0 0;
+}
+
+.card__mp {
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0.5rem 0 0;
+}
+
+.card__facts dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.card__facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.card--historical .card__facts dt {
+  color: var(--warn-fg);
+}
+
+.card__meta {
+  font-variant-numeric: tabular-nums;
+}
+
+.reasons {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  font-size: 0.875rem;
+}
+
+.chip--locked {
+  border-color: var(--accent);
+  border-width: 2px;
+  padding-right: 0.25rem;
+}
+
+.chip__button {
+  min-height: 2.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border: 2px solid var(--accent);
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Unverified milepost references stand out by a heavy border and a mark, not by colour alone. */
+.badge--unverified {
+  border-color: var(--warn-fg);
+  border-width: 3px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-weight: 700;
+}
+
+.badge--unverified::before {
+  content: '\26A0\00a0';
+}
+
+.chooser__item,
+.asset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.asset {
+  display: block;
+}
+
+.asset__toggle {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto;
+  gap: 0.5rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  border-width: 1px;
+}
+
+.asset__dist {
+  font-variant-numeric: tabular-nums;
+}
+
+.asset__mileage {
+  margin: 0.25rem 0 0;
+}
+
+.attrs div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.attrs dt {
+  min-width: 8rem;
+  color: var(--muted);
+}
+
+.attrs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

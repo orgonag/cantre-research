@@ -98,7 +98,9 @@ export function createSession(
       if (nextVersion === version) {
         return;
       }
-      clearedByUpdate = match.lock !== null;
+      // `||=`: a pending notice survives a second version change; only a new lock choice or
+      // `dismissNotice` removes it.
+      clearedByUpdate ||= match.lock !== null;
       match = initialMatchState(nextNet);
       version = nextVersion;
       changed();

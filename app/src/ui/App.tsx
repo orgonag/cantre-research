@@ -1,22 +1,72 @@
-import { useEffect, useState } from 'preact/hooks';
-import type { Result } from '@cantre/core';
-import { t } from '../i18n/index.js';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import type { Lock, NetworkView } from '@cantre/core';
+import { DataClientError, loadNetwork } from '@cantre/data-client';
+import type { AssetDetails } from '@cantre/data-client';
+import { DATA_CLIENT_CODES, t } from '../i18n/index.js';
+import type { MessageKey } from '../i18n/index.js';
+import { watchFixes } from '../logic/geolocation.js';
+import type { GeoLike } from '../logic/geolocation.js';
+import { lockFlagIn } from '../logic/lockFlag.js';
+import { directionTracker, present, presentAssets } from '../logic/present.js';
+import type { AssetRow, CardModel } from '../logic/present.js';
+import { createSession } from '../logic/session.js';
 import type { Session } from '../logic/session.js';
+import type { Settings } from '../logic/settings.js';
 import { onResume } from '../logic/visibility.js';
+import { AssetList } from './AssetList.js';
+import { LiveRegion } from './LiveRegion.js';
+import { RouteChooser } from './RouteChooser.js';
+import { StatusCard } from './StatusCard.js';
+
+/** The card is recomputed from the clock this often (ms). */
+const TICK_MS = 1000;
+
+type Loaded = {
+  readonly session: Session;
+  readonly net: NetworkView;
+  readonly details: AssetDetails;
+  readonly snapshotDate: string;
+};
+
+type Phase =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'ready'; readonly data: Loaded }
+  | { readonly kind: 'unavailable'; readonly code: string };
+
+type View = {
+  readonly model: CardModel;
+  readonly rows: readonly AssetRow[];
+  readonly conflict: boolean;
+  readonly nowMs: number;
+};
+
+/** True when `code` is one of the data-client codes the catalogue has a message for. */
+function isDataClientCode(code: string): code is (typeof DATA_CLIENT_CODES)[number] {
+  return (DATA_CLIENT_CODES as readonly string[]).includes(code);
+}
 
 /**
- * The app layout. Task 4 mounts it empty; the status card, map and screens come later.
+ * The app layout. It loads the installed network (Task 7 adds the download and first-run
+ * screens; until then a plain "no data installed" state is shown), starts the matcher session
+ * and the geolocation watch, and re-renders the status card once a second from
+ * `session.result(Date.now())`. The app is the only place the clock is read.
  *
  * Errors that happen outside rendering (a rejected promise, an uncaught event handler error)
  * are turned into a render-time throw, so the error boundary around the app shows them too.
  */
 export function App(props: {
-  readonly session: Session | null;
+  readonly settings: Settings;
   readonly lockClearedOnReload: boolean;
+  /** Test seam: how the network is loaded. Defaults to the data client's `loadNetwork`. */
+  readonly load?: typeof loadNetwork;
+  /** Test seam: the device geolocation. Defaults to `navigator.geolocation`. */
+  readonly geo?: GeoLike | null;
 }) {
-  const { session, lockClearedOnReload } = props;
+  const { settings, lockClearedOnReload, load, geo } = props;
   const [asyncError, setAsyncError] = useState<unknown>(null);
-  const [result, setResult] = useState<Result | null>(null);
+  const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
+  const [view, setView] = useState<View | null>(null);
+  const tracker = useRef(directionTracker());
 
   useEffect(() => {
     const onFailure = (event: ErrorEvent | PromiseRejectionEvent): void => {
@@ -30,19 +80,93 @@ export function App(props: {
     };
   }, []);
 
-  // When the page becomes visible again, recompute from the clock, so a long-backgrounded page
-  // shows STALE (historical) and never an old fix as current (Review Focus 3).
-  useEffect(
-    () =>
-      onResume(document, () => {
-        setResult(session === null ? null : session.result(Date.now()));
-      }),
-    [session],
-  );
+  // Load the installed network. A typed data-client error becomes a message; anything else goes
+  // to the error boundary.
+  useEffect(() => {
+    let cancelled = false;
+    (load ?? loadNetwork)()
+      .then((loaded) => {
+        if (cancelled) {
+          return;
+        }
+        const session = createSession(loaded.net, loaded.datasetVersion, lockFlagIn());
+        setPhase({
+          kind: 'ready',
+          data: {
+            session,
+            net: loaded.net,
+            details: loaded.details,
+            snapshotDate: loaded.snapshotDate,
+          },
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        if (error instanceof DataClientError && isDataClientCode(error.code)) {
+          setPhase({ kind: 'unavailable', code: error.code });
+        } else {
+          setAsyncError(error);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
+  const data = phase.kind === 'ready' ? phase.data : null;
+
+  // Recompute the card from the clock: once a second, and when the page becomes visible again,
+  // so a long-backgrounded page shows STALE (historical), never an old fix as current.
+  useEffect(() => {
+    if (data === null) {
+      return undefined;
+    }
+    const { session, net, snapshotDate } = data;
+    const tick = (): void => {
+      const nowMs = Date.now();
+      const result = session.result(nowMs);
+      const dir = tracker.current.update(result);
+      setView({
+        model: present(result, net, settings, { snapshotDate }),
+        rows: presentAssets(result, net, settings, dir),
+        conflict: result.status === 'LOCK_CONFLICT',
+        nowMs,
+      });
+    };
+    const device = geo === undefined ? (navigator.geolocation as GeoLike | undefined) : geo;
+    const stopWatch =
+      device === undefined || device === null
+        ? null
+        : watchFixes(device, Date.now, (event) => {
+            session.dispatch(event);
+          });
+    if (stopWatch === null) {
+      // No geolocation API in this browser: say so with the matcher's own reason.
+      session.dispatch({ type: 'locationError', code: 'UNAVAILABLE' });
+    }
+    tick();
+    const timer = setInterval(tick, TICK_MS);
+    const stopResume = onResume(document, tick);
+    return () => {
+      clearInterval(timer);
+      stopResume();
+      stopWatch?.();
+    };
+  }, [data, settings, geo]);
 
   if (asyncError !== null) {
     throw asyncError instanceof Error ? asyncError : new Error('unexpected failure');
   }
+
+  const choose = (lock: Lock): void => {
+    // The user's explicit choice locks the route. The matcher never switches on its own.
+    data?.session.lock(lock);
+  };
+  const unlock = (): void => {
+    data?.session.unlock();
+  };
 
   return (
     <div class="layout">
@@ -55,7 +179,22 @@ export function App(props: {
           {t('app.statusHeading')}
         </h2>
         {lockClearedOnReload && <p class="notice">{t('lock.clearedOnReload')}</p>}
-        {result === null && <p>{t('app.noDataYet')}</p>}
+        {phase.kind === 'loading' && <p>{t('app.loadingData')}</p>}
+        {phase.kind === 'unavailable' && (
+          <section role="alert">
+            <p>{t(`error.${phase.code}` as MessageKey)}</p>
+            <p>{t('app.noDataBody')}</p>
+          </section>
+        )}
+        {phase.kind === 'ready' && view === null && <p>{t('app.loadingData')}</p>}
+        {phase.kind === 'ready' && view !== null && (
+          <>
+            <StatusCard model={view.model} onUnlock={unlock} />
+            <RouteChooser choices={view.model.choices} conflict={view.conflict} onChoose={choose} />
+            <AssetList rows={view.rows} details={phase.data.details} />
+            <LiveRegion model={view.model} nowMs={view.nowMs} />
+          </>
+        )}
       </main>
       <footer>{t('app.footer')}</footer>
     </div>

@@ -20,7 +20,7 @@ const root = document.getElementById('app');
 if (root !== null) {
   render(
     <ErrorBoundary>
-      <App session={null} lockClearedOnReload={lockClearedOnReload} />
+      <App settings={settings} lockClearedOnReload={lockClearedOnReload} />
     </ErrorBoundary>,
     root,
   );
