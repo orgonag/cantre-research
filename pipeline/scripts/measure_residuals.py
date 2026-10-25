@@ -4,7 +4,11 @@ Evidence for the RESEARCH.md finding that NRWN crossings, marker posts and stati
 on the track, so the residual check cannot be independent evidence of position accuracy.
 Prints, per anchor source, the number of qualified anchors (``qualify_anchors`` output, before
 any interval step), the largest residual in metres and how many residuals are above zero, then
-the residual range of the records rejected as ``RESIDUAL_TOO_LARGE``.
+the residual range of the records rejected as ``RESIDUAL_TOO_LARGE``. It then does the same for
+the positions of every extracted asset, per asset kind: the number of positions, the largest
+residual in metres, how many are above zero and how many have a non-zero ``residualMm`` as
+written to the tiles (metres rounded to millimetres, ``s_scale``). Diamonds are positioned at
+chain vertices with residual 0 by construction.
 
 Usage, from the repository root, with the raw cache already acquired (verify mode)::
 
@@ -20,10 +24,13 @@ PIPELINE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PIPELINE / "src"))
 
 from cantre_pipeline.acquire import acquire  # noqa: E402
-from cantre_pipeline.anchors import qualify_anchors  # noqa: E402
+from cantre_pipeline.anchors import QualifiedAnchor, qualify_anchors  # noqa: E402
+from cantre_pipeline.assets import extract_assets  # noqa: E402
 from cantre_pipeline.chains import build_chains  # noqa: E402
 from cantre_pipeline.cli import SOURCES_DIR, TC_SOURCE, _tc_csv, raw_dir  # noqa: E402
 from cantre_pipeline.config import PipelineConfig  # noqa: E402
+from cantre_pipeline.encode import to_e6  # noqa: E402
+from cantre_pipeline.intervals import Interval, build_intervals  # noqa: E402
 from cantre_pipeline.reader import read_tc_inventory  # noqa: E402
 from cantre_pipeline.validate import load_network  # noqa: E402
 
@@ -53,6 +60,32 @@ def main(province: str) -> int:
         if r.reason == "RESIDUAL_TOO_LARGE" and (m := re.search(r"residual ([0-9.]+) m", r.detail))
     ]
     print(f"RESIDUAL_TOO_LARGE: n={len(too_far)} min_m={min(too_far)} max_m={max(too_far)}")
+    intervals: list[Interval] = []
+    kept: list[QualifiedAnchor] = []
+    for chain in chains.chains:
+        ivs, k, _ = build_intervals(chain, anchors, cfg)
+        intervals += ivs
+        kept += k
+    assets, _ = extract_assets(net, chains, intervals, kept, tc, cfg)
+    astats: dict[str, list[float]] = defaultdict(lambda: [0, 0.0, 0, 0])  # n, max, > 0, mm > 0
+    for asset in assets:
+        for p in asset.positions:
+            st = astats[asset.kind]
+            st[0] += 1
+            st[1] = max(st[1], p.residual_m)
+            st[2] += p.residual_m > 0
+            st[3] += to_e6(p.residual_m, cfg.s_scale) > 0
+    for kind, (n, worst, above, above_mm) in sorted(astats.items()):
+        print(
+            f"asset {kind}: positions={int(n)} max_residual_m={worst} "
+            f"residual_above_zero={int(above)} residualMm_above_zero={int(above_mm)}"
+        )
+    total = [sum(v[i] for v in astats.values()) for i in (0, 2, 3)]
+    worst_all = max((v[1] for v in astats.values()), default=0.0)
+    print(
+        f"assets: positions={int(total[0])} max_residual_m={worst_all} "
+        f"residual_above_zero={int(total[1])} residualMm_above_zero={int(total[2])}"
+    )
     return 0
 
 
