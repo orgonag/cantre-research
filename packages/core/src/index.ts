@@ -42,3 +42,5 @@ export type {
 } from './network/types.js';
 export { coverageOf, diamondsNear, findCandidates, searchRadiusM } from './match/candidates.js';
 export type { Candidate, Fix } from './match/candidates.js';
+export { lowerTier, milepostFor } from './match/milepost.js';
+export type { CandidateMilepost } from './match/milepost.js';
