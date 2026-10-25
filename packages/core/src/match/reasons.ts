@@ -7,6 +7,8 @@
  * - `LOCATION_UNAVAILABLE`: the device reported a location error (no hardware or signal).
  * - `NO_FIX_YET`: permission is granted but no accepted fix has arrived.
  * - `FIX_STALE`: the last accepted fix is older than `staleAfterMs`.
+ * - `FIX_FROM_FUTURE`: the last accepted fix is timestamped more than `futureFixToleranceMs` ahead of the
+ *   caller's clock (bad device clock); the result is STALE, never a current match.
  * - `FIX_IGNORED_OUT_OF_ORDER`: a fix's timestamp did not increase; it was ignored.
  * - `FIX_IGNORED_INVALID`: a fix had non-finite, out-of-envelope or negative-accuracy values; ignored.
  *
@@ -40,6 +42,7 @@ export type MatchReason =
   | 'LOCATION_UNAVAILABLE'
   | 'NO_FIX_YET'
   | 'FIX_STALE'
+  | 'FIX_FROM_FUTURE'
   | 'FIX_IGNORED_OUT_OF_ORDER'
   | 'FIX_IGNORED_INVALID'
   | 'OUTSIDE_LOADED_TILES'
@@ -66,6 +69,7 @@ export const MATCH_REASONS: readonly MatchReason[] = [
   'LOCATION_UNAVAILABLE',
   'NO_FIX_YET',
   'FIX_STALE',
+  'FIX_FROM_FUTURE',
   'FIX_IGNORED_OUT_OF_ORDER',
   'FIX_IGNORED_INVALID',
   'OUTSIDE_LOADED_TILES',

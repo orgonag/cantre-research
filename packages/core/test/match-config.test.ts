@@ -11,6 +11,7 @@ describe('MATCH_CONFIG', () => {
       headingMinSpeedMps: 3,
       headingToleranceDeg: 30,
       continuityMaxMs: 5000,
+      futureFixToleranceMs: 1000,
     });
     expect(Object.isFrozen(MATCH_CONFIG)).toBe(true);
   });
@@ -19,7 +20,7 @@ describe('MATCH_CONFIG', () => {
 describe('closed vocabularies', () => {
   it('MATCH_REASONS lists every code once', () => {
     expect(new Set(MATCH_REASONS).size).toBe(MATCH_REASONS.length);
-    expect(MATCH_REASONS).toHaveLength(23);
+    expect(MATCH_REASONS).toHaveLength(24);
     for (const r of MATCH_REASONS) expect(r).toMatch(/^[A-Z][A-Z_]+$/);
   });
 

@@ -432,6 +432,58 @@ describe('stale, continuity and time', () => {
     expect(after.reasons).not.toContain('CONTINUITY_HOLD');
   });
 
+  it('a fix far in the future is STALE with FIX_FROM_FUTURE; 500 ms ahead is within tolerance', () => {
+    const s = play(oneChain(), [fixEvent(fixAt(500, 0, 100000))]);
+    const future = currentResult(s, 50000);
+    expect(future).toMatchObject({
+      status: 'STALE',
+      reasons: ['FIX_STALE', 'FIX_FROM_FUTURE'],
+      milepost: null,
+      chosen: null,
+      fixAgeMs: -50000,
+      accuracyM: 5,
+    });
+    expect(future.historical?.status).toBe('MATCHED');
+    expect(currentResult(s, 100000 - 1000).status).toBe('MATCHED'); // exactly the tolerance
+    expect(currentResult(s, 100000 - 1001).status).toBe('STALE');
+    const near = currentResult(s, 100000 - 500);
+    expect(near.status).toBe('MATCHED');
+    expect(near.fixAgeMs).toBe(-500);
+    // Later real fixes stay ignored as out of order (documented limit of the pure reducer).
+    expect(reduce(s, fixEvent(fixAt(500, 0, 60000))).ignored).toBe('FIX_IGNORED_OUT_OF_ORDER');
+  });
+
+  it('R12 (a): a gap longer than staleAfterMs drops continuity, so a contradicting fix re-selects', () => {
+    // MATCHED A at t=1000 with no contradiction; at t=22000 B's line is nearest, A is in the
+    // radius but not in I. Without the gap rule this would be a CONTINUITY_HOLD on A.
+    const s = play(twoRoutes(), [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 22000))]);
+    const r = currentResult(s, 22000);
+    expect(r.chosen?.chainId).toBe('B');
+    expect(r.reasons).not.toContain('CONTINUITY_HOLD');
+    // Control: the same two fixes 2 s apart do hold A.
+    const held = play(twoRoutes(), [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(500, 30, 3000))]);
+    expect(currentResult(held, 3000).reasons).toContain('CONTINUITY_HOLD');
+  });
+
+  it('R12 (b): continuity does not resolve an ambiguity across a gap longer than staleAfterMs', () => {
+    // A 5 m from the first fix, B 20 m: matched A. At the second fix both are 7.5 m away.
+    const net = network({
+      coverage: [coverageAround(ORIGIN, 5000)],
+      chains: [
+        straightChain('A', ORIGIN, 0, 2000, { sub: 'sub-A' }),
+        straightChain('B', ORIGIN, 0, 2000, { sub: 'sub-B', lateralM: -15 }),
+      ],
+    });
+    const first = fixEvent(fixAt(500, -5, 1000));
+    const quick = currentResult(play(net, [first, fixEvent(fixAt(500, 7.5, 2000))]), 2000);
+    expect(quick.status).toBe('MATCHED');
+    expect(quick.reasons).toContain('CONTINUITY');
+    const gap = currentResult(play(net, [first, fixEvent(fixAt(500, 7.5, 17001))]), 17001);
+    expect(gap.status).toBe('AMBIGUOUS_ROUTE');
+    expect(gap.reasons).toContain('MULTIPLE_ROUTES');
+    expect(gap.reasons).not.toContain('CONTINUITY');
+  });
+
   it('a non-matched result clears continuity', () => {
     const net = twoRoutes();
     // Matched A, then an off-network fix, then B's line: no hold, so B.
@@ -611,7 +663,7 @@ describe('result invariants (property)', () => {
     { kind: 'subdivision', subdivisionNid: 'nope' },
   );
 
-  function check(r: Result, fix: Fix | null): void {
+  function check(r: Result, accuracyM: number | null): void {
     if (r.milepost !== null) {
       expect(r.status).toBe('MATCHED');
     }
@@ -622,7 +674,7 @@ describe('result invariants (property)', () => {
     if (r.chosen !== null || r.s !== null) {
       expect(r.status).toBe('MATCHED');
     }
-    expect(r.accuracyM).toBe(fix === null ? null : fix.accuracyM);
+    expect(r.accuracyM).toBe(accuracyM);
     expect(r.datasetVersion).toBe('test-1');
     if (r.status === 'STALE') {
       expect(r.historical).not.toBeNull();
@@ -640,26 +692,73 @@ describe('result invariants (property)', () => {
     scan(r);
   }
 
-  it('holds over random fix and lock sequences', () => {
+  const stepArb = fc.oneof(
+    fc.record({ kind: fc.constant('fix' as const), f: fixArb }),
+    fc.record({ kind: fc.constant('invalid' as const), f: fixArb, which: fc.nat(3) }),
+    fc.record({ kind: fc.constant('old' as const), f: fixArb }),
+    fc.record({ kind: fc.constant('lock' as const), lock: lockArb }),
+    fc.record({ kind: fc.constant('perm' as const), granted: fc.boolean() }),
+    fc.record({ kind: fc.constant('err' as const) }),
+  );
+
+  it('holds over random fix, lock, permission, error, invalid and old-fix sequences', () => {
     fc.assert(
       fc.property(
-        fc.array(fc.tuple(fixArb, lockArb, fc.boolean()), { minLength: 1, maxLength: 12 }),
-        fc.integer({ min: 0, max: 40000 }),
-        (steps, lag) => {
+        fc.array(stepArb, { minLength: 1, maxLength: 16 }),
+        fc.integer({ min: -60000, max: 60000 }),
+        (steps, lagMs) => {
           let s = initialMatchState(net);
           let t = 1000;
-          let last: Fix | null = null;
-          for (const [f, lock, applyLock] of steps) {
-            t += f.dt;
-            const fix = fixAt(f.east, f.north, t, f.accuracy);
-            s = reduce(s, fixEvent(fix)).state;
-            last = fix;
-            if (applyLock) {
-              s = reduce(s, lock === null ? { type: 'unlock' } : { type: 'lock', lock }).state;
+          let expectedAccuracy: number | null = null;
+          for (const step of steps) {
+            if (step.kind === 'fix') {
+              t += step.f.dt;
+              const fix = fixAt(step.f.east, step.f.north, t, step.f.accuracy);
+              const r = reduce(s, fixEvent(fix));
+              if (r.ignored === null) {
+                expectedAccuracy = fix.accuracyM;
+              }
+              s = r.state;
+            } else if (step.kind === 'invalid') {
+              const good = fixAt(step.f.east, step.f.north, t + 1, step.f.accuracy);
+              const bad = [
+                { ...good, lat: NaN },
+                { ...good, accuracyM: -1 },
+                { ...good, lon: 10 },
+                { ...good, speedMps: Infinity },
+              ][step.which] as Fix;
+              const r = reduce(s, fixEvent(bad));
+              expect(r.ignored).toBe('FIX_IGNORED_INVALID');
+              s = r.state;
+            } else if (step.kind === 'old') {
+              // t=500 is older than any fix after the first; as the very first fix it is valid.
+              const fix = fixAt(step.f.east, step.f.north, 500, step.f.accuracy);
+              const first = s.lastFixTimestampMs === null && s.permission === 'granted';
+              const r = reduce(s, fixEvent(fix));
+              expect(r.ignored === null).toBe(first);
+              if (first) {
+                expectedAccuracy = fix.accuracyM;
+              }
+              s = r.state;
+            } else if (step.kind === 'lock') {
+              s = reduce(
+                s,
+                step.lock === null ? { type: 'unlock' } : { type: 'lock', lock: step.lock },
+              ).state;
+            } else if (step.kind === 'perm') {
+              s = reduce(s, {
+                type: 'permission',
+                state: step.granted ? 'granted' : 'denied',
+              }).state;
+              if (s.lastFix === null) {
+                expectedAccuracy = null;
+              }
+            } else {
+              s = reduce(s, { type: 'locationError', code: 'TIMEOUT' }).state;
             }
-            check(currentResult(s, t), last);
+            check(currentResult(s, t), expectedAccuracy);
+            check(currentResult(s, t + lagMs), expectedAccuracy);
           }
-          check(currentResult(s, t + lag), last);
         },
       ),
       { numRuns: 300 },

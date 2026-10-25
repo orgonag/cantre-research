@@ -153,7 +153,9 @@ function evaluate(
  *   changes (a stale result follows by time, not by error).
  * - `lock` / `unlock`: set / clear the lock (only `unlock` clears) and immediately re-evaluate the
  *   last accepted fix, if any, without counting it again or re-checking its order.
- * Limits: no timers; staleness is applied by {@link currentResult}.
+ * Limits: no timers; staleness is applied by {@link currentResult}. The reducer cannot see `nowMs`,
+ * so a fix with a far-future timestamp is accepted here (currentResult marks it FIX_FROM_FUTURE) and
+ * later real fixes are ignored as out of order until the clock passes it (ruling R20).
  */
 export function reduce(
   state: MatchState,
@@ -249,8 +251,12 @@ function reduceLock(state: MatchState, lock: Lock | null): MatchState {
  * - NO_PERMISSION and NO_FIX ignore time (`fixAgeMs` null).
  * - Otherwise, if `nowMs - lastFixTimestampMs > cfg.staleAfterMs` the result is STALE: reason
  *   `FIX_STALE`, no chosen/milepost/range/candidates, the stored result as `historical`.
+ * - If `nowMs - lastFixTimestampMs < -cfg.futureFixToleranceMs` (ruling R20) the fix is from the
+ *   future: STALE with `FIX_STALE` and `FIX_FROM_FUTURE`, same shape as above. Limit: the pure
+ *   reducer cannot see `nowMs`, so it accepted that fix, and later real fixes stay ignored as out
+ *   of order until the clock passes the bad timestamp; the caller may start a new state instead.
  * - Otherwise the stored result with `fixAgeMs = nowMs - lastFixTimestampMs` (negative only if
- *   the caller's clock runs behind the fix clock; it is not clamped, so a skew is visible).
+ *   the caller's clock runs behind the fix clock within the tolerance; not clamped, so skew shows).
  * Throws `CoreInputError` (`NON_FINITE`) when `nowMs` is not finite. Pure: no clock is read.
  */
 export function currentResult(state: MatchState, nowMs: number): Result {
@@ -261,6 +267,9 @@ export function currentResult(state: MatchState, nowMs: number): Result {
     return stored; // NO_PERMISSION or NO_FIX: time does not matter
   }
   const ageMs = nowMs - lastMs;
+  if (ageMs < -state.cfg.futureFixToleranceMs) {
+    return staleResult(stored, ageMs, true); // ruling R20: the fix is from the future
+  }
   if (ageMs > state.cfg.staleAfterMs) {
     return staleResult(stored, ageMs);
   }

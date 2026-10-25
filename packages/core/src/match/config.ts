@@ -17,6 +17,12 @@ export type MatchConfig = {
   readonly headingToleranceDeg: number;
   /** Longest hold on a previous match that new fixes contradict, milliseconds. Decision 3. Experimental. */
   readonly continuityMaxMs: number;
+  /**
+   * How far ahead of the caller's clock a fix timestamp may be before it is treated as coming
+   * from the future, milliseconds. Absorbs small clock skew between the device location clock and
+   * the caller's clock; beyond it the result is STALE with FIX_FROM_FUTURE (ruling R20). Experimental.
+   */
+  readonly futureFixToleranceMs: number;
 };
 
 /**
@@ -35,4 +41,5 @@ export const MATCH_CONFIG: MatchConfig = Object.freeze({
   headingMinSpeedMps: 3,
   headingToleranceDeg: 30,
   continuityMaxMs: 5000,
+  futureFixToleranceMs: 1000,
 });

@@ -209,11 +209,17 @@ function subdivisionRange(
  * `staleAfterMs`, so nothing is current. Status STALE, reason FIX_STALE, every position field
  * null or empty, and the stored result is kept as `historical` (its `fixAgeMs` set to `ageMs`, the
  * true age of the fix it describes). `accuracyM` and `lock` stay (the fix's own accuracy and the
- * current lock). Units: `ageMs` milliseconds, `nowMs - lastFixTimestampMs`.
+ * current lock). With `fromFuture` (ruling R20: ageMs below minus the future tolerance) the reasons
+ * are FIX_STALE and FIX_FROM_FUTURE. Units: `ageMs` milliseconds, `nowMs - lastFixTimestampMs`.
  */
-export function staleResult(stored: Result, ageMs: number): Result {
+export function staleResult(stored: Result, ageMs: number, fromFuture = false): Result {
   return Object.freeze({
-    ...empty(stored.datasetVersion, 'STALE', stored.lock, ['FIX_STALE']),
+    ...empty(
+      stored.datasetVersion,
+      'STALE',
+      stored.lock,
+      fromFuture ? ['FIX_STALE', 'FIX_FROM_FUTURE'] : ['FIX_STALE'],
+    ),
     accuracyM: stored.accuracyM,
     fixAgeMs: ageMs,
     historical: Object.freeze({ ...stored, fixAgeMs: ageMs }),
