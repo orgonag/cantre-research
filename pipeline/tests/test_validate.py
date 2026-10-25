@@ -30,9 +30,9 @@ def _reasons(net: Network) -> Counter[str]:
     return Counter(a.reason for a in net.audit)
 
 
-def test_reason_set_is_the_closed_set_of_33() -> None:
+def test_reason_set_is_the_closed_set_of_34() -> None:
     reasons = set(get_args(AuditReason))
-    assert len(reasons) == 33
+    assert len(reasons) == 34
     assert {"NULL_GEOMETRY", "TC_DUPLICATE_NUMBER", "CHAIN_CYCLE", "ANCHOR_OUTLIER"} <= reasons
 
 

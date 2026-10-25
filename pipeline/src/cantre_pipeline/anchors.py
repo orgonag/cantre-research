@@ -210,7 +210,6 @@ class ChainFix:
     chain: Chain
     s_m: float
     residual_m: float
-    seg_key: str = ""
 
 
 @dataclass(frozen=True)
@@ -269,11 +268,11 @@ def locate_on_chain(
         )
     if pt is None:  # a line anchors at its first vertex unless the caller names another point
         pt = f.pt if isinstance(f, PointFeature) else f.pts[0]
-    found: list[tuple[float, str, Chain, float, str]] = []  # residual, chain id, chain, s, seg
+    found: list[tuple[float, str, Chain, float]] = []  # residual, chain id, chain, s
     for seg, chain in hits:
         i0, i1 = chain.segment_ranges[seg.key]
         r = project_onto_range(pt, chain.pts, chain.s_m, i0, i1)
-        found.append((r.cross_track_m, chain.id, chain, r.s_m, seg.key))
+        found.append((r.cross_track_m, chain.id, chain, r.s_m))
     found.sort(key=lambda x: (x[0], x[1], x[3]))
     best = found[0]
     for other in found[1:]:
@@ -288,7 +287,7 @@ def locate_on_chain(
         return LocateFail(
             "RESIDUAL_TOO_LARGE", f"residual {best[0]:.2f} m exceeds {cfg.anchor_max_residual_m} m"
         )
-    return ChainFix(best[2], best[3], best[0], best[4])
+    return ChainFix(best[2], best[3], best[0])
 
 
 def _candidates(net: Network) -> list[AnchorFeature]:

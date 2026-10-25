@@ -7,6 +7,7 @@ import pytest
 
 from cantre_pipeline.anchors import QualifiedAnchor, qualify_anchors
 from cantre_pipeline.assets import Asset, ChainPosition, PostedMileage, extract_assets
+from cantre_pipeline.audit import AuditRecord
 from cantre_pipeline.chains import build_chains
 from cantre_pipeline.config import PipelineConfig
 from cantre_pipeline.geodesy import LatLon, metres_per_degree
@@ -39,7 +40,7 @@ def base(tmp_path: Path, *, calibrated: bool = True) -> NrwnFixture:
 
 def run_full(
     fx: NrwnFixture,
-) -> tuple[list[Asset], list[Interval], list[QualifiedAnchor]]:
+) -> tuple[list[Asset], list[AuditRecord]]:
     net = load_network(fx.write(), "sk", CFG)
     chains = build_chains(net, CFG)
     tc = read_tc_inventory(fx.tc_path, "SK")
@@ -50,13 +51,18 @@ def run_full(
         ivs, k, _ = build_intervals(ch, anchors, CFG)
         intervals += ivs
         kept += k
-    out = extract_assets(net, chains, intervals, kept, tc, CFG)
+    out, audit = extract_assets(net, chains, intervals, kept, tc, CFG)
     assert len({a.id for a in out}) == len(out)
-    return out, intervals, kept
+    return out, audit
 
 
 def run(fx: NrwnFixture) -> dict[str, Asset]:
     return {a.id: a for a in run_full(fx)[0]}
+
+
+def audit_of(fx: NrwnFixture) -> list[tuple[str, str, str, str]]:
+    """Audit lines as ``(layer, nid, reason, severity)``, sorted."""
+    return sorted((a.layer, a.nid, a.reason, a.severity) for a in run_full(fx)[1])
 
 
 def one(assets: dict[str, Asset], suffix: str) -> Asset:
@@ -244,6 +250,55 @@ def test_extraction_is_independent_of_record_order(tmp_path: Path) -> None:
     assert build("a", [0, 1, 2]) == build("b", [2, 0, 1])
 
 
+def test_diamond_node_interior_to_a_segment_is_found(tmp_path: Path) -> None:
+    fx = NrwnFixture(tmp_path)
+    fx.track("E", [P(0), P(1), P(2)])  # P1 is an interior vertex of the only segment
+    fx.junction("D", P(1), "Diamond")
+    fx.junction("D2", P(1.5), "Diamond")  # on the segment but not at a vertex: unpositioned
+    a = run(fx)
+    (pos,) = a["JUNCTION.D"].positions
+    assert pos.s_start_m == pytest.approx(STEP_M, rel=1e-3) and pos.residual_m == 0
+    assert a["JUNCTION.D2"].positions == ()
+
+
+def test_line_with_ends_on_two_chains_is_unpositioned_and_audited(tmp_path: Path) -> None:
+    fx = NrwnFixture(tmp_path)
+    # Two disjoint segments share one NID (allowed, Decision 1), so they form two chains.
+    fx.track("A1", [P(0), P(1)], nid="N")
+    fx.track("A2", [P(3), P(4)], nid="N")
+    fx.bridge("BR", [P(0.5, 2), P(3.5, 2)], "N")
+    assert one(run(fx), "BR").positions == ()
+    lines = [a for a in run_full(fx)[1] if a.reason == "ASSET_UNPOSITIONED"]
+    assert [(a.layer, a.nid, a.severity) for a in lines] == [("STRUCTURE_1", "BR", "info")]
+    assert "ends on different chains" in lines[0].detail
+
+
+def test_unpositioned_causes_are_in_the_audit_detail(tmp_path: Path) -> None:
+    fx = base(tmp_path)
+    fx.crossing("SC", P(2.0, 30), "SD", mp=1.5, track_class="Siding")
+    fx.bridge("BR", [P(1.5, 4), P(2.0, 400)], "T1")
+    fx.junction("D", P(9), "Diamond")
+    lines = {a.nid: a for a in run_full(fx)[1] if a.reason == "ASSET_UNPOSITIONED"}
+    assert set(lines) == {"SC", "BR", "D"}
+    assert "TRACK_NOT_CHAINED" in lines["SC"].detail
+    assert "end vertex not projectable" in lines["BR"].detail
+    assert "no chain" in lines["D"].detail
+
+
+def test_unknown_structure_unit_and_duplicate_nid_are_audited(tmp_path: Path) -> None:
+    fx = base(tmp_path)
+    fx.bridge("UN", [P(1.7, 3), P(1.8, 3)], "T1", kind="Unknown")
+    fx.crossing("KM", P(2.0), "T1", mp=3.0, unit="Kilometre")
+    fx.crossing("D", P(1.0), "T1", mp=None, qualifier="Unknown")
+    fx.crossing("D", P(2.5), "T1", mp=None, qualifier="Unknown")
+    got = audit_of(fx)
+    assert ("STRUCTURE_1", "UN", "UNKNOWN_DOMAIN_VALUE", "rejected") in got
+    assert ("CROSSING", "KM", "UNIT_NOT_MILE", "info") in got
+    assert ("CROSSING", "D", "DUPLICATE_NID", "info") in got
+    detail = [a.detail for a in run_full(fx)[1] if a.reason == "DUPLICATE_NID"]
+    assert detail == ["asset renamed to CROSSING.D~1"]
+
+
 def test_dataclass_defaults() -> None:
     assert PostedMileage(1.0, "S").tier == "posted"
     assert ChainPosition("c", 0.0, 1.0, 0.0, None, None).residual_m == 0.0
@@ -264,8 +319,10 @@ def test_real_sk_asset_invariants() -> None:  # pragma: no cover - env-gated
         ivs, k, _ = build_intervals(ch, anchors, CFG)
         intervals += ivs
         kept += k
-    assets = extract_assets(net, chains, intervals, kept, tc, CFG)
+    assets, audit = extract_assets(net, chains, intervals, kept, tc, CFG)
     assert assets
+    unpos = {(a.layer, a.nid) for a in audit if a.reason == "ASSET_UNPOSITIONED"}
+    assert unpos == {(a.layer, a.id.split(".", 1)[1]) for a in assets if not a.positions}
     ak = {(a.chain_id, a.id): a for a in kept}
     spans: dict[str, list[tuple[float, float]]] = {}
     for iv in intervals:

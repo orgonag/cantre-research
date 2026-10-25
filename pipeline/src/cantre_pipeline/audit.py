@@ -52,8 +52,11 @@ AuditReason = Literal[
     "NOT_CHAINED_CLASS",
     "NOT_OPERATIONAL",
     "SECOND_SUBDIVISION_IGNORED",
+    # assets
+    "ASSET_UNPOSITIONED",
 ]
-"""The closed set of audit reason codes (33)."""
+"""The closed set of audit reason codes (34); ``ASSET_UNPOSITIONED`` (info) marks an asset that ends
+with no chain position, the cause being in the detail."""
 
 AUDIT_REASONS: frozenset[str] = frozenset(get_args(AuditReason))
 
