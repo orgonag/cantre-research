@@ -101,14 +101,14 @@ jobs:
         run: |
           set -euo pipefail
           base="${SITE%/}"
-          fetch_headers() { curl -sSI --retry 6 --retry-delay 10 --retry-all-errors "$@"; }
+          fetch_headers() { curl -fsSI --retry 6 --retry-delay 10 --retry-all-errors "$@"; }
           echo "--- data/manifest.json"
           manifest_headers="$(fetch_headers "$base/data/manifest.json")"
           echo "$manifest_headers"
           if echo "$manifest_headers" | grep -qi '^content-encoding:'; then
             echo "::error::data/manifest.json is served with Content-Encoding"; exit 1
           fi
-          curl -sS --retry 6 --retry-delay 10 --retry-all-errors "$base/data/manifest.json" -o manifest.json
+          curl -fsS --retry 6 --retry-delay 10 --retry-all-errors "$base/data/manifest.json" -o manifest.json
           for key in snapshot assetDetails; do
             path="$(jq -r ".$key.path" manifest.json)"
             want_sha="$(jq -r ".$key.sha256" manifest.json)"
@@ -120,7 +120,7 @@ jobs:
               echo "::error::data/$path is served with Content-Encoding"; exit 1
             fi
             # The bytes a browser receives (same Accept-Encoding, no decoding) must be the file.
-            curl -sS --retry 6 --retry-delay 10 --retry-all-errors \
+            curl -fsS --retry 6 --retry-delay 10 --retry-all-errors \
               -H 'Accept-Encoding: gzip, deflate, br' "$base/data/$path" -o served.bin
             got_sha="$(sha256sum served.bin | cut -d' ' -f1)"
             got_bytes="$(wc -c < served.bin | tr -d ' ')"

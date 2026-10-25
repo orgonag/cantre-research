@@ -236,6 +236,7 @@
     "about.disclaimer.heading": "Research use only",
     "about.code.heading": "Source code",
     "about.code.link": "CANTRE on GitHub (opens in a new tab)",
+    "about.thirdParty.link": "Third-party software notices (licence texts of the libraries in this app)",
     "about.licence": "The code is under the MIT licence. Data stays under each source's own licence.",
 
     "offline.damaged": "The data stored on this device is damaged or unreadable, so it cannot be used.",

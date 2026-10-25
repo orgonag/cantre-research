@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { licencesPlugin } from './licenses-plugin.js';
 
 const source = (relative: string): string => fileURLToPath(new URL(relative, import.meta.url));
 
@@ -47,6 +48,8 @@ export default defineConfig({
   // from the 300 kB shell budget, so the default 500 kB chunk warning is raised above it.
   build: { target: 'es2023', sourcemap: false, chunkSizeWarningLimit: 1200 },
   plugins: [
+    // Writes third-party-licenses.txt (name, version, licence text of every bundled package).
+    licencesPlugin(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['icons/*.png'],
@@ -68,7 +71,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{html,js,css,png,webmanifest}'],
+        globPatterns: ['**/*.{html,js,css,png,webmanifest,txt}'],
         globIgnores: ['**/maplibre-gl*', '**/data/**'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/\/data\//],

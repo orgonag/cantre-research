@@ -70,6 +70,11 @@ export function About(props: { readonly installed: InstalledSnapshot | null }) {
           {t('about.code.link')}
         </a>
       </p>
+      <p>
+        <a href="third-party-licenses.txt" target="_blank" rel="noopener noreferrer">
+          {t('about.thirdParty.link')}
+        </a>
+      </p>
       <p class="muted">{t('about.licence')}</p>
     </section>
   );

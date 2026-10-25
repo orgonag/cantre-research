@@ -28,6 +28,9 @@
  *                  published-site limit is 1 GB; the decimal figure leaves a small margin
  *                  against a binary 1 GiB).
  *
+ * Not a size limit, but required: SITE/third-party-licenses.txt must exist and name maplibre-gl and
+ * preact, because their licences require the notice to ship with the site. The app build writes it.
+ *
  * A symbolic link anywhere under SITE fails the gate, because the Pages artifact upload rejects
  * links.
  *
@@ -132,6 +135,13 @@ function main() {
   }
   const failures = [];
   for (const link of links) failures.push(`symbolic link in the site: ${rel(dir, link)}`);
+
+  // The licence notices must have been built into the site.
+  const noticePath = join(dir, 'third-party-licenses.txt');
+  const notice = files.some((f) => f.path === noticePath) ? readFileSync(noticePath, 'utf8') : '';
+  if (!notice.includes('maplibre-gl') || !notice.includes('preact')) {
+    failures.push('third-party-licenses.txt is missing or does not name maplibre-gl and preact');
+  }
 
   // Limits 3 and 4: raw bytes on disk.
   const siteBytes = files.reduce((sum, f) => sum + f.bytes, 0);

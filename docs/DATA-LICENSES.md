@@ -83,13 +83,24 @@ reads the notice that map tiles are requested for the area shown.
 ## Code and libraries
 
 - CANTRE's own code is MIT-licensed ([`LICENSE`](../LICENSE)).
-- The app bundles maplibre-gl 6.13.0 (BSD-3-Clause) and preact 11.0.1 (MIT). Licence notices for
-  the bundled libraries are not yet shipped with the site; that is open work (see the M4 entry in
-  [RESEARCH.md](RESEARCH.md)).
+- The app bundles maplibre-gl 6.13.0 (BSD-3-Clause), preact 11.0.1 (MIT) and the packages they
+  depend on (25 runtime packages in all, under MIT, BSD-2-Clause, BSD-3-Clause, ISC and
+  MIT OR Apache-2.0). Their notices and full licence texts are built into the site as
+  `third-party-licenses.txt` (linked from the About page; generated from node_modules by
+  `app/licenses-plugin.ts` from the packages that are actually in the bundle, with no dev tools).
+  The size gate fails if the file is missing.
 - Build and test tools (Vite, Workbox, Playwright, axe-core and others) are not part of the
-  published site. A few transitive build packages carry BlueOak-1.0.0 or CC-BY-4.0 licences. They
-  were accepted for the build, nothing from them ships in the site, and they are listed in the
-  pull request for the owner to confirm.
+  published site. Nine transitive build packages (all dev-only in
+  `package-lock.json`, pulled in by the service-worker plugin's `workbox-build` and by the
+  browser-support data) carry licences outside MIT, BSD, Apache, ISC and MPL:
+  - BlueOak-1.0.0: `@isaacs/cliui` 9.0.0, `glob` 11.1.0, `jackspeak` 4.2.3, `minimatch` 10.2.6,
+    `minipass` 7.1.3, `package-json-from-dist` 1.0.1, `path-scurry` 2.0.2, `lru-cache` 11.5.3.
+  - CC-BY-4.0: `caniuse-lite` 1.0.30001819 (browser-support data).
+
+  They were accepted for the build (controller ruling P23). None is in the site: the notices file
+  lists only packages found in the built bundle, and none of these is among them. The owner has
+  not yet confirmed them; replacing `workbox-build` with a hand-written service worker would
+  remove most of them.
 
 ## What these licences do not give
 

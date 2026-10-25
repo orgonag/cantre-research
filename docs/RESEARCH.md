@@ -331,8 +331,8 @@ merge-conflict check never fired. YT calibrates 0 km (one anchor, no interval) a
 393 km; NL, NT and YT have 25, 40 and 1 anchors. These are data facts, not errors.
 
 **The plan's estimate was wrong.** The M4 plan projected the snapshot at about 4 to 6 MB from the
-Saskatchewan trial. The measured national snapshot is 12.37 MB (12,366,619 bytes), roughly twice
-that, and the first-run download with asset details is 14.24 MB. It is inside the 15 MB target,
+Saskatchewan trial. The measured national snapshot is 12.37 MB (12,366,619 bytes), two to three
+times that (12.37 / 6 is 2.1 and 12.37 / 4 is 3.1), and the first-run download with asset details is 14.24 MB. It is inside the 15 MB target,
 the 100 MB per-file limit and the 1 GB site limit, so no hosting change was needed, but the
 projection method (scaling from one province) should not be reused.
 
@@ -343,10 +343,10 @@ sub-path with the data laid out as the site:
 
 | Limit | Measured | Limit |
 | --- | --- | --- |
-| App shell, gzip (10 files, excluding maplibre-gl) | 51,769 bytes | 300,000 |
+| App shell, gzip (11 files, with the licence notices, excluding maplibre-gl) | 59,285 bytes | 300,000 |
 | maplibre-gl chunk, CSS and worker, gzip (4 files, loaded only when the map opens) | 440,785 bytes | not in the shell |
 | Largest file (the snapshot) | 12,366,619 bytes | 100,000,000 |
-| Site total (17 files) | 16,145,481 bytes | 1,000,000,000 |
+| Site total (18 files) | 16,200,509 bytes | 1,000,000,000 |
 | Largest tile, gzip | 433,499 bytes | 500,000 |
 
 The shell figure gzips each file separately with Node's zlib at level 9 and adds them. The tile
@@ -356,14 +356,17 @@ measured value, on an unlisted tile and on a tile whose size differs from the ma
 
 ### Decoding cost (measured on one desktop)
 
-AMD Ryzen 9 5900X, 15.9 GiB RAM, Windows 11, Node 22.12.0: unzip 79 ms and decode 409 ms (median
-of 5 runs) for the national snapshot, with about 127 MiB more heap; parsing the asset-details JSON
-adds about 27 MiB. **No phone has been measured.** A low-end phone will be slower, and the roughly
-130 to 150 MiB of heap needs a check on real devices before anyone relies on it.
+AMD Ryzen 9 5900X (12 cores), 15.9 GiB RAM, Windows 11 x64, Node 22.12.0 (V8 12.4.254.21-node.21):
+unzip 79 ms and decode 409 ms (median of 5 runs) for the national snapshot. Heap in use grew by
+127.3 MiB (median of the same 5 runs, forced garbage collection, decoded network kept alive). The
+whole `loadNetwork` path with the asset-details file (download, hash, unzip, decode, parse JSON)
+grew it by 143.6 MiB in one run inside a test worker; parsing the asset-details JSON alone adds
+27.1 MiB. **No phone has been measured.** A low-end phone will be slower and may have less memory,
+so these heap figures need a check on real devices before anyone relies on them.
 
 ### Tests
 
-- `npm run coverage`: 42 test files, 644 tests passed. Statements 99.73 %, branches 95.28 %,
+- `npm run coverage`: 43 test files, 646 tests passed. Statements 99.73 %, branches 95.28 %,
   functions 100 %, lines 99.72 % overall; `app/src/logic` 99.58 / 92.94 / 100 / 99.57 against the
   gate of 90 / 85 / 95; core and data-client hold their 95 / 90 / 100 gate.
 - Playwright (`CI=1 npm run -w app e2e`, against the built app, desktop Chromium, Pixel 7 and an
@@ -397,6 +400,8 @@ adds about 27 MiB. **No phone has been measured.** A low-end phone will be slowe
 - The French text is a draft and needs native review.
 - The service worker's clean-up of its library cache is unproven across two real releases (it
   needs two builds).
-- Memory and speed on real phones are unmeasured (above). Licence notices for the bundled
-  libraries are not shipped with the site yet.
+- Memory and speed on real phones are unmeasured (above).
+- Licence notices: the build writes `third-party-licenses.txt` into the site (25 runtime packages
+  with their licence texts, linked from the About page and precached), and the size gate fails if
+  it is missing. Not yet checked by a person against each package's own repository.
 - Nunavut and Prince Edward Island are not covered (no NRWN package).

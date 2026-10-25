@@ -236,6 +236,7 @@
     "about.disclaimer.heading": "Usage de recherche seulement",
     "about.code.heading": "Code source",
     "about.code.link": "CANTRE sur GitHub (s'ouvre dans un nouvel onglet)",
+    "about.thirdParty.link": "Avis sur les logiciels tiers (textes de licence des bibliothèques de cette application)",
     "about.licence": "Le code est sous licence MIT. Les données restent sous la licence propre à chaque source.",
 
     "offline.damaged": "Les données enregistrées sur cet appareil sont endommagées ou illisibles et ne peuvent pas être utilisées.",

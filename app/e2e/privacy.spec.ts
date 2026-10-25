@@ -300,6 +300,15 @@ test.describe('what the app sends', () => {
     await expect(
       page.getByText('Contains information licensed under the Open Government Licence – Canada'),
     ).toBeVisible();
+    // The third-party notices are linked from About and are served with the site.
+    const link = page.getByRole('link', { name: /Third-party software notices/ });
+    await expect(link).toHaveAttribute('href', 'third-party-licenses.txt');
+    const response = await page.request.get('/third-party-licenses.txt');
+    expect(response.ok()).toBe(true);
+    const text = await response.text();
+    expect(text).toContain('maplibre-gl 6.13.0');
+    expect(text).toContain('preact 11.0.1');
+    expect(text).toContain('Redistributions in binary form must reproduce');
   });
 });
 

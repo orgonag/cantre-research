@@ -42,6 +42,7 @@ const APP_FILES: readonly RegExp[] = [
   /^\/sw-cleanup\.js$/,
   /^\/workbox-[\w-]+\.js$/,
   /^\/manifest\.webmanifest$/,
+  /^\/third-party-licenses\.txt$/,
   /^\/assets\/[\w.-]+\.(js|mjs|css)$/,
   /^\/icons\/[\w.-]+\.png$/,
 ];
