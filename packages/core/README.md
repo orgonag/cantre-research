@@ -100,14 +100,14 @@ clock. Time enters only through each fix's timestamp and the `nowMs` argument to
 
 | Export | Signature / value | Units | Spec |
 |---|---|---|---|
-| `networkFromTiles` | `(tiles: unknown[]) => NetworkView` (pure decode of `cantre.tile/1` objects; throws `CoreInputError` on a malformed tile or mixed `datasetVersion`) | deg, m, mi | §6, §9 |
+| `networkFromTiles` | `(tiles: unknown[]) => NetworkView` (pure decode of `cantre.tile/1` objects; throws `CoreInputError` on a malformed tile, mixed `datasetVersion`, an interval that fails `validateInterval`, a decreasing chain `sMm` or a vertex outside the Canada envelope) | deg, m, mi | §6, §8, §9 |
 | `initialMatchState` | `(net, cfg = MATCH_CONFIG) => MatchState` (status `NO_FIX`) | n/a | §6 |
 | `reduce` | `(state, event) => { state, ignored }`; `ignored` is the reason code for an ignored fix, else null | ms | §6 |
 | `currentResult` | `(state, nowMs) => Result` (applies staleness; throws on non-finite `nowMs`) | ms | §6 |
 | `MATCH_CONFIG` | frozen thresholds, table below | per field | §6 |
 | `MATCH_STATUSES`, `MATCH_REASONS` | the nine statuses and the 24 reason codes, each once | n/a | §6 |
 | `searchRadiusM` | `(accuracyM, cfg) => m` | m | §6 |
-| `findCandidates` | `(net, fix, cfg) => Candidate[]`, sorted by `(residualM, chainId, segmentKey)` | m | §6 |
+| `findCandidates` | `(net, fix, cfg) => Candidate[]`, one per distinct pass of a chain, sorted by `(residualM, chainId, segmentKey, s)` | m | §6 |
 | `coverageOf` | `(net, fix, radiusM) => 'outside' \| 'partial' \| 'covered'` | m | §6 |
 | `diamondsNear` | `(net, candidates, radiusM) => DiamondPosition[]` | m | §6 |
 | `milepostFor` | `(net, candidate, accuracyM) => CandidateMilepost` | m in; mi out | §6 |
@@ -124,7 +124,10 @@ Events: `{ type: 'fix', fix }`, `{ type: 'permission', state: 'granted' | 'denie
 `{ type: 'locationError', code }`, `{ type: 'lock', lock }` and `{ type: 'unlock' }`. A `Fix` is
 `{ lat, lon, timestampMs, accuracyM, headingDeg?, speedMps? }` (degrees, milliseconds, metres,
 degrees clockwise from north, metres per second). A `Lock` is `{ kind: 'chain', chainId }` or
-`{ kind: 'subdivision', subdivisionNid }`.
+`{ kind: 'subdivision', subdivisionNid }`. A chain lock's `chainId` may be the pipeline chain id
+(`Candidate.chainBaseId`, which survives a chain split across unloaded tiles) or a decoded piece
+id such as `id#2` (`Candidate.chainId`); a candidate matches when either equals it, so passing
+`result.chosen.chainId` back is safe. A piece-id lock covers only that piece.
 
 ```ts
 let state = initialMatchState(networkFromTiles(tiles));
@@ -143,7 +146,7 @@ const result = currentResult(state, nowMs); // result.status, result.milepost, r
 | `OFF_NETWORK` | Covered, but no track within the search radius. | no candidates |
 | `AMBIGUOUS_ROUTE` | More than one route is plausible, a diamond is near, or the search disk is only partly covered. No route is chosen. | the choices in `candidates` |
 | `MATCHED_SUBDIVISION` | One subdivision is certain, the parallel track is not. | `candidates`, and `mpRange` when the tracks agree |
-| `MATCHED` | One track is selected, by evidence or by the user's lock. | `chosen`, `s`, `milepost` (null when the chain is uncalibrated, the position is in a gap, or the track is unchained) |
+| `MATCHED` | One track is selected, by evidence or by the user's lock. | `chosen`, `s`, `milepost` (null when the chain is uncalibrated, the position is in a gap, or the track is unchained), and every other plausible track in `candidates` |
 | `LOCK_CONFLICT` | The user's lock does not fit the fix. The lock is kept; no milepost is shown. | the alternatives in `candidates` |
 
 ### Rules
@@ -152,29 +155,41 @@ const result = currentResult(state, nowMs); // result.status, result.milepost, r
 status wins. Every number is a `MATCH_CONFIG` value and is experimental.
 
 1. Search radius = max(50 m, 3 x accuracy). A fix outside every loaded tile is `NO_COVERAGE`.
-2. No chain or unchained segment within the radius is `OFF_NETWORK`. Candidates are one per chain
-   (the best projection onto its whole geometry) plus one per unchained segment.
-3. Heading filter. Only when speed is above 3 m/s and a heading is given, a candidate whose track
-   bearing differs from the heading by more than 30 degrees (axially, so a train may run either
-   way) is dropped. If that would drop every candidate the filter is not applied
-   (`HEADING_INCONSISTENT`). A stale heading at a standstill is never used.
-4. d_min is the smallest residual. The indistinguishable set I holds every candidate within
-   d_min + max(accuracy, 10 m). A small residual is not a confidence interval.
-5. A user lock keeps only candidates inside it. If the lock's best candidate is missing or outside
+2. No chain or unchained segment within the radius is `OFF_NETWORK`. A chain gives one candidate
+   per distinct pass: every local minimum of the cross-track residual within the radius that is
+   more than the radius along the chain from every better pass (a closed cycle wraps at its seam).
+   A straight or gently curved chain gives one; a hairpin or loop that passes the fix twice gives
+   two. An unchained segment gives its best projection. A zero-length or single-vertex track is a
+   point candidate (residual = distance to the point, no bearing); it is never skipped.
+3. d_min is the smallest residual over all candidates. The indistinguishable set I holds every
+   candidate within d_min + max(accuracy, 10 m). A small residual is not a confidence interval.
+   `Result.candidates` reports this whole set I, before any narrowing below, so every other
+   plausible route stays visible.
+4. A user lock keeps only candidates inside it. If the lock's best candidate is missing or outside
    I the result is `LOCK_CONFLICT`: the lock is kept and never switched silently. Otherwise it is
-   `MATCHED` with `selectionOrigin: 'user'`. A lock changes the candidate set, never the reported
-   accuracy.
+   `MATCHED` with `selectionOrigin: 'user'`. The heading is not consulted under a lock. A lock
+   changes the chosen set, never the reported accuracy, and a lock-decided match never becomes
+   continuity: after `unlock` the last fix is re-evaluated from the evidence alone.
+5. Heading filter, within I only. Only when speed is above 3 m/s and a heading is given, a member
+   of I whose track bearing differs from the heading by more than 30 degrees (axially, so a train
+   may run either way) is dropped from the choice. It never changes d_min and never promotes a
+   candidate that position rejected. If it would drop every member of I it is not applied
+   (`HEADING_INCONSISTENT`). A point candidate has no bearing and is kept. A stale heading at a
+   standstill is never used.
 6. A diamond within the search radius, along-track, of any candidate blocks automatic selection:
    `AMBIGUOUS_ROUTE` (`DIAMOND_NEARBY`), even if one line is nearer and even with a heading.
-7. Continuity hold. If the previous matched chain is still within the radius but outside I, it is
-   held as `MATCHED` (`CONTINUITY_HOLD`) for under 5 s after the first contradicting fix, then the
-   evidence wins. Not used when coverage is partial. Continuity never crosses a `STALE` gap, any
-   non-`MATCHED` result or the radius.
-8. More than one route (subdivision and operator) in I: if the previous chain is in I keep its
-   route (`CONTINUITY`), else `AMBIGUOUS_ROUTE` (`MULTIPLE_ROUTES`).
+7. Continuity hold. If the previous automatically matched chain is still within the radius but
+   outside I, and every member of I is on that chain's own railway (same subdivision and
+   operator), it is held as `MATCHED` (`CONTINUITY_HOLD`) while less than 5000 ms have passed
+   since the first contradicting fix (exactly 5000 ms is no longer held), then the evidence wins.
+   A different railway in I ends the hold at once. Not used when coverage is partial. Continuity
+   never crosses a `STALE` gap, any non-`MATCHED` result, a lock change or the radius. On a hold,
+   `chosen` is the held track, which is outside I and so not in `candidates`.
+8. More than one route (subdivision and operator) left in the choice: if the previous chain is in
+   it keep its route (`CONTINUITY`), else `AMBIGUOUS_ROUTE` (`MULTIPLE_ROUTES`).
 9. Partly covered search disk with one route in I: `AMBIGUOUS_ROUTE` (`PARTIAL_COVERAGE`).
-10. One candidate in I is `MATCHED`. Several parallel tracks of one route are
-    `MATCHED_SUBDIVISION` (`MULTIPLE_TRACKS`).
+10. One candidate left is `MATCHED`. Several tracks of one route, including two passes of one
+    chain, are `MATCHED_SUBDIVISION` (`MULTIPLE_TRACKS`).
 
 Milepost of a chain candidate: inside a calibrated interval it is the M1 interpolation with its GPS
 band and the lower tier of the two bracketing anchors; before or after the intervals it is
@@ -185,7 +200,13 @@ differ by no more than the widest band; otherwise it is null with `TRACK_MP_DISA
 `TRACK_UNCALIBRATED`. Nothing is averaged or bridged.
 
 Fixes with non-finite values, outside the Canada envelope, with negative accuracy, or with a
-timestamp that does not increase are ignored, counted in `ignoredFixes` and change nothing.
+timestamp that does not increase are ignored, counted in `ignoredFixes` and change nothing. A fix
+that arrives while permission is denied is also ignored as `FIX_IGNORED_INVALID` (the app should
+not send one); `reduce` returns the code as `ignored`, it is never in `Result.reasons`.
+
+A decoded network never makes `reduce` throw: `networkFromTiles` rejects an interval that fails
+`validateInterval`, a decreasing chain `sMm` and any vertex outside the Canada envelope with
+`INVALID_TILE` and the failing path.
 
 ### Configuration
 
@@ -226,14 +247,23 @@ ones that apply, in rule order, with no repeats. No free text. EN/FR message tex
   cross-track residual and the survey accuracy of the anchors. No probability is produced.
 - A user choice never changes `accuracyM` or the band. The matcher cannot tell whether the
   user's choice is correct.
-- A held match (`CONTINUITY_HOLD`) shows the previous route's milepost for up to 5 s while the fixes
-  point elsewhere. By plan decision the hold is applied before route ambiguity.
+- A held match (`CONTINUITY_HOLD`) shows the previous track's milepost for under 5 s while the
+  fixes point at another track of the same railway. It never holds against a different railway
+  (some fix-to-fix flicker between `AMBIGUOUS_ROUTE` and `MATCHED` near parallel railways is the
+  cost).
+- After `unlock` there is no continuity for one fix: a withdrawn user choice is never kept as an
+  automatic match.
+- The heading only chooses among tracks that position cannot separate; it does not help when the
+  nearest track is clearly nearer.
 - A fix stamped far in the future is accepted by the reducer (it cannot see `nowMs`);
   `currentResult` reports it as `STALE` with `FIX_FROM_FUTURE`, and real fixes stay ignored as out
   of order until the clock passes it. Start a new state after a clock jump.
 - `locationError` after a fix leaves the stored result unchanged; staleness follows by time.
-- A chain or segment with fewer than two vertices or zero length is skipped, so a neighbouring route
-  could be the only candidate near a broken record. Known and not yet handled.
+- A chain that passes the fix twice (hairpin, loop) gives two candidates of one route, so the
+  result is `MATCHED_SUBDIVISION` with `mpRange` null when their mileposts disagree; the matcher
+  never picks one pass's milepost. An unchained segment's passes are not separated (it has no
+  milepost).
+- A whole tile load is rejected for one bad interval, sorted `sMm` error or out-of-envelope vertex.
 - When a tile in the middle of a chain is not loaded, the loaded pieces stay separate chains
   (`id`, `id#2`) and nothing is interpolated across the gap.
 - The matcher recomputes bounds and lengths per fix and holds no spatial index; M4 owns
@@ -247,8 +277,9 @@ ones that apply, in rule order, with no repeats. No free text. EN/FR message tex
   adds roughly 1 to 2 m of bias (spec §3). This is a limit, not a correction.
 - Canada envelope only: latitude 41.5 to 83.5, longitude −141.5 to −52. Points outside it
   raise `OUTSIDE_CANADA_ENVELOPE`. Longitude must be negative west of Greenwich.
-- `projectOntoPolyline` only flags along-chain ambiguity through `nearTieAlongM`; resolving it
-  is the matcher's job (see the matching limits above).
+- `projectOntoPolyline` only flags along-chain ambiguity through `nearTieAlongM`. The matcher does
+  not resolve it: `findCandidates` reports each distinct pass of a chain as its own candidate and
+  the selection keeps them as one route without a single milepost (see the matching limits above).
 - A calculated milepost is not a survey result. Its accuracy is bounded by the anchors and
   the centreline it is built on. Anchors are never invented, and nothing is extrapolated or
   bridged across a gap.
@@ -264,7 +295,8 @@ npm run coverage    # adds the coverage gate: lines 95, branches 90, functions 1
 
 The scenario replays in `packages/core/test/scenarios/` drive the matching state machine through
 synthetic networks and the committed golden tiles and assert the full status sequence of each; a
-final test checks that all nine statuses are reached. They are not field traces.
+final test checks that all nine statuses and all 24 reason codes are reached. They are not field
+traces.
 
 The test suite checks distance and projection against GeographicLib
 (`geographiclib-geodesic`), and runs four property tests of 1000 generated cases each

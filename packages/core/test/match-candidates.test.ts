@@ -92,6 +92,16 @@ describe('findCandidates', () => {
     expect(cands[0]?.residualM).toBeCloseTo(20, 3);
   });
 
+  it('an L-shaped siding whose box holds the fix but whose track is 70 m away is not a candidate', () => {
+    const pts = [
+      [0, 0],
+      [200, 0],
+      [200, 200],
+    ].map(([x, y]) => fromLocalM(ORIGIN, { x: x ?? 0, y: y ?? 0 }, ORIGIN.lat));
+    const sid = { ...siding('L', ORIGIN, 0, 100), pts };
+    expect(findCandidates(network({ segments: [sid] }), fixAt(130, 130), MATCH_CONFIG)).toEqual([]);
+  });
+
   it('a siding beyond the radius is not a candidate', () => {
     const sid = siding('seg-1', ORIGIN, 0, 500, { lateralM: -80 });
     expect(findCandidates(network({ segments: [sid] }), fixAt(250, 0), MATCH_CONFIG)).toEqual([]);

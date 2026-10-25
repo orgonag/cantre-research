@@ -148,9 +148,9 @@ function applyHeading(
  *    residual is not a confidence interval, and the margin does not improve GPS precision.
  * 4. lock (Decision 7, rulings R4/R8/R29): L = candidates of C inside the lock. Empty L, or the
  *    best of L outside I, is LOCK_CONFLICT (LOCK_NOT_SUPPORTED); the lock is kept, never
- *    switched. Otherwise I := I intersect L, origin 'user', LOCKED_BY_USER, and steps 5-8 are
- *    skipped (the user's choice replaces them; the heading is not consulted, ruling R22).
- *    Several tracks left -> MATCHED_SUBDIVISION.
+ *    switched. Otherwise the choice is I intersect L, origin 'user', LOCKED_BY_USER, and steps
+ *    5-8 are skipped (the user's choice replaces them; the heading is not consulted, ruling R22).
+ *    Several tracks left (parallel tracks, or two passes of one chain) -> MATCHED_SUBDIVISION.
  * 5. heading filter within I only (ruling R22, amends Decision 2's order) -> I'
  *    (HEADING_USED / HEADING_INCONSISTENT), see `applyHeading`. It never changes d_min.
  * 6. a diamond near any candidate (ruling R7: computed over all candidates within the radius,
@@ -163,12 +163,13 @@ function applyHeading(
  *    fix is re-selected (R23: a held milepost of one railway must never be shown against
  *    evidence for another). Not used when coverage is 'partial' (R9). A previous chain outside
  *    the radius is never held. The hold is bounded; after it the evidence wins.
- * 7. group I by (subdivisionNid, operator). More than one group: when the previous chain is in
- *    I keep its group (CONTINUITY), else AMBIGUOUS_ROUTE (MULTIPLE_ROUTES).
+ * 7. group the choice I' by (subdivisionNid, operator). More than one group: when the previous
+ *    chain is in I' keep its group (CONTINUITY), else AMBIGUOUS_ROUTE (MULTIPLE_ROUTES). Two
+ *    passes of one chain (ruling R27) share a group.
  * 8. coverage 'partial' with one group -> AMBIGUOUS_ROUTE (PARTIAL_COVERAGE): unloaded tiles
  *    might hold a closer track.
- * 9. one candidate -> MATCHED; several (parallel tracks) -> MATCHED_SUBDIVISION
- *    (MULTIPLE_TRACKS).
+ * 9. one candidate left -> MATCHED; several (parallel tracks, or passes of one chain) ->
+ *    MATCHED_SUBDIVISION (MULTIPLE_TRACKS).
  *
  * `candidates` is the full position-based I, sorted (ruling R25); `group` is the narrowed choice
  * / range set; both `[]` for NO_COVERAGE and OFF_NETWORK. `selectionOrigin` is null unless a
