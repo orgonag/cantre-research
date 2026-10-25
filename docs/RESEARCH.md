@@ -298,8 +298,8 @@ Built milestone M4 on branch `feat/m4-national-app`: the pipeline's `national` c
 province with a published package, plus the Transport Canada inventory, merged into one snapshot),
 `@cantre/core` snapshot decoding and lookups, `@cantre/data-client` (fetch, hash-check, cache),
 the phone web app in `app/`, Playwright, privacy and accessibility tests, a GitHub Pages deploy
-workflow and a size gate. The pull request is pending the owner's review. Nothing is deployed:
-the deploy workflow has not been run and Pages is not enabled. Every matcher threshold is still
+workflow and a size gate. Merged and deployed on 2026-10-25 to
+<https://orgonag.github.io/cantre-research/>. Every matcher threshold is still
 **experimental and unevaluated**, and there is **no field validation yet** of anything the app
 shows. The numbers below are sizes, counts and test results, not accuracy.
 
@@ -392,11 +392,11 @@ so these heap figures need a check on real devices before anyone relies on them.
 
 - **No field validation.** The matcher's thresholds are unevaluated. Accuracy, the datum offset
   study and leave-one-anchor-out evaluation are M5.
-- **Deploy is untested.** `.github/workflows/deploy.yml` has never run. GitHub Pages' behaviour for
-  `.gz` files is not verified: the data client rejects a body that a host has re-encoded, so after
-  the first deploy check that `curl -sI` of `data/manifest.json` and of the snapshot shows no
-  `content-encoding` header. The workflow's last step does this and fails if one appears.
-- The CI `app` job (Playwright on Linux with `--with-deps`) has not run on a CI runner yet.
+- Live deploy check (2026-10-25, GitHub Pages, deploy run 40240582126): the snapshot and asset
+  details are served at their exact gzip sizes (12,366,628 B and 1,871,505 B) with no
+  `content-encoding` header, and the snapshot SHA-256 matches the manifest. In a 375 px wide
+  Chromium viewport the app downloaded the data, listed the national subdivisions and placed
+  Albreda MP 50 at 53.01410, -119.13995. GPS was not tested (no location in that browser).
 - WebKit is not run: the "iPhone" project uses Chromium.
 - The synthetic diamond has one route, so a two-route diamond chooser is not tested in a browser;
   the two-route chooser, lock and unlock are tested at the border.
