@@ -135,8 +135,26 @@ export const doubleTrackDisagree: Scenario = {
   ],
 };
 
+/** A single chain with no interval: MATCHED on it, but no milepost is invented. */
+export const uncalibratedChain: Scenario = {
+  name: 'double-track: a lone chain with no calibrated interval is MATCHED with CHAIN_UNCALIBRATED',
+  net: network({
+    coverage: [coverageAround(ORIGIN, 6000)],
+    chains: [straightChain('U', ORIGIN, 0, 3000, { sub: 'sub-1', op: 'CN' })],
+  }),
+  steps: [
+    fixStep(1000, 500, 0, {
+      status: 'MATCHED',
+      chainId: 'U',
+      reasons: ['CHAIN_UNCALIBRATED'],
+      mpApprox: null,
+    }),
+  ],
+};
+
 export const scenarios: readonly Scenario[] = [
   doubleTrackCalibrated,
   doubleTrackUncalibrated,
   doubleTrackDisagree,
+  uncalibratedChain,
 ];

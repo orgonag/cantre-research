@@ -242,4 +242,23 @@ export const diamondLocked: Scenario = {
   ],
 };
 
-export const scenarios: readonly Scenario[] = [diamondAuto, diamondLocked];
+/**
+ * A heading that contradicts every nearby track is distrusted, not obeyed: 20 m/s heading north
+ * on the east-west line A would remove A, the only candidate, so the filter is not applied and the
+ * result says so (HEADING_INCONSISTENT). It stays MATCHED on A: nothing else is nearby.
+ */
+export const headingContradicts: Scenario = {
+  name: 'diamond net: a heading that contradicts the only track is not applied (HEADING_INCONSISTENT)',
+  net: diamondNet,
+  steps: [
+    fixStep(
+      1000,
+      1000,
+      0,
+      { status: 'MATCHED', chainId: 'A', reasons: ['HEADING_INCONSISTENT'], mpApprox: mpA(1000) },
+      northbound,
+    ),
+  ],
+};
+
+export const scenarios: readonly Scenario[] = [diamondAuto, diamondLocked, headingContradicts];

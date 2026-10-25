@@ -326,4 +326,66 @@ export const goldenParallel: Scenario = {
   ],
 };
 
-export const scenarios: readonly Scenario[] = [goldenWalk, goldenDiamond, goldenParallel];
+/**
+ * Gaps and unchained track, from the data. A chain with two calibrated intervals has a gap between
+ * them: a fix in the gap is MATCHED on the chain but carries no milepost (DISCONTINUITY_GAP);
+ * nothing is bridged. The unchained siding SD (a segment with no chain) is MATCHED as a track
+ * with no chain position and no milepost (UNCHAINED_TRACK). The siding fix is taken a quarter of
+ * the way along it, kilometres from the diamond, so the diamond rule does not apply.
+ */
+function pickGapChain(net: NetworkView): { chain: NetworkChain; gapS: number } {
+  for (const chain of net.chains) {
+    const ivs = net.intervals
+      .filter((iv) => iv.chainId === chain.chainBaseId)
+      .sort((x, y) => (x.anchors[0]?.s ?? 0) - (y.anchors[0]?.s ?? 0));
+    const lo = ivs[0]?.anchors[ivs[0].anchors.length - 1]?.s;
+    const hi = ivs[1]?.anchors[0]?.s;
+    if (ivs.length === 2 && lo !== undefined && hi !== undefined && hi > lo) {
+      return { chain, gapS: (lo + hi) / 2 };
+    }
+  }
+  throw new Error('golden network has no chain with a gap between two intervals');
+}
+const { chain: gapChain, gapS } = pickGapChain(goldenNet);
+const siding = goldenNet.segments.find((s) => s.chainId === null);
+if (siding === undefined) {
+  throw new Error('golden network has no unchained segment');
+}
+const sidingFirst = siding.pts[0] as LatLon;
+const sidingLast = siding.pts[siding.pts.length - 1] as LatLon;
+const sidingQuarter: LatLon = {
+  lat: sidingFirst.lat + 0.25 * (sidingLast.lat - sidingFirst.lat),
+  lon: sidingFirst.lon + 0.25 * (sidingLast.lon - sidingFirst.lon),
+};
+
+export const goldenGapAndSiding: Scenario = {
+  name: 'golden tiles: a fix in a milepost gap and a fix on an unchained siding carry no milepost',
+  net: goldenNet,
+  steps: [
+    fixPointStep(1000, pointAtS(gapChain, gapS), {
+      status: 'MATCHED',
+      chainId: gapChain.id,
+      reasons: ['DISCONTINUITY_GAP'],
+      mpApprox: null,
+    }),
+    fixPointStep(2000, sidingQuarter, {
+      status: 'MATCHED',
+      chainId: null,
+      reasons: ['UNCHAINED_TRACK'],
+      mpApprox: null,
+      candidates: [siding.key],
+    }),
+  ],
+  after: (results) => {
+    expect(results[0]?.s).not.toBeNull(); // the gap fix has a chain position, just no milepost
+    expect(results[1]?.s).toBeNull(); // the siding has none
+    expect(results[1]?.chosen?.segmentKey).toBe(siding.key);
+  },
+};
+
+export const scenarios: readonly Scenario[] = [
+  goldenWalk,
+  goldenDiamond,
+  goldenParallel,
+  goldenGapAndSiding,
+];
