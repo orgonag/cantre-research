@@ -279,3 +279,15 @@ expectations changed under these rulings: the parallel-class1 and different-subd
 replays no longer hold (R23); the CONTINUITY steps now list both routes (R25); the diamond
 leave-on-B step with `HEADING_USED` moved to 8 m past the crossing, where both lines are in the set
 (R22). Still synthetic only; no threshold is validated.
+
+## 2026-10-25 — Owner decision: public national launch in M4
+
+The owner asked for a working public copy for all of Canada first, with tests and research
+added afterwards, keeping plan-then-approve per milestone. Answers given: run as a public
+website; build all of Canada before the first run; keep the plan-first rule. So the national
+build and a GitHub Pages deployment move into M4
+([plan](superpowers/plans/2026-10-25-m4-national-app.md)), M5 becomes evaluation, and the spec
+section 13 table and section 12 note are updated. Deploying is approved; enabling Pages is a
+repository setting the owner turns on, or approves explicitly. Nothing is measured here: the
+national data size is unknown until the M4 build (on 2026-10-25 the NRCan server answered size
+requests for AB 3,818,082 bytes, NB 947,884 and NL 130,539, and timed out for the rest).
