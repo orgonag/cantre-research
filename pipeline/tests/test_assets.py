@@ -1,6 +1,5 @@
 """Tests for cantre_pipeline.assets: crossings, structures, stations, diamonds (spec 5.6)."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -15,6 +14,7 @@ from cantre_pipeline.intervals import Interval, build_intervals
 from cantre_pipeline.reader import read_tc_inventory
 from cantre_pipeline.validate import load_network
 from fixtures.builder import NrwnFixture
+from real_data import needs_real_sk, real_sk_paths
 
 CFG = PipelineConfig()
 LAT_M = metres_per_degree(52.0)[0]
@@ -304,11 +304,9 @@ def test_dataclass_defaults() -> None:
     assert ChainPosition("c", 0.0, 1.0, 0.0, None, None).residual_m == 0.0
 
 
-@pytest.mark.skipif(not os.environ.get("CANTRE_RAW_DIR"), reason="needs real SK data")
+@needs_real_sk
 def test_real_sk_asset_invariants() -> None:  # pragma: no cover - env-gated
-    raw = Path(os.environ["CANTRE_RAW_DIR"])
-    shp = next(p for p in raw.iterdir() if p.is_dir() and any(p.glob("NRWN_SK_*_TRACK.shp")))
-    csv_path = next(raw.rglob("*.csv"))
+    shp, csv_path = real_sk_paths()
     net = load_network(shp, "sk", CFG)
     chains = build_chains(net, CFG)
     tc = read_tc_inventory(csv_path, "SK")

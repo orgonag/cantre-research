@@ -1,6 +1,5 @@
 """Tests for cantre_pipeline.anchors: tiered anchor qualification (spec 3, 5.4, Decisions 7-8)."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -13,6 +12,7 @@ from cantre_pipeline.geodesy import LatLon, metres_per_degree
 from cantre_pipeline.reader import read_tc_inventory
 from cantre_pipeline.validate import load_network
 from fixtures.builder import NrwnFixture
+from real_data import needs_real_sk, real_sk_paths
 
 CFG = PipelineConfig()
 LAT_M = metres_per_degree(52.0)[0]  # metres per degree of latitude at the fixture latitude
@@ -361,11 +361,9 @@ def test_anchors_are_sorted_and_independent_of_record_order(tmp_path: Path) -> N
     assert [a.s_m for a in one] == sorted(a.s_m for a in one)
 
 
-@pytest.mark.skipif(not os.environ.get("CANTRE_RAW_DIR"), reason="needs real SK data")
+@needs_real_sk
 def test_real_sk_anchor_invariants() -> None:  # pragma: no cover - env-gated
-    raw = Path(os.environ["CANTRE_RAW_DIR"])
-    shp = next(p for p in raw.iterdir() if p.is_dir() and any(p.glob("NRWN_SK_*_TRACK.shp")))
-    csv_path = next(raw.rglob("*.csv"))
+    shp, csv_path = real_sk_paths()
     net = load_network(shp, "sk", CFG)
     anchors, _ = qualify_anchors(
         net, build_chains(net, CFG), read_tc_inventory(csv_path, "SK"), CFG

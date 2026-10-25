@@ -41,7 +41,6 @@ jobs:
       - run: ruff check pipeline
       - run: ruff format --check pipeline
       - run: mypy --strict pipeline/src pipeline/tests
-      - run: pytest pipeline
       - name: Restore the raw source cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -51,6 +50,8 @@ jobs:
         run: |
           python -m cantre_pipeline acquire --source sk
           python -m cantre_pipeline acquire --source tc-gci
+      - name: Test (the real-data tests need the acquired sources, so this runs after acquire)
+        run: pytest pipeline
       - name: Build Saskatchewan twice with different hash seeds and compare
         run: |
           PYTHONHASHSEED=0 python -m cantre_pipeline build --province sk --out build/a --check-budget

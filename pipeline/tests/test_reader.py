@@ -1,6 +1,5 @@
 """Tests for cantre_pipeline.reader and schema_nrwn: layer reading, schema/CRS checks, TC CSV."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -22,6 +21,7 @@ from cantre_pipeline.schema_nrwn import (
     parse_mileage,
 )
 from fixtures.builder import LAYER_FIELDS, NRWN_PRJ, WGS84_PRJ, NrwnFixture
+from real_data import needs_real_sk, real_sk_paths
 
 A = LatLon(52.0, -106.0)
 B = LatLon(52.0, -105.99)
@@ -220,14 +220,9 @@ def test_tc_required_columns_are_the_nine_documented() -> None:
     }
 
 
-RAW = os.environ.get("CANTRE_RAW_DIR")
-
-
-@pytest.mark.skipif(RAW is None, reason="CANTRE_RAW_DIR not set (no raw NRWN data)")
+@needs_real_sk
 def test_reads_real_layer_shapes_when_raw_dir_set() -> None:
-    assert RAW is not None
-    root = Path(RAW)
-    shp_dir = next(p.parent for p in root.rglob("NRWN_SK_2_0_TRACK.shp"))
+    shp_dir, csv_path = real_sk_paths()
     track = read_layer(shp_dir, "sk", "TRACK")
     assert len(track) == 7084
     assert {len(f.parts) for f in track} == {1}
@@ -240,5 +235,4 @@ def test_reads_real_layer_shapes_when_raw_dir_set() -> None:
         "JUNCTION": 5163,
     }.items():
         assert len(read_layer(shp_dir, "sk", layer)) == n
-    csv_path = next(root.rglob("en-grade-crossing-inventory-2023-update.csv"))
     assert len(read_tc_inventory(csv_path, "SK")) >= 4700  # 4,744 rows less repeated numbers

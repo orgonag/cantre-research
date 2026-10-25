@@ -1,7 +1,6 @@
 """Tests for cantre_pipeline.validate, model and audit: records to dataclasses, audit lines."""
 
 import json
-import os
 from collections import Counter
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -15,6 +14,7 @@ from cantre_pipeline.geodesy import LatLon
 from cantre_pipeline.model import Network
 from cantre_pipeline.validate import load_network
 from fixtures.builder import NrwnFixture
+from real_data import needs_real_sk, real_sk_paths
 
 CFG = PipelineConfig()
 A = LatLon(52.0, -106.0)
@@ -298,13 +298,9 @@ def test_empty_audit_writes_empty_file(tmp_path: Path) -> None:
     assert out.read_bytes() == b""
 
 
-RAW = os.environ.get("CANTRE_RAW_DIR")
-
-
-@pytest.mark.skipif(RAW is None, reason="CANTRE_RAW_DIR not set (no raw NRWN data)")
+@needs_real_sk
 def test_loads_real_sk_network_and_accounts_for_every_record() -> None:
-    assert RAW is not None
-    shp_dir = next(p.parent for p in Path(RAW).rglob("NRWN_SK_2_0_TRACK.shp"))
+    shp_dir, _ = real_sk_paths()
     net = load_network(shp_dir, "sk", CFG)
     rejected = Counter(a.layer for a in net.audit if a.severity == "rejected")
     assert len(net.segments) + rejected["TRACK"] == 7084

@@ -1,13 +1,11 @@
 """Tests for cantre_pipeline.chains: per-subdivision main-track chains (spec 5.3, Decision 2)."""
 
 import hashlib
-import os
 import tempfile
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -17,6 +15,7 @@ from cantre_pipeline.geodesy import LatLon, cumulative_lengths_m
 from cantre_pipeline.model import Network
 from cantre_pipeline.validate import load_network
 from fixtures.builder import NrwnFixture
+from real_data import needs_real_sk, real_sk_paths
 
 CFG = PipelineConfig()
 
@@ -349,13 +348,9 @@ def test_property_cycle_start_and_direction_are_canonical(
     assert len(got) == 1 and got[0].cycle
 
 
-RAW = os.environ.get("CANTRE_RAW_DIR")
-
-
-@pytest.mark.skipif(RAW is None, reason="CANTRE_RAW_DIR not set (no raw NRWN data)")
+@needs_real_sk
 def test_real_sk_chains_satisfy_structural_invariants() -> None:
-    assert RAW is not None
-    shp_dir = next(p.parent for p in Path(RAW).rglob("NRWN_SK_2_0_TRACK.shp"))
+    shp_dir, _ = real_sk_paths()
     net = load_network(shp_dir, "sk", CFG)
     cs = build_chains(net, CFG)
     eligible = {
