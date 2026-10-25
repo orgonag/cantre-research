@@ -7,7 +7,7 @@ import pytest
 
 from cantre_pipeline.site_layout import directory_name, lay_out, relocated
 
-VERSION = "nrwn-national-6d2ca5d6+cantre.0.1.0"
+VERSION = "nrwn-national-c400fd8d+cantre.0.1.0"
 
 
 def write_national(directory: Path) -> None:
@@ -24,7 +24,7 @@ def write_national(directory: Path) -> None:
 
 
 def test_directory_name_replaces_plus_only() -> None:
-    assert directory_name(VERSION) == "nrwn-national-6d2ca5d6-cantre.0.1.0"
+    assert directory_name(VERSION) == "nrwn-national-c400fd8d-cantre.0.1.0"
 
 
 def test_relocated_changes_only_the_two_paths() -> None:
@@ -36,7 +36,7 @@ def test_relocated_changes_only_the_two_paths() -> None:
         }
     ).encode()
     manifest, folder = relocated(original)
-    assert folder == "nrwn-national-6d2ca5d6-cantre.0.1.0"
+    assert folder == "nrwn-national-c400fd8d-cantre.0.1.0"
     assert manifest["snapshot"] == {"path": f"{folder}/snapshot.bin.gz", "bytes": 5}
     assert manifest["assetDetails"] == {"path": f"{folder}/asset-details.json.gz", "bytes": 7}
     assert manifest["datasetVersion"] == VERSION
@@ -49,7 +49,7 @@ def test_lay_out_copies_bytes_and_writes_the_manifest_at_the_fixed_path(tmp_path
 
     assert lay_out(national, site) == VERSION
 
-    folder = site / "data" / "nrwn-national-6d2ca5d6-cantre.0.1.0"
+    folder = site / "data" / "nrwn-national-c400fd8d-cantre.0.1.0"
     assert (folder / "snapshot.bin.gz").read_bytes() == b"\x1f\x8bsnapshot"
     assert (folder / "asset-details.json.gz").read_bytes() == b"\x1f\x8bdetails"
     manifest = json.loads((site / "data" / "manifest.json").read_text(encoding="utf-8"))

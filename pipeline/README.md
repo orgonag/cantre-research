@@ -83,6 +83,16 @@ app's decoder is written from it. The provinces' tiles are built (and size-check
 tile budget) but not published: the manifest lists no tiles. Provinces are merged by id; chains
 are never joined across a province border, because NRWN clips each province at its border.
 
+**Dataset version and the release rule.** The national dataset version is
+`nrwn-national-<sha8>+cantre.<pipeline version>`, where `sha8` is the first 8 hex characters of
+the SHA-256 over every input package hash (each province and `tc-gci`) and the configuration's
+SHA-256 (`configSha256`), so a new input or a changed threshold is a new version. The pipeline's
+code is not hashed. **Release rule: any change to pipeline code that changes the output bytes must
+bump `__version__` in `cantre_pipeline/__init__.py`.** Otherwise a rebuild with new bytes would
+carry the old version, and the app, which offers an update only when the version differs, would
+never offer it. The manifest also records `snapshotFormat`, the snapshot's byte-layout version
+(`schema/snapshot.md`), so an app can refuse a layout it cannot decode before downloading anything.
+
 A package may leave a layer out when NRCan has no features for it (`MARKERPOST` in NL and YT,
 `STRUCTURE_0` in MB). Such a layer reads as empty and the build writes one `LAYER_ABSENT` audit
 line; any other missing layer, or a layer with only some of its files, is still `SCHEMA_DRIFT`.

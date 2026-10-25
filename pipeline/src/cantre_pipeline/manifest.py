@@ -18,6 +18,7 @@ from cantre_pipeline import __version__
 from cantre_pipeline.acquire import SourceRecord
 from cantre_pipeline.config import PipelineConfig, config_sha256
 from cantre_pipeline.encode import canonical_json, gzip_size
+from cantre_pipeline.snapshot import FORMAT_VERSION as SNAPSHOT_FORMAT_VERSION
 from cantre_pipeline.tiles import ATTRIBUTION, DATASET_VERSION, tile_bounds
 
 __all__ = [
@@ -60,25 +61,32 @@ class ProvinceTotals:
     tiles: tuple[str, ...]
 
 
-def national_dataset_version(packages: Mapping[str, str], pipeline_version: str) -> str:
+def national_dataset_version(
+    packages: Mapping[str, str], pipeline_version: str, config_sha256_hex: str
+) -> str:
     """Return the one dataset version of a national build.
 
     NRWN provinces carry different package versions, but the matcher rejects tiles whose
     ``datasetVersion`` differs (``MIXED_DATASET_VERSION``), so a national build stamps one string
     on every tile. It names the exact inputs: ``sha8`` is the first 8 hex characters of the
-    SHA-256 of the UTF-8 text ``"<province>=<packageSha256>"`` lines, sorted by province code and
-    joined by line feeds (no trailing newline). The result is
-    ``nrwn-national-<sha8>+cantre.<pipeline_version>``.
+    SHA-256 of a UTF-8 text made of the ``"<province>=<packageSha256>"`` lines, sorted by
+    province code, followed by one ``"configSha256=<config_sha256_hex>"`` line, all joined by line
+    feeds (no trailing newline). The result is ``nrwn-national-<sha8>+cantre.<pipeline_version>``.
 
     Args:
         packages: Province code to the SHA-256 (64 hex characters) of its NRWN package.
-        pipeline_version: The pipeline's own version, so a code change is a new dataset version.
+        pipeline_version: The pipeline's own version. Release rule (pipeline/README.md): any
+            change to pipeline code that changes output bytes must bump it, because code changes
+            are not hashed here; only the inputs, the configuration and this version are.
+        config_sha256_hex: :func:`~cantre_pipeline.config.config_sha256` of the build's
+            configuration, so a changed threshold is a new dataset version even when the inputs
+            and the pipeline version are unchanged.
 
     Include the Transport Canada file's hash under the key ``"tc-gci"`` (a national build does):
     it changes the anchors, so a new inventory must be a new dataset version.
 
     Limits: 8 hex characters (32 bits) identify a build, not authenticate it; the full hashes are
-    in the manifest ``sources``. Each province's NRWN version is listed in
+    in the manifest ``sources`` and ``configSha256``. Each province's NRWN version is listed in
     ``provinces[].packageVersion``.
 
     Raises:
@@ -86,11 +94,12 @@ def national_dataset_version(packages: Mapping[str, str], pipeline_version: str)
     """
     if not packages:
         raise ValueError("national_dataset_version needs at least one package hash")
-    for code, digest in packages.items():
+    for code, digest in [*packages.items(), ("configSha256", config_sha256_hex)]:
         if not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise ValueError(f"hash for {code!r} is not 64 lower-case hex characters")
-    lines = "\n".join(f"{code}={packages[code]}" for code in sorted(packages))
-    sha8 = hashlib.sha256(lines.encode("utf-8")).hexdigest()[:8]
+    lines = [f"{code}={packages[code]}" for code in sorted(packages)]
+    lines.append(f"configSha256={config_sha256_hex}")
+    sha8 = hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()[:8]
     return f"nrwn-national-{sha8}+cantre.{pipeline_version}"
 
 
@@ -212,6 +221,10 @@ def build_national_manifest(
     details are published. ``province_manifests`` maps province code to the manifest its
     :func:`~cantre_pipeline.build.build_province` returned; each province's totals entry is copied
     from it. ``snapshot_date`` is ``YYYY-MM-DD`` (see :mod:`cantre_pipeline.national`).
+
+    ``snapshotFormat`` is the snapshot's byte-layout version
+    (:data:`~cantre_pipeline.snapshot.FORMAT_VERSION`, schema/snapshot.md), so a client can see
+    that it cannot decode a build before it downloads anything.
     """
     return {
         "schema": MANIFEST_SCHEMA,
@@ -224,6 +237,7 @@ def build_national_manifest(
         "provinces": {p: m["provinces"][p] for p, m in sorted(province_manifests.items())},
         "tiles": [],
         "snapshot": snapshot.to_json(),
+        "snapshotFormat": SNAPSHOT_FORMAT_VERSION,
         "assetDetails": asset_details.to_json(),
         "snapshotDate": snapshot_date,
     }

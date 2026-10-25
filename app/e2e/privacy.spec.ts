@@ -321,8 +321,8 @@ test.describe('the checks themselves', () => {
       `${ORIGIN}/index.html`,
       `${ORIGIN}/assets/index-AbC123.js`,
       `${ORIGIN}/data/manifest.json`,
-      `${ORIGIN}/data/nrwn-national-698dc8bc-cantre.0.1.0/snapshot.bin.gz`,
-      `${ORIGIN}/data/nrwn-national-698dc8bc-cantre.0.1.0/asset-details.json.gz`,
+      `${ORIGIN}/data/nrwn-national-4ecefe56-cantre.0.1.0/snapshot.bin.gz`,
+      `${ORIGIN}/data/nrwn-national-4ecefe56-cantre.0.1.0/asset-details.json.gz`,
       'blob:http://127.0.0.1:4179/0f2f',
     ];
     for (const url of ok) {

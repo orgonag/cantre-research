@@ -2,8 +2,9 @@
 
 The stages, in order:
 
-1. **One dataset version** for the whole build, from the SHA-256 of every province package and of
-   the Transport Canada file (:func:`~cantre_pipeline.manifest.national_dataset_version`). The
+1. **One dataset version** for the whole build, from the SHA-256 of every province package, of
+   the Transport Canada file and of the configuration, and the pipeline version
+   (:func:`~cantre_pipeline.manifest.national_dataset_version`). The
    matcher refuses tiles whose versions differ, so every tile and the snapshot carry this one
    string; each province's own NRWN version stays in ``provinces[].packageVersion``.
 2. **Each province** goes through :func:`~cantre_pipeline.build.build_province` unchanged, with
@@ -34,7 +35,7 @@ from typing import Any
 from cantre_pipeline import __version__
 from cantre_pipeline.acquire import SourceRecord
 from cantre_pipeline.build import build_province
-from cantre_pipeline.config import PipelineConfig
+from cantre_pipeline.config import PipelineConfig, config_sha256
 from cantre_pipeline.encode import canonical_json
 from cantre_pipeline.errors import PipelineError
 from cantre_pipeline.manifest import FileRef, build_national_manifest, national_dataset_version
@@ -178,6 +179,7 @@ def build_national(
     version = national_dataset_version(
         {**{p.code: p.record.sha256 for p in inputs}, tc_record.sourceId: tc_record.sha256},
         __version__,
+        config_sha256(cfg),
     )
 
     out_dir.mkdir(parents=True, exist_ok=True)

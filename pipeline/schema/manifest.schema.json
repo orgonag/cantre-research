@@ -241,6 +241,11 @@
       "$ref": "#/$defs/fileRef",
       "description": "The national snapshot (layout: schema/snapshot.md). Present only in a national manifest."
     },
+    "snapshotFormat": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The snapshot's byte-layout version (the format byte after the magic, schema/snapshot.md). A client that does not support it must refuse the build before downloading anything. Present only in a national manifest."
+    },
     "assetDetails": {
       "$ref": "#/$defs/fileRef",
       "description": "Asset details (layer and attributes by asset id), downloaded together with the snapshot. Present only in a national manifest."

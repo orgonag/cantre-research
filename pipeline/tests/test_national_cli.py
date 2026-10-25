@@ -19,7 +19,7 @@ from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
 from cantre_pipeline import __version__, cli, national, snapshot
 from cantre_pipeline.acquire import SourceRecord, _members_of, write_source
-from cantre_pipeline.config import PipelineConfig
+from cantre_pipeline.config import PipelineConfig, config_sha256
 from cantre_pipeline.errors import PipelineError
 from cantre_pipeline.manifest import national_dataset_version
 from cantre_pipeline.national import ProvinceInput, build_national
@@ -127,11 +127,14 @@ def test_national_writes_snapshot_details_and_manifest(
     assert manifest["provinces"]["ab"]["packageVersion"] == "synthetic-ab"
     assert manifest["provinces"]["sk"]["packageVersion"] == "synthetic"
 
-    # One national version, derived from the package hashes (and the TC file's).
+    # One national version, derived from the package hashes (and the TC file's) and the config.
     source = {s["sourceId"]: s["sha256"] for s in manifest["sources"]}
     assert sorted(source) == ["ab", "sk", "tc-gci"]
-    expected = national_dataset_version(source, __version__)
+    assert manifest["configSha256"] == config_sha256(PipelineConfig())
+    expected = national_dataset_version(source, __version__, manifest["configSha256"])
     assert manifest["datasetVersion"] == expected
+    # The snapshot's byte-layout version, so a client can refuse a format before downloading.
+    assert manifest["snapshotFormat"] == snapshot.FORMAT_VERSION
 
     for name, field in (("snapshot.bin.gz", "snapshot"), ("asset-details.json.gz", "assetDetails")):
         ref = manifest[field]
@@ -268,6 +271,17 @@ def test_size_gate(tmp_path: Path) -> None:
     assert "100,000,000" not in str(err.value)
     for name in ("snapshot.bin.gz", "asset-details.json.gz", "manifest.json"):
         assert not (over / name).exists()
+
+
+def test_a_changed_configuration_is_a_new_dataset_version(tmp_path: Path) -> None:
+    """Final fix wave 5: same inputs and pipeline version, one threshold changed."""
+    inputs, tc_csv, tc_record = national_inputs(tmp_path / "fx")
+    base = build_national(inputs, tc_csv, tc_record, tmp_path / "a", PipelineConfig())
+    tuned = build_national(
+        inputs, tc_csv, tc_record, tmp_path / "b", PipelineConfig(slope_tolerance=0.16)
+    )
+    assert base.dataset_version != tuned.dataset_version
+    assert base.manifest["configSha256"] != tuned.manifest["configSha256"]
 
 
 def test_size_gate_default_is_the_pages_limit() -> None:
