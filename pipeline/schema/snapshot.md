@@ -292,4 +292,6 @@ reveal which asset the user is near). The ids are exactly the ids in `records.as
   not rounded. The M2 precision is kept: microdegrees (about 0.11 m) and millimetres.
 * Nothing is interpolated, extended or bridged. A gap in a chain, a border, or the end of
   coverage is a gap. A small residual or a matching milepost says nothing about survey accuracy.
-* Format version 1 has no extension points: a different layout must use a different version.
+* Format version 1 has no extension points: a different layout must use a different version. The
+  national manifest repeats the version as `snapshotFormat`, so a client refuses a layout it
+  cannot decode before it downloads the file.

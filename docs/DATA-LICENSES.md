@@ -61,16 +61,20 @@ empty and records that in the audit log.
 
 ### Dataset version and snapshot date
 
-The first national build is dataset version `nrwn-national-6d2ca5d6+cantre.0.1.0`, snapshot date
-2026-10-25. The version is derived from the SHA-256 of every input package and the inventory, so
-any change of an input is a new version. NRWN features are mostly from 2016 or earlier; the
+The current national build is dataset version `nrwn-national-c400fd8d+cantre.0.1.0`, snapshot
+date 2026-10-25. The version is derived from the SHA-256 of every input package and the
+inventory, the SHA-256 of the pipeline configuration and the pipeline version, so any change of
+an input or a threshold is a new version (a code change must bump the pipeline version; see
+`pipeline/README.md`). NRWN features are mostly from 2016 or earlier; the
 snapshot date is the retrieval date, not the date of the features. The app shows the snapshot
 date on the status card.
 
 ## Optional basemap
 
 The map can show a basemap. It is off by default and fetched only after the user turns it on and
-reads the notice that map tiles are requested for the area shown.
+reads the notice that map tiles are requested for the area shown, that OpenFreeMap then sees the
+user's internet address and that area, and that because the map opens around the GPS fix, the
+requests show roughly where the user is.
 
 - Provider: OpenFreeMap (`tiles.openfreemap.org`, "liberty" style).
 - Data: © OpenStreetMap contributors, available under the Open Database Licence (ODbL),

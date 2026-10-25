@@ -33,7 +33,7 @@ tests.
   layout this decoder reads is refused with `UNSUPPORTED_FORMAT` before any request. Files that
   pass their hash are decoded in full before they are stored; a snapshot that does not decode
   (`INVALID_SNAPSHOT`) is never stored and the previous version stays. Cost: a download decodes
-  the snapshot twice (once to check, once in `loadNetwork`), about 0.74 s more per new build in
+  the snapshot twice (once to check, once in `loadNetwork`), a median of 0.71 s more per new build in
   Node 22 on a desktop for the national snapshot; no phone has been measured.
 - **Old data stays.** A new version is stored completely, with the manifest entry last, before
   any other version is deleted. A failed download or a refused write leaves the previous version

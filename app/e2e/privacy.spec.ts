@@ -290,11 +290,19 @@ test.describe('what the app sends', () => {
   test('settings and about say what is stored and where the data is from', async ({ page }) => {
     await openAndInstall(page);
     await openScreen(page, 'Settings');
-    await expect(
-      page.getByText(
-        /Your position, your route choice and your movements are never stored or sent\./,
-      ),
-    ).toBeVisible();
+    // Everything the storage checks above find is named: the settings, the per-tab lock flag,
+    // the app-shell and map-library caches and the data cache.
+    const storage = page.getByText(/^What is stored on this device:/);
+    await expect(storage).toBeVisible();
+    for (const part of [
+      "your settings (units, language and the basemap choice) in the browser's local storage",
+      'for this browser tab only, a flag saying that a route lock was set',
+      "the app's own files and the map library, kept so the app opens offline",
+      'the downloaded rail data',
+      'Your position, the route you chose and your movements are never stored or sent.',
+    ]) {
+      await expect(storage).toContainText(part);
+    }
     await backToPosition(page);
     await openScreen(page, 'About');
     await expect(
