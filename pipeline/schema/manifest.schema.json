@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cantre.invalid/schema/manifest.schema.json",
+  "title": "CANTRE manifest (cantre.manifest/1)",
+  "description": "Build manifest: versions, configuration, sources, per-province totals (km, counts) and per-tile hashes and sizes (bytes).",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "cantre.manifest/1"
+    },
+    "datasetVersion": {
+      "type": "string"
+    },
+    "pipelineVersion": {
+      "type": "string"
+    },
+    "attribution": {
+      "type": "string"
+    },
+    "config": {
+      "type": "object"
+    },
+    "configSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "zip",
+              "file"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "catalogueUrl": {
+            "type": "string"
+          },
+          "licenceName": {
+            "type": "string"
+          },
+          "licenceUrl": {
+            "type": "string"
+          },
+          "httpLastModified": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentLength": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "retrievedUtc": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "string"
+          },
+          "crsWkt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadataMember": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "name",
+                "size",
+                "sha256"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "sourceId",
+          "kind",
+          "url",
+          "publisher",
+          "catalogueUrl",
+          "licenceName",
+          "licenceUrl",
+          "httpLastModified",
+          "contentLength",
+          "sha256",
+          "retrievedUtc",
+          "packageVersion",
+          "crsWkt",
+          "metadataMember",
+          "members"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "provinces": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "chainKm": {
+            "type": "number",
+            "minimum": 0
+          },
+          "calibratedKm": {
+            "type": "number",
+            "minimum": 0
+          },
+          "calibratedKmPostedOnly": {
+            "type": "number",
+            "minimum": 0
+          },
+          "anchorsByTier": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "isolatedAnchors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "assetsByKind": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "tiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "chainKm",
+          "calibratedKm",
+          "calibratedKmPostedOnly",
+          "anchorsByTier",
+          "isolatedAnchors",
+          "assetsByKind",
+          "tiles"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^-?[0-9]+_-?[0-9]+$"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gzipBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bounds": {
+            "$ref": "#/$defs/bounds"
+          },
+          "provinces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "key",
+          "path",
+          "sha256",
+          "bytes",
+          "gzipBytes",
+          "bounds",
+          "provinces"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "datasetVersion",
+    "pipelineVersion",
+    "attribution",
+    "config",
+    "configSha256",
+    "sources",
+    "provinces",
+    "tiles"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "bounds": {
+      "type": "object",
+      "properties": {
+        "south": {
+          "type": "number"
+        },
+        "west": {
+          "type": "number"
+        },
+        "north": {
+          "type": "number"
+        },
+        "east": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "south",
+        "west",
+        "north",
+        "east"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

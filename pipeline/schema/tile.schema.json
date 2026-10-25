@@ -1,0 +1,398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cantre.invalid/schema/tile.schema.json",
+  "title": "CANTRE tile (cantre.tile/1)",
+  "description": "One regional tile. latE6, lonE6 and chain sMm are delta-encoded integers: the first value is absolute, every later value is the difference from the previous one. latE6/lonE6 are microdegrees, sMm is millimetres along the full chain, mp is miles.",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "cantre.tile/1"
+    },
+    "datasetVersion": {
+      "type": "string"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^-?[0-9]+_-?[0-9]+$"
+    },
+    "bounds": {
+      "$ref": "#/$defs/bounds"
+    },
+    "bufferM": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "attribution": {
+      "type": "string"
+    },
+    "chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subdivisionNid": {
+            "type": "string"
+          },
+          "subdivisionName": {
+            "type": "string"
+          },
+          "operators": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cycle": {
+            "type": "boolean"
+          },
+          "vertexStart": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latE6": {
+            "$ref": "#/$defs/ints"
+          },
+          "lonE6": {
+            "$ref": "#/$defs/ints"
+          },
+          "sMm": {
+            "$ref": "#/$defs/ints"
+          }
+        },
+        "required": [
+          "id",
+          "subdivisionNid",
+          "subdivisionName",
+          "operators",
+          "cycle",
+          "vertexStart",
+          "latE6",
+          "lonE6",
+          "sMm"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "nid": {
+            "type": "string"
+          },
+          "trackClass": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subdivisionNid": {
+            "type": "string"
+          },
+          "subdivisionName": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "useType": {
+            "type": "string"
+          },
+          "trackName": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latE6": {
+            "$ref": "#/$defs/ints"
+          },
+          "lonE6": {
+            "$ref": "#/$defs/ints"
+          }
+        },
+        "required": [
+          "key",
+          "nid",
+          "trackClass",
+          "status",
+          "subdivisionNid",
+          "subdivisionName",
+          "operator",
+          "owner",
+          "useType",
+          "trackName",
+          "chainId",
+          "latE6",
+          "lonE6"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "anchors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "string"
+          },
+          "sMm": {
+            "type": "integer"
+          },
+          "mp": {
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "crossing",
+              "station",
+              "structure",
+              "markerpost"
+            ]
+          },
+          "tier": {
+            "enum": [
+              "posted",
+              "tc",
+              "unverified"
+            ]
+          },
+          "memberNids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "chainId",
+          "sMm",
+          "mp",
+          "source",
+          "tier",
+          "memberNids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "intervals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "string"
+          },
+          "anchorIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "id",
+          "chainId",
+          "anchorIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "crossing",
+              "bridge",
+              "moveableBridge",
+              "tunnel",
+              "culvert",
+              "station",
+              "diamond"
+            ]
+          },
+          "layer": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latE6": {
+            "$ref": "#/$defs/ints"
+          },
+          "lonE6": {
+            "$ref": "#/$defs/ints"
+          },
+          "posted": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "mp": {
+                    "type": "number"
+                  },
+                  "subdivisionNid": {
+                    "type": "string"
+                  },
+                  "tier": {
+                    "enum": [
+                      "posted",
+                      "tc",
+                      "unverified"
+                    ]
+                  }
+                },
+                "required": [
+                  "mp",
+                  "subdivisionNid",
+                  "tier"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chainId": {
+                  "type": "string"
+                },
+                "sStartMm": {
+                  "type": "integer"
+                },
+                "sEndMm": {
+                  "type": "integer"
+                },
+                "residualMm": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "derivedMpStart": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "derivedMpEnd": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "chainId",
+                "sStartMm",
+                "sEndMm",
+                "residualMm",
+                "derivedMpStart",
+                "derivedMpEnd"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "attrs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "layer",
+          "name",
+          "latE6",
+          "lonE6",
+          "posted",
+          "positions",
+          "attrs"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "datasetVersion",
+    "key",
+    "bounds",
+    "bufferM",
+    "attribution",
+    "chains",
+    "segments",
+    "anchors",
+    "intervals",
+    "assets"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "ints": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "properties": {
+        "south": {
+          "type": "number"
+        },
+        "west": {
+          "type": "number"
+        },
+        "north": {
+          "type": "number"
+        },
+        "east": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "south",
+        "west",
+        "north",
+        "east"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
