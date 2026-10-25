@@ -119,7 +119,7 @@ record order, the vertex direction of a record or `PYTHONHASHSEED`, with one exc
 several TRACK records share a `TRACKSEGID`, the `~1`, `~2` suffixes that keep their keys distinct
 follow file order (Decision 1), so reordering those records can change their keys. JSON is canonical (sorted
 keys, `separators=(",", ":")`, UTF-8, LF, one trailing newline), gzip size is measured at level 9
-with `mtime=0`, chain ids are content hashes and no wall-clock time is written. Tests: the
+with every header byte pinned (`mtime=0`, OS byte 255, so the bytes do not depend on the platform), chain ids are content hashes and no wall-clock time is written. Tests: the
 synthetic build under `tests/golden/synthetic/` (regenerate with
 `python pipeline/scripts/make_golden.py`; it contains no NRWN data) is compared by tree hash
 against fresh builds made with two hash seeds and with shuffled and reversed input. CI builds

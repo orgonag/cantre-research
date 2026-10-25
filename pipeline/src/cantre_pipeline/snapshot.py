@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from itertools import accumulate
 from typing import Any
 
-from cantre_pipeline.encode import canonical_json, to_e6
+from cantre_pipeline.encode import canonical_json, gzip_bytes, to_e6
 from cantre_pipeline.errors import PipelineError
 
 __all__ = [
@@ -111,11 +111,6 @@ def read_varint(data: bytes | memoryview, pos: int) -> tuple[int, int]:
             return (z >> 1 if z % 2 == 0 else -((z + 1) >> 1)), pos + i + 1
         shift += 7
     raise ValueError("varint longer than 8 bytes")
-
-
-def gzip_bytes(data: bytes) -> bytes:
-    """Gzip ``data`` at level 9 with a zero ``mtime`` and no file name: byte-identical per input."""
-    return gzip.compress(data, compresslevel=9, mtime=0)
 
 
 # --- merging tiles into one network -----------------------------------------------------------

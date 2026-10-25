@@ -12,6 +12,7 @@ from cantre_pipeline.encode import (
     canonical_json,
     delta_decode,
     delta_encode,
+    gzip_bytes,
     gzip_size,
     to_e6,
 )
@@ -45,9 +46,19 @@ def test_canonical_json_rejects_nan() -> None:
         canonical_json({"x": float("nan")})
 
 
-def test_gzip_size_is_mtime_zero_level_nine() -> None:
+def test_gzip_size_is_the_size_of_gzip_bytes() -> None:
     data = b"abc" * 1000
-    assert gzip_size(data) == len(gzip.compress(data, compresslevel=9, mtime=0))
+    assert gzip_size(data) == len(gzip_bytes(data))
+
+
+def test_gzip_header_is_pinned_and_round_trips() -> None:
+    """All ten header bytes are fixed: no mtime, no name, OS = 255, on every platform."""
+    for data in (b"", b"abc" * 1000, bytes(range(256)) * 50):
+        gz = gzip_bytes(data)
+        # ID1 ID2, CM = deflate, FLG = 0, MTIME = 0 (4 bytes), XFL = 2 (level 9), OS = 0xff.
+        assert gz[:10] == bytes([0x1F, 0x8B, 0x08, 0x00, 0, 0, 0, 0, 0x02, 0xFF])
+        assert gzip.decompress(gz) == data
+        assert gzip_bytes(data) == gz
 
 
 def test_canonical_json_is_stable_across_hash_seeds() -> None:
