@@ -150,12 +150,27 @@ function lockTextOf(result: Result): string | null {
  * (shown but not lockable). Locking uses the base chain id, which the matcher's lock accepts for
  * every piece of the route, so crossing a gap inside one route is not a silent switch.
  */
+/**
+ * Identity of the route a candidate belongs to: its base chain id, or for an unchained track its
+ * segment key. A segment without a key falls back to its own attributes and residual, so
+ * different tracks never collapse into one entry and the matched track always has the same key
+ * wherever it appears.
+ */
+function routeKey(c: Candidate): string {
+  if (c.chainBaseId !== null) {
+    return c.chainBaseId;
+  }
+  const own =
+    c.segmentKey ?? `${c.subdivisionNid}/${c.operator}/${c.trackClass}/${String(c.residualM)}`;
+  return `segment:${own}`;
+}
+
 function choicesOf(candidates: readonly Candidate[]): readonly Choice[] {
   const byKey = new Map<string, Choice>();
   const nearest = new Map<string, number>(); // metres, the best residual seen per route
   for (const c of candidates) {
     const base = c.chainBaseId ?? c.chainId;
-    const key = base ?? `segment:${c.segmentKey ?? ''}`;
+    const key = routeKey(c);
     const seen = nearest.get(key);
     if (seen !== undefined && seen <= c.residualM) {
       continue;
@@ -223,12 +238,8 @@ function tierOf(
 
 /** Distinct routes among the candidates, other than the matched one. */
 function alsoFitCount(result: Result): number {
-  const own = result.chosen?.chainBaseId ?? null;
-  const others = new Set(
-    result.candidates
-      .map((c) => c.chainBaseId ?? `segment:${c.segmentKey ?? ''}`)
-      .filter((key) => key !== own),
-  );
+  const own = result.chosen === null ? null : routeKey(result.chosen);
+  const others = new Set(result.candidates.map(routeKey).filter((key) => key !== own));
   return others.size;
 }
 

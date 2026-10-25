@@ -94,7 +94,7 @@
     "route.help": "More than one route fits this fix. Pick the one you are on. Your choice does not make the GPS more precise.",
     "route.conflictHelp": "Your chosen route does not fit this fix. Pick another route, or unlock.",
     "route.choose": "Choose this route",
-    "route.chooseAria": "Choose route: {subdivision}, {operator}",
+    "route.chooseAria": "Choose this route: {subdivision}, {operator}",
     "route.notLockable": "Not part of a connected route, so it cannot be chosen.",
     "asset.heading": "Nearby assets",
     "asset.none": "No mapped assets close by along this track.",

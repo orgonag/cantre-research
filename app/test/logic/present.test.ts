@@ -200,6 +200,44 @@ describe('present: MATCHED', () => {
   });
 });
 
+describe('present: unchained and keyless tracks', () => {
+  const seg = (over: Partial<Candidate> = {}): Candidate =>
+    cand({ chainId: null, chainBaseId: null, segmentKey: 'seg-1', s: null, ...over });
+
+  it('does not count the matched unchained track as another route', () => {
+    const own = seg();
+    const r = matched(1, { candidates: [own], s: null }, own);
+    expect(present(r, net(), MI).alsoFitText).toBeNull();
+    const keyless = seg({ segmentKey: null });
+    const r2 = matched(1, { candidates: [keyless], s: null }, keyless);
+    expect(present(r2, net(), MI).alsoFitText).toBeNull();
+    const withOther = matched(1, { candidates: [own, cand()], s: null }, own);
+    expect(present(withOther, net(), MI).alsoFitText).toBe(t('card.alsoFit', { count: 1 }));
+  });
+
+  it('keeps different keyless tracks as separate choices', () => {
+    const r: Result = {
+      ...blank,
+      status: 'AMBIGUOUS_ROUTE',
+      candidates: [
+        seg({ segmentKey: null, subdivisionNid: 'a', subdivisionName: 'A', residualM: 2 }),
+        seg({ segmentKey: null, subdivisionNid: 'b', subdivisionName: 'B', residualM: 3 }),
+      ],
+    };
+    expect(present(r, net(), MI).choices.map((c) => c.subdivision)).toEqual(['A', 'B']);
+  });
+});
+
+describe('route chooser button name (WCAG 2.5.3)', () => {
+  it('starts the accessible name with the visible label in EN and FR', () => {
+    for (const lang of ['en', 'fr'] as const) {
+      setLang(lang);
+      const name = t('route.chooseAria', { subdivision: 'X', operator: 'Y' });
+      expect(name.startsWith(t('route.choose'))).toBe(true);
+    }
+  });
+});
+
 describe('present: MATCHED_SUBDIVISION', () => {
   const sub = (over: Partial<Result> = {}): Result => ({
     ...blank,

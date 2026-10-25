@@ -94,7 +94,7 @@
     "route.help": "Plus d'un itinéraire convient à cette position. Choisissez celui où vous êtes. Votre choix ne rend pas le GPS plus précis.",
     "route.conflictHelp": "L'itinéraire choisi ne convient pas à cette position. Choisissez-en un autre, ou déverrouillez.",
     "route.choose": "Choisir cet itinéraire",
-    "route.chooseAria": "Choisir l'itinéraire : {subdivision}, {operator}",
+    "route.chooseAria": "Choisir cet itinéraire : {subdivision}, {operator}",
     "route.notLockable": "Ne fait pas partie d'un itinéraire relié, il ne peut donc pas être choisi.",
     "asset.heading": "Éléments à proximité",
     "asset.none": "Aucun élément cartographié à proximité le long de cette voie.",
