@@ -90,14 +90,18 @@ const autoSteps: Step[] = [
   fixStep(5000, 2000, 0, { status: 'AMBIGUOUS_ROUTE', reasons: ['DIAMOND_NEARBY'] }, standing),
   fixStep(6000, 2000, 0, { status: 'AMBIGUOUS_ROUTE', reasons: ['DIAMOND_NEARBY'] }, standing),
   // Leaving north on B at 15 m/s, heading 0, 8 m past the crossing: A (8 m) and B (0 m) are both
-  // in I. The heading removes A from I (bearing 90 differs by 90 degrees), but the diamond is
-  // measured over ALL candidates (ruling R7), so it still blocks: a heading never bypasses a
-  // diamond.
+  // in I. The heading removes A from the choice set (bearing 90 differs by 90 degrees), but the
+  // diamond is measured over ALL candidates (ruling R7), so it still blocks: a heading never
+  // bypasses a diamond. The reported candidates stay the full position-based I (ruling R25).
   fixStep(
     7000,
     2000,
     8,
-    { status: 'AMBIGUOUS_ROUTE', reasons: ['HEADING_USED', 'DIAMOND_NEARBY'], candidates: ['B'] },
+    {
+      status: 'AMBIGUOUS_ROUTE',
+      reasons: ['HEADING_USED', 'DIAMOND_NEARBY'],
+      candidates: ['B', 'A'],
+    },
     northbound,
   ),
   // 40 m past: A (40 m) is outside I, so the heading has nothing to remove (ruling R22: it acts

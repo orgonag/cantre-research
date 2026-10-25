@@ -43,7 +43,18 @@ export type SelectionInput = {
 export type Selection = {
   readonly status: Exclude<MatchStatus, 'NO_PERMISSION' | 'NO_FIX' | 'STALE'>;
   readonly chosen: Candidate | null;
-  /** The surviving candidate set I, sorted: the choices or range (ruling R10). */
+  /**
+   * The full position-based indistinguishable set I, sorted (ruling R25, amends R10): every
+   * candidate within d_min + max(accuracy, 10 m), before any narrowing by CONTINUITY, a lock or
+   * the heading. This is what `Result.candidates` reports, so other plausible routes stay
+   * visible. `[]` for NO_COVERAGE and OFF_NETWORK. On CONTINUITY_HOLD `chosen` is NOT in it.
+   */
+  readonly candidates: readonly Candidate[];
+  /**
+   * The internal choice / range set, sorted: I after narrowing by the heading, CONTINUITY or the
+   * lock. A MATCHED_SUBDIVISION range is computed over it. Equals `candidates` when nothing
+   * narrowed I.
+   */
   readonly group: readonly Candidate[];
   /** 'user' when a lock decided, 'auto' when evidence did, null when nothing was matched. */
   readonly selectionOrigin: 'auto' | 'user' | null;
@@ -68,12 +79,14 @@ function inLock(c: Candidate, lock: Lock): boolean {
 /** Builds a Selection with no match (no chosen candidate, no origin, no hold). */
 function unmatched(
   status: Selection['status'],
+  candidates: readonly Candidate[],
   group: readonly Candidate[],
   reasons: readonly MatchReason[],
 ): Selection {
   return {
     status,
     chosen: null,
+    candidates,
     group,
     selectionOrigin: null,
     reasons,
@@ -143,8 +156,9 @@ function applyHeading(
  * 9. one candidate -> MATCHED; several (parallel tracks) -> MATCHED_SUBDIVISION
  *    (MULTIPLE_TRACKS).
  *
- * `group` is I, sorted (ruling R10); `[]` for NO_COVERAGE and OFF_NETWORK. `selectionOrigin` is
- * null unless a match (or subdivision match) was made, so LOCK_CONFLICT has none.
+ * `candidates` is the full position-based I, sorted (ruling R25); `group` is the narrowed choice
+ * / range set; both `[]` for NO_COVERAGE and OFF_NETWORK. `selectionOrigin` is null unless a
+ * match (or subdivision match) was made, so LOCK_CONFLICT has none.
  * Limits: the policy never claims certainty beyond residual evidence; it does not validate the
  * fix (the reducer does, Task 6).
  */
@@ -153,11 +167,11 @@ export function selectCandidate(input: SelectionInput): Selection {
 
   // Step 1. Spec §6.
   if (coverage === 'outside') {
-    return unmatched('NO_COVERAGE', [], ['OUTSIDE_LOADED_TILES']);
+    return unmatched('NO_COVERAGE', [], [], ['OUTSIDE_LOADED_TILES']);
   }
   // Step 2. Spec §6.
   if (input.candidates.length === 0) {
-    return unmatched('OFF_NETWORK', [], ['NO_CANDIDATE_IN_RADIUS']);
+    return unmatched('OFF_NETWORK', [], [], ['NO_CANDIDATE_IN_RADIUS']);
   }
 
   const sorted = [...input.candidates].sort(compareCandidates);
@@ -173,7 +187,7 @@ export function selectCandidate(input: SelectionInput): Selection {
   if (lock !== null) {
     const best = sorted.find((c) => inLock(c, lock));
     if (best === undefined || best.residualM > cutM) {
-      return unmatched('LOCK_CONFLICT', inI, [...reasons, 'LOCK_NOT_SUPPORTED']);
+      return unmatched('LOCK_CONFLICT', positionI, positionI, [...reasons, 'LOCK_NOT_SUPPORTED']);
     }
     inI = inI.filter((c) => inLock(c, lock));
     const lockReasons: MatchReason[] = [...reasons, 'LOCKED_BY_USER'];
@@ -181,6 +195,7 @@ export function selectCandidate(input: SelectionInput): Selection {
       return {
         status: 'MATCHED',
         chosen: only(inI),
+        candidates: positionI,
         group: inI,
         selectionOrigin: 'user',
         reasons: lockReasons,
@@ -190,6 +205,7 @@ export function selectCandidate(input: SelectionInput): Selection {
     return {
       status: 'MATCHED_SUBDIVISION',
       chosen: null,
+      candidates: positionI,
       group: inI,
       selectionOrigin: 'user',
       reasons: [...lockReasons, 'MULTIPLE_TRACKS'],
@@ -204,7 +220,7 @@ export function selectCandidate(input: SelectionInput): Selection {
 
   // Step 6. Spec §6 + ruling R7.
   if (diamonds.length > 0) {
-    return unmatched('AMBIGUOUS_ROUTE', inI, [...reasons, 'DIAMOND_NEARBY']);
+    return unmatched('AMBIGUOUS_ROUTE', positionI, inI, [...reasons, 'DIAMOND_NEARBY']);
   }
 
   // Step 6b. Decision 3 + ruling R9.
@@ -216,6 +232,7 @@ export function selectCandidate(input: SelectionInput): Selection {
         return {
           status: 'MATCHED',
           chosen: held,
+          candidates: positionI,
           group: inI,
           selectionOrigin: 'auto',
           reasons: [...reasons, 'CONTINUITY_HOLD'],
@@ -229,7 +246,7 @@ export function selectCandidate(input: SelectionInput): Selection {
   if (new Set(inI.map(groupKey)).size > 1) {
     const prev = previous === null ? undefined : inI.find((c) => c.chainId === previous.chainId);
     if (prev === undefined) {
-      return unmatched('AMBIGUOUS_ROUTE', inI, [...reasons, 'MULTIPLE_ROUTES']);
+      return unmatched('AMBIGUOUS_ROUTE', positionI, inI, [...reasons, 'MULTIPLE_ROUTES']);
     }
     const keep = groupKey(prev);
     inI = inI.filter((c) => groupKey(c) === keep);
@@ -238,7 +255,7 @@ export function selectCandidate(input: SelectionInput): Selection {
 
   // Step 8. Decision 5.
   if (coverage === 'partial') {
-    return unmatched('AMBIGUOUS_ROUTE', inI, [...reasons, 'PARTIAL_COVERAGE']);
+    return unmatched('AMBIGUOUS_ROUTE', positionI, inI, [...reasons, 'PARTIAL_COVERAGE']);
   }
 
   // Step 9.
@@ -246,6 +263,7 @@ export function selectCandidate(input: SelectionInput): Selection {
     return {
       status: 'MATCHED',
       chosen: only(inI),
+      candidates: positionI,
       group: inI,
       selectionOrigin: 'auto',
       reasons,
@@ -255,6 +273,7 @@ export function selectCandidate(input: SelectionInput): Selection {
   return {
     status: 'MATCHED_SUBDIVISION',
     chosen: null,
+    candidates: positionI,
     group: inI,
     selectionOrigin: 'auto',
     reasons: [...reasons, 'MULTIPLE_TRACKS'],

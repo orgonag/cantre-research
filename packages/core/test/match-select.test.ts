@@ -342,6 +342,27 @@ describe('selectCandidate rules', () => {
     expect(none.status).toBe('AMBIGUOUS_ROUTE');
   });
 
+  it('R25: candidates is the full position-based I after CONTINUITY, a lock or the heading', () => {
+    const other = cand('b', 5, { subdivisionNid: 'sub-2', operator: 'CP', bearingDeg: 0 });
+    const cont = direct([cand('a', 3), other], {
+      previous: { chainId: 'a', sinceContradictionMs: null },
+    });
+    expect(cont.reasons).toEqual(['CONTINUITY']);
+    expect(cont.group.map((c) => c.chainId)).toEqual(['a']);
+    expect(cont.candidates.map((c) => c.chainId)).toEqual(['a', 'b']);
+    const locked = direct([cand('a', 3), other], { lock: { kind: 'chain', chainId: 'a' } });
+    expect(locked.status).toBe('MATCHED');
+    expect(locked.candidates.map((c) => c.chainId)).toEqual(['a', 'b']);
+    const headed = direct([cand('a', 3), other], {
+      fix: fixAt(0, 0, 5, { headingDeg: 90, speedMps: 10 }),
+    });
+    expect(headed.reasons).toEqual(['HEADING_USED']);
+    expect(headed.chosen?.chainId).toBe('a');
+    expect(headed.candidates.map((c) => c.chainId)).toEqual(['a', 'b']);
+    expect(direct([]).candidates).toEqual([]);
+    expect(direct([cand('a', 1)], { coverage: 'outside' }).candidates).toEqual([]);
+  });
+
   it('8. partial coverage with one group is AMBIGUOUS_ROUTE (PARTIAL_COVERAGE)', () => {
     const s = direct([cand('a', 3)], { coverage: 'partial' });
     expect(s.status).toBe('AMBIGUOUS_ROUTE');

@@ -120,12 +120,13 @@ export const parallelContinuity: Scenario = {
     // On A: residuals 0 and 12 -> only A in I.
     fixStep(1000, 200, 0, { status: 'MATCHED', chainId: 'A', reasons: [], mpApprox: mpA(200) }),
     // Noise toward B: residuals 3 and 9. A is in I and was the previous match: CONTINUITY. The
-    // reported set is then narrowed to A's own route (B is no longer offered).
+    // reported candidates stay the full position-based set I (ruling R25): B is still offered to
+    // the route chooser, so the other plausible railway is never hidden.
     fixStep(2000, 400, 3, {
       status: 'MATCHED',
       chainId: 'A',
       reasons: ['CONTINUITY'],
-      candidates: ['A'],
+      candidates: ['A', 'B'],
       mpApprox: mpA(400),
     }),
     fixStep(3000, 600, 4, {
@@ -141,6 +142,15 @@ export const parallelContinuity: Scenario = {
       chainId: 'A',
       reasons: ['CONTINUITY'],
       mpApprox: mpA(800),
+    }),
+    // Final review probe (ruling R25): 1 m from B, 11 m from A. A is still in I (11 <= 1 + 10)
+    // and kept by continuity, but the result lists B first, as the nearer plausible route.
+    fixStep(4500, 900, 11, {
+      status: 'MATCHED',
+      chainId: 'A',
+      reasons: ['CONTINUITY'],
+      candidates: ['B', 'A'],
+      mpApprox: mpA(900),
     }),
     // Back on A (0.5 m): only A is in I again (B 11.5 > 0.5 + 10); no continuity needed.
     fixStep(5000, 1000, 0.5, {

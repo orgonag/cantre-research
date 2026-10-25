@@ -19,9 +19,13 @@ import type { Lock, Selection } from './select.js';
  *   `MATCHED_SUBDIVISION`. A null milepost is never zero: a calibrated 0 is `{kind:'calibrated',
  *   mp: 0}`, an unknown one is null.
  * - `chosen` and `s` are non-null only for `MATCHED`.
- * - `candidates` is the indistinguishable set I (ruling R10): the choices the route chooser shows
- *   for AMBIGUOUS_ROUTE and LOCK_CONFLICT, the parallel tracks for MATCHED_SUBDIVISION; empty for
- *   NO_COVERAGE, OFF_NETWORK, NO_FIX, NO_PERMISSION and STALE.
+ * - `candidates` is the full position-based indistinguishable set I (ruling R25, amends R10),
+ *   sorted, BEFORE any narrowing by CONTINUITY, a lock or the heading: the choices the route
+ *   chooser shows for AMBIGUOUS_ROUTE and LOCK_CONFLICT, the parallel tracks for
+ *   MATCHED_SUBDIVISION, and every other plausible route beside a MATCHED one ("keep ambiguity
+ *   visible", spec §2). Empty for NO_COVERAGE, OFF_NETWORK, NO_FIX, NO_PERMISSION and STALE.
+ *   On CONTINUITY_HOLD `chosen` (the held track) is outside I, so it is NOT in `candidates`.
+ *   A MATCHED_SUBDIVISION range uses the narrowed set, which may be smaller than `candidates`.
  * - `mpBandMi` is the GPS-propagated band only (ruling R11 for ranges: max band; `tier` the lowest
  *   tier; `anchorIds` the sorted union). It is not a confidence interval and omits the cross-track
  *   residual and the survey accuracy of the anchors.
@@ -110,7 +114,7 @@ export function withLock(result: Result, lock: Lock | null): Result {
 /**
  * Builds the full {@link Result} for an accepted fix from the selection policy's decision.
  *
- * Rules (rulings R10, R11; M3 plan Decision 9):
+ * Rules (rulings R11, R25; M3 plan Decision 9):
  * - MATCHED: milepost, band, tier and anchor ids come from {@link milepostFor} for the chosen
  *   candidate; its reasons (e.g. DISCONTINUITY_GAP, UNCHAINED_TRACK) are appended to the
  *   selection's. `s` is the chosen candidate's along-chain position (null for a siding).
@@ -120,7 +124,9 @@ export function withLock(result: Result, lock: Lock | null): Result {
  *   unique union. If all are calibrated but the spread is wider: `mpRange` null, TRACK_MP_DISAGREE.
  *   If any is uncalibrated, has no milepost, or is a siding: null, TRACK_UNCALIBRATED. Nothing is
  *   averaged or guessed across tracks.
- * - Every other status carries no milepost data; `candidates` is the group (possibly empty).
+ * - Every other status carries no milepost data.
+ * `candidates` is always the selection's full position-based I (ruling R25), possibly empty; the
+ * MATCHED_SUBDIVISION range is taken over the narrowed `selection.group`.
  * `accuracyM` is always the fix's own value. `fixAgeMs` is 0 at evaluation; `currentResult`
  * recomputes it from `nowMs`. Limits: `mpBandMi` excludes cross-track residual and survey accuracy.
  */
@@ -132,7 +138,7 @@ export function resultFromSelection(
 ): Result {
   const base: Result = {
     ...empty(net.datasetVersion, selection.status, lock, selection.reasons),
-    candidates: Object.freeze([...selection.group]),
+    candidates: Object.freeze([...selection.candidates]),
     selectionOrigin: selection.selectionOrigin,
     accuracyM: fix.accuracyM,
     fixAgeMs: 0,
