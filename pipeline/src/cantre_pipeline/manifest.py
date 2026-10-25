@@ -19,7 +19,13 @@ from cantre_pipeline.config import PipelineConfig, config_sha256
 from cantre_pipeline.encode import canonical_json, gzip_size
 from cantre_pipeline.tiles import ATTRIBUTION, DATASET_VERSION, tile_bounds
 
-__all__ = ["MANIFEST_SCHEMA", "ProvinceTotals", "build_manifest", "write_build"]
+__all__ = [
+    "MANIFEST_SCHEMA",
+    "ProvinceTotals",
+    "build_manifest",
+    "national_dataset_version",
+    "write_build",
+]
 
 MANIFEST_SCHEMA = "cantre.manifest/1"
 
@@ -51,8 +57,32 @@ class ProvinceTotals:
     tiles: tuple[str, ...]
 
 
-def _province_json(t: ProvinceTotals) -> dict[str, Any]:
+def national_dataset_version(packages: Mapping[str, str], pipeline_version: str) -> str:
+    """Return the one dataset version of a national build.
+
+    NRWN provinces carry different package versions, but the matcher rejects tiles whose
+    ``datasetVersion`` differs (``MIXED_DATASET_VERSION``), so a national build stamps one string
+    on every tile. It names the exact inputs: ``sha8`` is the first 8 hex characters of the
+    SHA-256 of the UTF-8 text ``"<province>=<packageSha256>"`` lines, sorted by province code and
+    joined by line feeds (no trailing newline). The result is
+    ``nrwn-national-<sha8>+cantre.<pipeline_version>``.
+
+    Args:
+        packages: Province code to the SHA-256 (64 hex characters) of its NRWN package.
+        pipeline_version: The pipeline's own version, so a code change is a new dataset version.
+
+    Limits: 8 hex characters (32 bits) identify a build, not authenticate it; the full hashes are
+    in the manifest ``sources``. Each province's NRWN version is listed in
+    ``provinces[].packageVersion``.
+    """
+    lines = "\n".join(f"{code}={packages[code]}" for code in sorted(packages))
+    sha8 = hashlib.sha256(lines.encode("utf-8")).hexdigest()[:8]
+    return f"nrwn-national-{sha8}+cantre.{pipeline_version}"
+
+
+def _province_json(t: ProvinceTotals, package_version: str) -> dict[str, Any]:
     return {
+        "packageVersion": package_version,
         "chainKm": t.chain_km,
         "calibratedKm": t.calibrated_km,
         "calibratedKmPostedOnly": t.calibrated_km_posted_only,
@@ -73,6 +103,7 @@ def build_manifest(
     tiles_bytes: Mapping[str, bytes],
     totals: Mapping[str, ProvinceTotals],
     cfg: PipelineConfig,
+    dataset_version: str = DATASET_VERSION,
 ) -> dict[str, Any]:
     """Return the manifest object (``schema: "cantre.manifest/1"``, spec section 5.8).
 
@@ -80,11 +111,19 @@ def build_manifest(
     (:func:`~cantre_pipeline.encode.canonical_json` of the tile), so the recorded SHA-256, size
     and gzip size are those of the files on disk. ``totals`` maps province code to its
     :class:`ProvinceTotals`; a tile's ``provinces`` are the provinces whose ``tiles`` list it.
-    Sources are sorted by ``sourceId``, tiles by key.
+    Sources are sorted by ``sourceId``, tiles by key. ``dataset_version`` defaults to the
+    per-province :data:`~cantre_pipeline.tiles.DATASET_VERSION`; a national build passes
+    :func:`national_dataset_version`. Each province's ``packageVersion`` (the NRWN version, e.g.
+    ``"2.0"``) is copied from the source record whose ``sourceId`` is the province code.
 
     Raises:
-        ValueError: if a tile in ``tiles_bytes`` is listed by no province in ``totals``.
+        ValueError: if a tile in ``tiles_bytes`` is listed by no province in ``totals``, or a
+            province in ``totals`` has no source record.
     """
+    package_versions = {s.sourceId: s.packageVersion for s in sources}
+    for code in totals:
+        if code not in package_versions:
+            raise ValueError(f"province {code} has no source record")
     entries: list[dict[str, Any]] = []
     for key in sorted(tiles_bytes):
         data = tiles_bytes[key]
@@ -105,13 +144,13 @@ def build_manifest(
         )
     return {
         "schema": MANIFEST_SCHEMA,
-        "datasetVersion": DATASET_VERSION,
+        "datasetVersion": dataset_version,
         "pipelineVersion": __version__,
         "attribution": ATTRIBUTION,
         "config": asdict(cfg),
         "configSha256": config_sha256(cfg),
         "sources": [_source_json(s) for s in sorted(sources, key=lambda s: s.sourceId)],
-        "provinces": {p: _province_json(t) for p, t in sorted(totals.items())},
+        "provinces": {p: _province_json(t, package_versions[p]) for p, t in sorted(totals.items())},
         "tiles": entries,
     }
 

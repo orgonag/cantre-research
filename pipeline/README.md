@@ -3,7 +3,9 @@
 Deterministic Python pipeline that turns the NRCan National Railway Network (NRWN) and the
 Transport Canada Grade Crossings Inventory into chains, anchors, calibrated intervals, assets,
 regional tiles, a manifest, an audit log and a per-subdivision coverage report for CANTRE.
-Milestone M2 runs Saskatchewan only (`--province sk`); M5 runs the rest.
+Every NRWN province and territory with a published package is registered (see
+`NO_PACKAGE` in `provinces.py` for any without one); `build` is run per province, and a national
+build stamps one dataset version with `national_dataset_version` (M4).
 
 **Research use only.** Every threshold below is experimental, chosen by inspecting Saskatchewan
 data and not validated against ground truth. The coverage report measures internal coverage, not
@@ -25,6 +27,8 @@ python -m cantre_pipeline build --province sk --out build/sk --check-budget
 - `acquire --source ID` takes a province code or `tc-gci`. It checks the cached bytes against
   `pipeline/sources/<id>.json` and fails with `HASH_MISMATCH` on any difference. `--record`
   measures a source and rewrites its record instead (a deliberate, reviewed act).
+- Downloads try up to 5 times, waiting 1, 2, 4 and 8 s, and only after a timeout or connection
+  error. A hash mismatch or an HTTP error answer (such as 404) is never retried.
 - `build --province PR --out DIR [--raw DIR] [--check-budget]` acquires both sources in verify
   mode, so a changed cached copy stops the build before anything is written. It exits 0 on
   success, 2 on a `PipelineError` and 3 when `--check-budget` finds a tile over the budget (the

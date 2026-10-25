@@ -136,6 +136,10 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
+          "packageVersion": {
+            "type": "string",
+            "description": "NRWN package version of this province, e.g. 2.0"
+          },
           "chainKm": {
             "type": "number",
             "minimum": 0
@@ -174,6 +178,7 @@
           }
         },
         "required": [
+          "packageVersion",
           "chainKm",
           "calibratedKm",
           "calibratedKmPostedOnly",
