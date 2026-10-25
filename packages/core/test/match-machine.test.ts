@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { CoreInputError, MATCH_CONFIG, fromLocalM } from '../src/index.js';
+import { CoreInputError, MATCH_CONFIG, cumulativeLengthsM, fromLocalM } from '../src/index.js';
 import type { Fix, Lock, MatchEvent, MatchState, NetworkView, Result } from '../src/index.js';
 import { currentResult, initialMatchState, reduce } from '../src/match/machine.js';
 import {
@@ -273,6 +273,59 @@ describe('results of accepted fixes', () => {
     expect(r.s).toBeNull();
     expect(r.milepost).toBeNull();
     expect(r.reasons).toEqual(['UNCHAINED_TRACK']);
+  });
+
+  it('R26 probe: a zero-length siding at the fix is a point candidate, not skipped', () => {
+    // Final review probe: a zero-length CPKC siding at the fix and CN 30 m away used to give
+    // MATCHED on CN at 30 m (the siding was silently skipped). The point is now a candidate at
+    // 0 m, so CN (30 m > 0 + 10) is outside I and the result is the siding, with no milepost.
+    const at = fromLocalM(ORIGIN, { x: 500, y: 0 }, ORIGIN.lat);
+    const net = network({
+      coverage: [coverageAround(ORIGIN, 5000)],
+      chains: [straightChain('A', ORIGIN, 0, 2000, { lateralM: -30 })],
+      segments: [{ ...siding('z', ORIGIN, 0, 100, { sub: 'sub-cp', op: 'CPKC' }), pts: [at, at] }],
+      intervals: [
+        interval('iA', 'A', [
+          { s: 0, mp: 0 },
+          { s: 2000, mp: 1 },
+        ]),
+      ],
+    });
+    const r = currentResult(play(net, [fixEvent(fixAt(500, 0, 1000))]), 1000);
+    expect(r.status).toBe('MATCHED');
+    expect(r.chosen?.segmentKey).toBe('z');
+    expect(r.chosen?.bearingDeg).toBeNull();
+    expect(r.milepost).toBeNull();
+    expect(r.reasons).toEqual(['UNCHAINED_TRACK']);
+  });
+
+  it('R27 probe: two passes of a hairpin are MATCHED_SUBDIVISION with no single milepost', () => {
+    // Legs 8 m apart: (0,0)-(1000,0)-(1000,8)-(0,8), s from 0 to 2008 m, mp 10 + s in miles.
+    const pts = [
+      [0, 0],
+      [1000, 0],
+      [1000, 8],
+      [0, 8],
+    ].map(([x, y]) => fromLocalM(ORIGIN, { x: x ?? 0, y: y ?? 0 }, ORIGIN.lat));
+    const base = straightChain('H', ORIGIN, 0, 100);
+    const cumulativeM = cumulativeLengthsM(pts);
+    const total = cumulativeM[cumulativeM.length - 1] ?? 0;
+    const net = network({
+      coverage: [coverageAround(ORIGIN, 5000)],
+      chains: [{ ...base, pts, sM: Float64Array.from(cumulativeM), cumulativeM }],
+      intervals: [
+        interval('iH', 'H', [
+          { s: 0, mp: 10 },
+          { s: total, mp: 10 + total / 1609.344 },
+        ]),
+      ],
+    });
+    const r = currentResult(play(net, [fixEvent(fixAt(500, 3, 1000))]), 1000);
+    expect(r.status).toBe('MATCHED_SUBDIVISION');
+    expect(r.milepost).toBeNull();
+    expect(r.mpRange).toBeNull();
+    expect(r.reasons).toEqual(['MULTIPLE_TRACKS', 'TRACK_MP_DISAGREE']);
+    expect(r.candidates.map((c) => c.chainId)).toEqual(['H', 'H']);
   });
 
   it('NO_COVERAGE and OFF_NETWORK carry no candidates, milepost or chosen', () => {

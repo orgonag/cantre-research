@@ -101,6 +101,7 @@ function unmatched(
  * is within `headingToleranceDeg` of the heading on the AXIS (a train may run either way, so a
  * bearing and its reverse agree). If that would keep nothing the filter is NOT applied (the
  * heading contradicts every indistinguishable track, so it is distrusted, not obeyed).
+ * A point candidate (bearing null, ruling R26) is exempt and always kept.
  * Units: degrees, metres per second. Limits: removes only members of I; it never changes d_min,
  * never adds a candidate and never promotes one that position rejected (R22: validated evidence
  * for automatic choice).
@@ -115,8 +116,10 @@ function applyHeading(
   if (heading === undefined || speed === undefined || !(speed > cfg.headingMinSpeedMps)) {
     return { kept: sorted, reasons: [] };
   }
+  // A point candidate (bearing null, ruling R26) has no direction and is exempt: always kept.
   const kept = sorted.filter(
-    (c) => axialDifferenceDeg(c.bearingDeg, heading) <= cfg.headingToleranceDeg,
+    (c) =>
+      c.bearingDeg === null || axialDifferenceDeg(c.bearingDeg, heading) <= cfg.headingToleranceDeg,
   );
   if (kept.length === 0) {
     return { kept: sorted, reasons: ['HEADING_INCONSISTENT'] };

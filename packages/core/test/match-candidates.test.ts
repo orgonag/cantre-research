@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CoreInputError, MATCH_CONFIG, fromLocalM } from '../src/index.js';
+import { CoreInputError, MATCH_CONFIG, cumulativeLengthsM, fromLocalM } from '../src/index.js';
 import {
   coverageOf,
   diamondsNear,
@@ -97,16 +97,42 @@ describe('findCandidates', () => {
     expect(findCandidates(network({ segments: [sid] }), fixAt(250, 0), MATCH_CONFIG)).toEqual([]);
   });
 
-  it('skips degenerate geometry (one vertex or zero length) instead of throwing', () => {
-    const chain = straightChain('c', ORIGIN, 0, 1000);
+  it('R26: zero-length and single-vertex tracks are point candidates, never skipped', () => {
+    const chain = straightChain('c', ORIGIN, 250, 1000);
     const p0 = chain.pts[0];
     if (p0 === undefined) {
       throw new Error('helper built no points');
     }
-    const dup = { ...chain, id: 'dup', pts: [p0, p0], cumulativeM: Float64Array.of(0, 0) };
-    const single = { ...siding('one', ORIGIN, 0, 100), pts: [p0] };
-    const net = network({ chains: [dup], segments: [single] });
-    expect(findCandidates(net, fixAt(0, 0), MATCH_CONFIG)).toEqual([]);
+    // dup: a two-vertex chain of zero length; one: a single-vertex chain; seg: a one-vertex siding.
+    const dup = {
+      ...chain,
+      id: 'dup',
+      chainBaseId: 'dup',
+      pts: [p0, p0],
+      sM: Float64Array.of(250, 250),
+      cumulativeM: Float64Array.of(0, 0),
+    };
+    const one = {
+      ...dup,
+      id: 'one',
+      chainBaseId: 'one',
+      pts: [p0],
+      sM: Float64Array.of(250),
+      cumulativeM: Float64Array.of(0),
+    };
+    const seg = { ...siding('seg', ORIGIN, 0, 100), pts: [p0] };
+    const net = network({ chains: [dup, one], segments: [seg] });
+    // The fix is 4 m north of the point (250, 0): residual = distance to the point.
+    const cands = findCandidates(net, fixAt(250, 4), MATCH_CONFIG);
+    expect(cands.map((c) => c.chainId ?? c.segmentKey)).toEqual(['seg', 'dup', 'one']);
+    for (const c of cands) {
+      expect(c.residualM).toBeCloseTo(4, 6);
+      expect(c.bearingDeg).toBeNull();
+    }
+    expect(cands.find((c) => c.chainId === 'dup')?.s).toBe(250); // the stored sM, metres
+    expect(cands.find((c) => c.segmentKey === 'seg')?.s).toBeNull();
+    // Beyond the radius a point candidate is dropped like any other track.
+    expect(findCandidates(net, fixAt(250, 60), MATCH_CONFIG)).toEqual([]);
   });
 
   it('sorts by residual then ids, deterministically under shuffled network order', () => {
@@ -159,6 +185,94 @@ describe('findCandidates', () => {
     expect(() => findCandidates(net, { ...fixAt(0, 0), accuracyM: -1 }, MATCH_CONFIG)).toThrow(
       CoreInputError,
     );
+  });
+});
+
+describe('findCandidates: one candidate per distinct pass (ruling R27)', () => {
+  /** A chain through (east, north) metre points with s from 0. */
+  function xyChain(id: string, pts: readonly (readonly [number, number])[], cycle = false) {
+    const ll = pts.map(([x, y]) => fromLocalM(ORIGIN, { x, y }, ORIGIN.lat));
+    const base = straightChain(id, ORIGIN, 0, 100, { cycle });
+    const cumulativeM = cumulativeLengthsM(ll);
+    return { ...base, pts: ll, sM: Float64Array.from(cumulativeM), cumulativeM };
+  }
+
+  it('a hairpin with legs 8 m apart gives two candidates of the same chain', () => {
+    const h = xyChain('H', [
+      [0, 0],
+      [1000, 0],
+      [1000, 8],
+      [0, 8],
+    ]);
+    const cands = findCandidates(network({ chains: [h] }), fixAt(500, 3), MATCH_CONFIG);
+    expect(cands.map((c) => c.chainId)).toEqual(['H', 'H']);
+    expect(cands[0]?.residualM).toBeCloseTo(3, 4);
+    expect(cands[0]?.s).toBeCloseTo(500, 2);
+    expect(cands[1]?.residualM).toBeCloseTo(5, 4);
+    expect(cands[1]?.s).toBeCloseTo(1508, 2);
+    expect(cands[1]?.bearingDeg).toBeCloseTo(270, 2);
+  });
+
+  it('equal residuals on two passes sort by s (final tie-break)', () => {
+    const h = xyChain('H', [
+      [0, 0],
+      [1000, 0],
+      [1000, 8],
+      [0, 8],
+    ]);
+    const cands = findCandidates(network({ chains: [h] }), fixAt(500, 4), MATCH_CONFIG);
+    expect(cands).toHaveLength(2);
+    expect((cands[0]?.s ?? 0) < (cands[1]?.s ?? 0)).toBe(true);
+  });
+
+  it('a bend near the fix is one pass (local minima closer than the radius along the chain)', () => {
+    const bend = xyChain('B', [
+      [0, 0],
+      [500, 0],
+      [1000, 20],
+    ]);
+    const inside = findCandidates(network({ chains: [bend] }), fixAt(500, 5), MATCH_CONFIG);
+    expect(inside).toHaveLength(1);
+    const outside = findCandidates(network({ chains: [bend] }), fixAt(505, -5), MATCH_CONFIG);
+    expect(outside).toHaveLength(1);
+  });
+
+  it('a closed cycle is one pass at its seam (along-track distance wraps)', () => {
+    const loop = xyChain(
+      'L',
+      [
+        [0, 0],
+        [400, 0],
+        [400, 400],
+        [0, 400],
+        [0, 0],
+      ],
+      true,
+    );
+    const cands = findCandidates(network({ chains: [loop] }), fixAt(2, 2), MATCH_CONFIG);
+    expect(cands).toHaveLength(1);
+    expect(cands[0]?.residualM).toBeCloseTo(2, 3);
+    // The same shape without the cycle flag has two ends: two passes 1596 m apart along it.
+    const open = xyChain('O', [
+      [0, 0],
+      [400, 0],
+      [400, 400],
+      [0, 400],
+      [0, 0],
+    ]);
+    expect(findCandidates(network({ chains: [open] }), fixAt(2, 2), MATCH_CONFIG)).toHaveLength(2);
+  });
+
+  it('a fix beyond the end of a chain is one pass at the end vertex', () => {
+    const c = xyChain('E', [
+      [0, 0],
+      [100, 0],
+      [200, 0],
+    ]);
+    const cands = findCandidates(network({ chains: [c] }), fixAt(220, 0), MATCH_CONFIG);
+    expect(cands).toHaveLength(1);
+    expect(cands[0]?.s).toBeCloseTo(200, 3);
+    expect(cands[0]?.residualM).toBeCloseTo(20, 3);
   });
 });
 
