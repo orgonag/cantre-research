@@ -553,6 +553,52 @@ describe('locks', () => {
     expect(r.chosen?.chainId).toBe('A');
   });
 
+  it('R24: a lock-matched result never seeds continuity, so unlock is ambiguous again', () => {
+    // A and B 12 m apart (two routes); the fix 6 m from each is AMBIGUOUS_ROUTE.
+    const net = network({
+      coverage: [coverageAround(ORIGIN, 5000)],
+      chains: [
+        straightChain('A', ORIGIN, 0, 2000, { sub: 'sub-A', op: 'CN' }),
+        straightChain('B', ORIGIN, 0, 2000, { sub: 'sub-B', op: 'CPKC', lateralM: -12 }),
+      ],
+    });
+    let s = play(net, [fixEvent(fixAt(500, 6, 1000)), { type: 'lock', lock: lockA }]);
+    expect(currentResult(s, 1000)).toMatchObject({ status: 'MATCHED', selectionOrigin: 'user' });
+    expect(s.previous).toBeNull();
+    s = reduce(s, fixEvent(fixAt(600, 6, 2000))).state;
+    expect(s.previous).toBeNull();
+    s = reduce(s, { type: 'unlock' }).state;
+    expect(currentResult(s, 2000)).toMatchObject({
+      status: 'AMBIGUOUS_ROUTE',
+      reasons: ['MULTIPLE_ROUTES'],
+      chosen: null,
+      selectionOrigin: null,
+    });
+    s = reduce(s, fixEvent(fixAt(700, 6, 3000))).state;
+    expect(currentResult(s, 3000).status).toBe('AMBIGUOUS_ROUTE');
+  });
+
+  it('R24: a lock event re-evaluates with no continuity from an earlier automatic match', () => {
+    const net = network({
+      coverage: [coverageAround(ORIGIN, 5000)],
+      chains: [
+        straightChain('A', ORIGIN, 0, 2000, { sub: 'sub-A', op: 'CN' }),
+        straightChain('B', ORIGIN, 0, 2000, { sub: 'sub-B', op: 'CPKC', lateralM: -12 }),
+      ],
+    });
+    // Matched A automatically on A's line, then a fix between the lines keeps A (CONTINUITY).
+    let s = play(net, [fixEvent(fixAt(500, 0, 1000)), fixEvent(fixAt(600, 6, 2000))]);
+    expect(currentResult(s, 2000).reasons).toContain('CONTINUITY');
+    // Lock then unlock: the re-evaluation starts with no previous match, so it is ambiguous.
+    s = play(net, [
+      fixEvent(fixAt(500, 0, 1000)),
+      fixEvent(fixAt(600, 6, 2000)),
+      { type: 'lock', lock: lockA },
+      { type: 'unlock' },
+    ]);
+    expect(currentResult(s, 2000).status).toBe('AMBIGUOUS_ROUTE');
+  });
+
   it('a lock resolves a diamond', () => {
     const net = withDiamond(twoRoutes(), 'dia', 'A', 500);
     const s = play(net, [{ type: 'lock', lock: lockA }, fixEvent(fixAt(500, 0, 1000))]);

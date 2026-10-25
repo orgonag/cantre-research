@@ -38,7 +38,8 @@ export type MatchEvent =
  *   fix and after a permission change.
  * - `lastFixTimestampMs`: timestamp (ms) of the last accepted fix; kept across a denial/grant so
  *   fix ordering still holds.
- * - `previous`: continuity carried from a MATCHED result (Decision 3); null otherwise.
+ * - `previous`: continuity carried from an automatic MATCHED result (Decision 3); null otherwise,
+ *   and never set from a lock-decided (user-origin) result (ruling R24).
  * - `result`: the stored full result as of the last event; `currentResult` adds the time view.
  * - `ignoredFixes`: how many fixes were ignored (invalid, out of order, or while denied).
  */
@@ -102,8 +103,10 @@ function next(state: MatchState, changes: Partial<MatchState>): MatchState {
 /**
  * Runs the full pipeline on one fix (spec §6): candidates, coverage, diamonds near any candidate
  * (ruling R7), selection, then milepost. Returns the stored result and the continuity to carry.
- * Continuity is set only from a MATCHED result on a chain (Decision 3): any other status, and a
- * matched siding, clears it. Units: see {@link Fix}.
+ * Continuity is set only from an automatic (`selectionOrigin: 'auto'`) MATCHED result on a chain
+ * (Decision 3, ruling R24): any other status, a matched siding, and a match decided by the user's
+ * lock clear it. A user choice is never turned into automatic evidence, so withdrawing the lock
+ * cannot leave the locked route behind as an "auto" match. Units: see {@link Fix}.
  */
 function evaluate(
   state: MatchState,
@@ -127,7 +130,10 @@ function evaluate(
   const result = resultFromSelection(net, fix, selection, lock);
   const chosen = selection.chosen;
   const carried =
-    selection.status === 'MATCHED' && chosen !== null && chosen.chainId !== null
+    selection.status === 'MATCHED' &&
+    selection.selectionOrigin === 'auto' &&
+    chosen !== null &&
+    chosen.chainId !== null
       ? Object.freeze({
           chainId: chosen.chainId,
           sinceContradictionMs: selection.contradictionStartMs,
@@ -152,7 +158,9 @@ function evaluate(
  * - `locationError`: before any fix gives NO_FIX (`LOCATION_UNAVAILABLE`); otherwise nothing
  *   changes (a stale result follows by time, not by error).
  * - `lock` / `unlock`: set / clear the lock (only `unlock` clears) and immediately re-evaluate the
- *   last accepted fix, if any, without counting it again or re-checking its order.
+ *   last accepted fix, if any, without counting it again or re-checking its order, and with no
+ *   continuity (ruling R24: after a lock change the evidence alone decides; this costs one fix of
+ *   continuity after an unlock).
  * Limits: no timers; staleness is applied by {@link currentResult}. The reducer cannot see `nowMs`,
  * so a fix with a far-future timestamp is accepted here (currentResult marks it FIX_FROM_FUTURE) and
  * later real fixes are ignored as out of order until the clock passes it (ruling R20).
@@ -235,12 +243,12 @@ function reducePermission(state: MatchState, permission: 'granted' | 'denied'): 
   });
 }
 
-/** The lock/unlock branch of {@link reduce}. */
+/** The lock/unlock branch of {@link reduce}. Re-evaluates with previous = null (ruling R24). */
 function reduceLock(state: MatchState, lock: Lock | null): MatchState {
   if (state.lastFix === null) {
     return next(state, { lock, result: withLock(state.result, lock) });
   }
-  const evaluated = evaluate(state, state.lastFix, lock, state.previous);
+  const evaluated = evaluate(state, state.lastFix, lock, null);
   return next(state, { lock, previous: evaluated.previous, result: evaluated.result });
 }
 

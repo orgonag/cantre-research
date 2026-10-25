@@ -16,7 +16,7 @@
  */
 import { metresToMiles } from '../../src/index.js';
 import { ORIGIN, coverageAround, interval, network, straightChain } from '../helpers/network.js';
-import { chainFromXY, fixStep } from './harness.js';
+import { chainFromXY, eventStep, fixStep } from './harness.js';
 import type { Scenario } from './harness.js';
 
 /** Length of the diverging run of B, metres: hypot(500 east, 68 north). */
@@ -188,4 +188,54 @@ export const parallelContinuity: Scenario = {
   ],
 };
 
-export const scenarios: readonly Scenario[] = [parallelDiverge, parallelContinuity];
+/**
+ * A withdrawn user choice must not become an automatic match (ruling R24, final review Critical).
+ * The fix sits 6 m from each line, so both routes are indistinguishable. The user locks A: MATCHED
+ * on A with origin user. On unlock the last fix is re-evaluated with no continuity, so the result
+ * is AMBIGUOUS_ROUTE again, and so are later fixes between the lines.
+ */
+export const parallelLockUnlock: Scenario = {
+  name: 'parallel-class1: ambiguous, lock A, unlock is AMBIGUOUS_ROUTE again (no auto match)',
+  net: parallelNet,
+  steps: [
+    fixStep(1000, 200, 6, {
+      status: 'AMBIGUOUS_ROUTE',
+      reasons: ['MULTIPLE_ROUTES'],
+      candidatesAnyOrder: ['A', 'B'],
+    }),
+    eventStep(
+      { type: 'lock', lock: { kind: 'chain', chainId: 'A' } },
+      {
+        status: 'MATCHED',
+        chainId: 'A',
+        selectionOrigin: 'user',
+        reasons: ['LOCKED_BY_USER'],
+        mpApprox: mpA(200),
+      },
+    ),
+    fixStep(2000, 300, 6, { status: 'MATCHED', chainId: 'A', selectionOrigin: 'user' }),
+    eventStep(
+      { type: 'unlock' },
+      {
+        status: 'AMBIGUOUS_ROUTE',
+        reasons: ['MULTIPLE_ROUTES'],
+        chainId: null,
+        selectionOrigin: null,
+        lock: null,
+        candidatesAnyOrder: ['A', 'B'],
+      },
+    ),
+    fixStep(3000, 400, 6, {
+      status: 'AMBIGUOUS_ROUTE',
+      reasons: ['MULTIPLE_ROUTES'],
+      chainId: null,
+      candidatesAnyOrder: ['A', 'B'],
+    }),
+  ],
+};
+
+export const scenarios: readonly Scenario[] = [
+  parallelDiverge,
+  parallelContinuity,
+  parallelLockUnlock,
+];
