@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "lang": "fr",
+    "reviewStatus": "needs native review",
+    "note": "Draft translation. A native French speaker must review it before release (D3). Proper names (CANTRE, NRWN, OGL-Canada) are not translated."
+  },
+  "messages": {
+    "app.title": "CANTRE",
+    "app.tagline": "Point milliaire calculé à partir de votre GPS, sur cet appareil",
+    "app.footer": "Logiciel de recherche. Ne pas utiliser pour la sécurité, l'exploitation ou l'accès aux voies.",
+    "app.loading": "Chargement",
+    "app.statusHeading": "Position",
+    "app.noDataYet": "Aucune donnée ferroviaire n'est encore chargée.",
+
+    "boundary.title": "Un problème est survenu",
+    "boundary.body": "L'application s'est arrêtée. Votre position n'a été envoyée nulle part. Code d'erreur :",
+    "boundary.reset": "Réinitialiser",
+
+    "lock.clearedOnReload": "Verrouillage retiré au rechargement. Choisissez de nouveau l'itinéraire si nécessaire.",
+    "lock.clearedByUpdate": "Verrouillage retiré parce que les données ont été mises à jour. Choisissez de nouveau l'itinéraire si nécessaire.",
+    "lock.dismiss": "Fermer",
+
+    "data.version": "Données : {date}",
+
+    "status.NO_PERMISSION": "L'autorisation de localisation est désactivée",
+    "status.NO_FIX": "En attente d'une position GPS",
+    "status.STALE": "Historique : la dernière position GPS est ancienne",
+    "status.NO_COVERAGE": "En dehors des données chargées",
+    "status.OFF_NETWORK": "Pas sur une voie cartographiée",
+    "status.AMBIGUOUS_ROUTE": "Plus d'un itinéraire possible",
+    "status.MATCHED_SUBDIVISION": "Sur cette subdivision, voie non identifiée",
+    "status.MATCHED": "Associé à une voie",
+    "status.LOCK_CONFLICT": "L'itinéraire choisi ne correspond pas à cette position",
+
+    "reason.PERMISSION_DENIED": "L'autorisation de localisation a été refusée. Autorisez la localisation pour ce site dans les paramètres du navigateur.",
+    "reason.LOCATION_UNAVAILABLE": "L'appareil n'a pas pu fournir de position.",
+    "reason.NO_FIX_YET": "Aucune position GPS n'est encore arrivée.",
+    "reason.FIX_STALE": "La dernière position date de plus de 15 secondes : il s'agit du dernier résultat connu, pas du résultat actuel.",
+    "reason.FIX_FROM_FUTURE": "La position porte une heure dans le futur : on ne peut pas la considérer comme actuelle.",
+    "reason.FIX_IGNORED_OUT_OF_ORDER": "Une position arrivée dans le désordre a été ignorée.",
+    "reason.FIX_IGNORED_INVALID": "Une position aux valeurs invalides a été ignorée.",
+    "reason.OUTSIDE_LOADED_TILES": "La position est en dehors de la zone couverte par les données chargées.",
+    "reason.PARTIAL_COVERAGE": "Une partie de la zone de recherche est hors des données chargées : une voie plus proche pourrait manquer.",
+    "reason.NO_CANDIDATE_IN_RADIUS": "Aucune voie cartographiée ne se trouve dans la précision GPS de la position.",
+    "reason.DIAMOND_NEARBY": "Un croisement de deux voies est proche : la voie ne peut pas être distinguée de façon sûre.",
+    "reason.MULTIPLE_ROUTES": "Des voies d'itinéraires différents sont proches l'une de l'autre et la position ne permet pas de les distinguer.",
+    "reason.MULTIPLE_TRACKS": "Plusieurs voies du même itinéraire sont proches l'une de l'autre et la position ne permet pas de les distinguer.",
+    "reason.HEADING_USED": "Le sens de déplacement a aidé à départager des voies proches.",
+    "reason.HEADING_INCONSISTENT": "Le sens de déplacement ne correspond pas aux voies proches.",
+    "reason.CONTINUITY": "La voie a été conservée à partir des positions précédentes.",
+    "reason.CONTINUITY_HOLD": "La voie précédente est conservée pour le moment, mais les positions récentes ne concordent pas avec elle.",
+    "reason.LOCKED_BY_USER": "L'itinéraire est celui que vous avez choisi.",
+    "reason.LOCK_NOT_SUPPORTED": "L'itinéraire choisi ne permet pas de calculer un point milliaire ici.",
+    "reason.DISCONTINUITY_GAP": "La numérotation des points milliaires a une interruption ici : aucune valeur n'est calculée au travers.",
+    "reason.CHAIN_UNCALIBRATED": "Cette voie n'a pas de référence fiable de points milliaires : aucun point milliaire n'est affiché.",
+    "reason.TRACK_MP_DISAGREE": "Des voies proches donnent des points milliaires différents : aucun n'est affiché.",
+    "reason.TRACK_UNCALIBRATED": "Cette voie n'a pas de référence de points milliaires.",
+    "reason.UNCHAINED_TRACK": "Cette voie ne fait pas partie d'un itinéraire continu : aucun point milliaire n'est affiché.",
+
+    "error.MANIFEST_INVALID": "La liste de données reçue du serveur n'est pas valide. Réessayez plus tard.",
+    "error.FETCH_FAILED": "Les données n'ont pas pu être téléchargées. Vérifiez la connexion et réessayez.",
+    "error.HASH_MISMATCH": "Les données téléchargées n'ont pas réussi la vérification d'intégrité et n'ont pas été utilisées.",
+    "error.NOT_INSTALLED": "Aucune donnée ferroviaire n'est encore installée sur cet appareil."
+  }
+}

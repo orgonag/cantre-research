@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "lang": "en",
+    "reviewStatus": "source text",
+    "note": "English is the source language. Proper names (CANTRE, NRWN, OGL-Canada) are not translated."
+  },
+  "messages": {
+    "app.title": "CANTRE",
+    "app.tagline": "Calculated railway milepost from your GPS, on this device",
+    "app.footer": "Research software. Not for safety, operations or track access.",
+    "app.loading": "Loading",
+    "app.statusHeading": "Position",
+    "app.noDataYet": "No rail data is loaded yet.",
+
+    "boundary.title": "Something went wrong",
+    "boundary.body": "The app stopped. Your location was not sent anywhere. Error code:",
+    "boundary.reset": "Reset",
+
+    "lock.clearedOnReload": "Lock cleared on reload. Choose the route again if you need it.",
+    "lock.clearedByUpdate": "Lock cleared because the data was updated. Choose the route again if you need it.",
+    "lock.dismiss": "Dismiss",
+
+    "data.version": "Data: {date}",
+
+    "status.NO_PERMISSION": "Location permission is off",
+    "status.NO_FIX": "Waiting for a GPS fix",
+    "status.STALE": "Historical: the last GPS fix is old",
+    "status.NO_COVERAGE": "Outside the loaded data",
+    "status.OFF_NETWORK": "Not on a mapped track",
+    "status.AMBIGUOUS_ROUTE": "More than one route fits",
+    "status.MATCHED_SUBDIVISION": "On this subdivision, track not identified",
+    "status.MATCHED": "Matched to a track",
+    "status.LOCK_CONFLICT": "Your chosen route does not fit this fix",
+
+    "reason.PERMISSION_DENIED": "Location permission was denied. Allow location for this site in the browser settings.",
+    "reason.LOCATION_UNAVAILABLE": "The device could not provide a location.",
+    "reason.NO_FIX_YET": "No GPS fix has arrived yet.",
+    "reason.FIX_STALE": "The last fix is older than 15 seconds, so this is the last known result, not the current one.",
+    "reason.FIX_FROM_FUTURE": "The fix is timestamped in the future, so it cannot be trusted as current.",
+    "reason.FIX_IGNORED_OUT_OF_ORDER": "A fix that arrived out of order was ignored.",
+    "reason.FIX_IGNORED_INVALID": "A fix with invalid values was ignored.",
+    "reason.OUTSIDE_LOADED_TILES": "The fix is outside the area covered by the loaded data.",
+    "reason.PARTIAL_COVERAGE": "Part of the search area is outside the loaded data, so a nearer track may be missing.",
+    "reason.NO_CANDIDATE_IN_RADIUS": "No mapped track lies within the GPS accuracy of the fix.",
+    "reason.DIAMOND_NEARBY": "A crossing of two tracks is nearby, so the track cannot be told apart safely.",
+    "reason.MULTIPLE_ROUTES": "Tracks of different routes are close together and the fix cannot tell them apart.",
+    "reason.MULTIPLE_TRACKS": "Several tracks of the same route are close together and the fix cannot tell them apart.",
+    "reason.HEADING_USED": "The direction of travel helped choose between nearby tracks.",
+    "reason.HEADING_INCONSISTENT": "The direction of travel does not match the nearby tracks.",
+    "reason.CONTINUITY": "The track was kept from the previous fixes.",
+    "reason.CONTINUITY_HOLD": "The previous track is kept for now, but recent fixes disagree with it.",
+    "reason.LOCKED_BY_USER": "The route is the one you chose.",
+    "reason.LOCK_NOT_SUPPORTED": "The chosen route cannot be used for a milepost here.",
+    "reason.DISCONTINUITY_GAP": "The milepost numbering has a gap here, so no value is calculated across it.",
+    "reason.CHAIN_UNCALIBRATED": "This track has no reliable milepost reference, so no milepost is shown.",
+    "reason.TRACK_MP_DISAGREE": "Nearby tracks give different mileposts, so none is shown.",
+    "reason.TRACK_UNCALIBRATED": "This track has no milepost reference.",
+    "reason.UNCHAINED_TRACK": "This track is not part of a connected route, so no milepost is shown.",
+
+    "error.MANIFEST_INVALID": "The data list from the server is not valid. Try again later.",
+    "error.FETCH_FAILED": "The data could not be downloaded. Check the connection and try again.",
+    "error.HASH_MISMATCH": "The downloaded data did not pass its integrity check and was not used.",
+    "error.NOT_INSTALLED": "No rail data is installed on this device yet."
+  }
+}
