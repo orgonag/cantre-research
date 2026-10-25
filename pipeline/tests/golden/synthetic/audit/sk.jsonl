@@ -1,0 +1,63 @@
+{"detail":"predicted MP 31.073 from K0-KX, actual MP 31.370 (limit 0.05 mi)","layer":"ANCHOR","nid":"KM1","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
+{"detail":"predicted MP 12.125 from X2-X9, actual MP 12.530 (limit 0.05 mi)","layer":"ANCHOR","nid":"M2","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
+{"detail":"slope to previous 2.570, slope to next 1.350; bridge X3-X6 is consistent","layer":"ANCHOR","nid":"X5","reason":"ANCHOR_OUTLIER","severity":"rejected"}
+{"detail":"4 segments close on themselves in subdivision S7","layer":"CHAIN","nid":"ch_25ba407aa1ab2ac2","reason":"CHAIN_CYCLE","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"B0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"B1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"B2","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"B3","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"B4","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"DA0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"DA1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"DB0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"DB1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"EE0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"EE1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"ES0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"ES1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"G0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"G1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"G2","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"HL-X","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"I0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"K0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"KX","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"L0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"LX","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"TA0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"TA1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"TB0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"TB1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TC 1010 is a spur crossing (Spur Mile Point '2.5'); its Mile 10.85 is the turnout on the main line","layer":"CROSSING","nid":"X10","reason":"TC_SPUR_CROSSING","severity":"rejected"}
+{"detail":"NRWN posted 14.68 mi vs TC 14.98 mi (limit 0.05)","layer":"CROSSING","nid":"X11","reason":"SOURCE_DISAGREEMENT","severity":"rejected"}
+{"detail":"RESIDUAL_TOO_LARGE: residual 222.54 m exceeds 25.0 m","layer":"CROSSING","nid":"X12","reason":"ASSET_UNPOSITIONED","severity":"info"}
+{"detail":"residual 222.54 m exceeds 25.0 m","layer":"CROSSING","nid":"X12","reason":"RESIDUAL_TOO_LARGE","severity":"rejected"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X12","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"SUBDIVISION_MISMATCH: record subdivision 'S9', track chain subdivision 'S1'","layer":"CROSSING","nid":"X13","reason":"ASSET_UNPOSITIONED","severity":"info"}
+{"detail":"record subdivision 'S9', track chain subdivision 'S1'","layer":"CROSSING","nid":"X13","reason":"SUBDIVISION_MISMATCH","severity":"rejected"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X13","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"qualifier 'Unknown', no TC value","layer":"CROSSING","nid":"X14","reason":"NOT_POSTED","severity":"rejected"}
+{"detail":"merged into anchor X3 (CROSSINGID C3)","layer":"CROSSING","nid":"X3","reason":"ANCHOR_MERGED","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X3","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"merged into anchor X3 (CROSSINGID C3)","layer":"CROSSING","nid":"X3b","reason":"ANCHOR_MERGED","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X3b","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"CROSSINGID C4 on ch_c73d4be06acb3ab2: values disagree (X4=15.54, X4b=16.04)","layer":"CROSSING","nid":"X4","reason":"ANCHOR_CONFLICT","severity":"rejected"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X4","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"CROSSINGID C4 on ch_c73d4be06acb3ab2: values disagree (X4=15.54, X4b=16.04)","layer":"CROSSING","nid":"X4b","reason":"ANCHOR_CONFLICT","severity":"rejected"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X4b","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X5","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X6","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"Posted crossing with mileage -1","layer":"CROSSING","nid":"X7","reason":"POSTED_SENTINEL","severity":"rejected"}
+{"detail":"TRACK_NOT_CHAINED: track 'SD' is in no chain","layer":"CROSSING","nid":"X8","reason":"ASSET_UNPOSITIONED","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"X8","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"track 'SD' is in no chain","layer":"CROSSING","nid":"X8","reason":"TRACK_NOT_CHAINED","severity":"rejected"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"ZA0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"ZA1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"ZB0","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"TCID '-1' has no TC row","layer":"CROSSING","nid":"ZB1","reason":"TC_NO_ROW","severity":"info"}
+{"detail":"mileage is the -1 sentinel","layer":"STATION","nid":"ST1","reason":"MILEAGE_SENTINEL","severity":"rejected"}
+{"detail":"mileage is the -1 sentinel","layer":"STRUCTURE_0","nid":"CU","reason":"MILEAGE_SENTINEL","severity":"rejected"}
+{"detail":"mileage is the -1 sentinel","layer":"STRUCTURE_1","nid":"BR","reason":"MILEAGE_SENTINEL","severity":"rejected"}
+{"detail":"2 inventory rows share this number","layer":"TC","nid":"1020","reason":"TC_DUPLICATE_NUMBER","severity":"info"}
+{"detail":"SD: TRACKCLASS 'Siding' is not chained","layer":"TRACK","nid":"SD","reason":"NOT_CHAINED_CLASS","severity":"info"}

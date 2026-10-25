@@ -51,9 +51,9 @@ export type MilepostResult =
  * The result is a calculated milepost from anchors. It is not a survey accuracy, and it
  * carries no confidence interval (see {@link gpsMilepostBandMi} for the GPS-only band).
  *
- * Throws `CoreInputError`: `NON_FINITE` if `s` is NaN or infinite, or if the computed milepost
- * overflows to +-Infinity (extreme finite anchors such as +-1e308); `INVALID_INTERVAL` if
- * {@link validateInterval} reports any issue.
+ * Throws `CoreInputError`: `NON_FINITE` if `s` is NaN or infinite; `INVALID_INTERVAL` if
+ * {@link validateInterval} reports any issue (including a span that overflows to +-Infinity, as
+ * for extreme finite anchors such as +-1e308).
  */
 export function interpolateMilepost(s: number, interval: readonly Anchor[]): MilepostResult {
   assertFinite(s, 's');
@@ -93,7 +93,7 @@ export function interpolateMilepost(s: number, interval: readonly Anchor[]): Mil
   const upper = anchorAt(interval, i + 1);
   const fraction = (s - lower.s) / (upper.s - lower.s); // dimensionless, in (0, 1)
   const mp = lower.mp + fraction * (upper.mp - lower.mp); // miles
-  assertFinite(mp, 'mp'); // extreme finite anchors (e.g. +-1e308) can overflow to +-Infinity
+  assertFinite(mp, 'mp'); // defensive: finite spans keep mp between the anchors, so never fires
   return {
     kind: 'calibrated',
     mp,

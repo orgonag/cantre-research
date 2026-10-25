@@ -3,7 +3,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": ".tsc-check",
-    "tsBuildInfoFile": ".tsc-check/.tsbuildinfo"
+    "tsBuildInfoFile": ".tsc-check/.tsbuildinfo",
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

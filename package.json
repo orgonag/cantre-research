@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.13"
   },
   "scripts": {
     "lint": "eslint .",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "10.13.0",
     "fast-check": "4.10.2",

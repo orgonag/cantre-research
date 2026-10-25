@@ -25,3 +25,41 @@ jobs:
       - name: Smoke-import the built package
         run: node -e "import('@cantre/core').then(m => { if (typeof m.interpolateMilepost !== 'function') process.exit(1) })"
       - run: npm run coverage
+
+  pipeline:
+    runs-on: ubuntu-latest
+    env:
+      CANTRE_RAW_DIR: ${{ github.workspace }}/.cache/raw
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pipeline/pyproject.toml
+      - run: pip install -e "pipeline[dev]"
+      - run: ruff check pipeline
+      - run: ruff format --check pipeline
+      - run: mypy --strict pipeline/src pipeline/tests
+      - name: Restore the raw source cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/raw
+          key: raw-${{ hashFiles('pipeline/sources/*.json') }}
+      - name: Acquire the sources (hash checked against pipeline/sources)
+        run: |
+          python -m cantre_pipeline acquire --source sk
+          python -m cantre_pipeline acquire --source tc-gci
+      - name: Test (the real-data tests need the acquired sources, so this runs after acquire)
+        run: pytest pipeline
+      - name: Build Saskatchewan twice with different hash seeds and compare
+        run: |
+          PYTHONHASHSEED=0 python -m cantre_pipeline build --province sk --out build/a --check-budget
+          PYTHONHASHSEED=12345 python -m cantre_pipeline build --province sk --out build/b
+          diff -r build/a build/b
+      - name: Keep the build for inspection (private repository, not a deployment)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cantre-sk-build
+          path: build/a
+          retention-days: 14
