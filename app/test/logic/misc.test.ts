@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CoreInputError } from '@cantre/core';
 import { DataClientError } from '@cantre/data-client';
-import { errorCode } from '../../src/logic/errorCode.js';
+import { errorCode, isFatalUncaught } from '../../src/logic/errorCode.js';
 import { onResume } from '../../src/logic/visibility.js';
 import type { VisibilityDoc } from '../../src/logic/visibility.js';
 
@@ -12,6 +12,17 @@ describe('errorCode', () => {
     expect(errorCode(new Error('boom'))).toBe('UNEXPECTED');
     expect(errorCode('text')).toBe('UNEXPECTED');
     expect(errorCode(null)).toBe('UNEXPECTED');
+  });
+});
+
+describe('isFatalUncaught', () => {
+  it('ignores an uncaught event with no value, and keeps every other value fatal', () => {
+    expect(isFatalUncaught(undefined)).toBe(false);
+    expect(isFatalUncaught(null)).toBe(false);
+    expect(isFatalUncaught(new Error('boom'))).toBe(true);
+    expect(isFatalUncaught(new DataClientError('FETCH_FAILED'))).toBe(true);
+    expect(isFatalUncaught('text')).toBe(true);
+    expect(isFatalUncaught(0)).toBe(true);
   });
 });
 

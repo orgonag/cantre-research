@@ -4,7 +4,7 @@ import type { Fix, Lock, NetworkView } from '@cantre/core';
 import { DataClientError } from '@cantre/data-client';
 import type { AssetDetails, InstalledSnapshot } from '@cantre/data-client';
 import { getLang, setLang, t } from '../i18n/index.js';
-import { errorCode } from '../logic/errorCode.js';
+import { errorCode, isFatalUncaught } from '../logic/errorCode.js';
 import { watchFixes } from '../logic/geolocation.js';
 import type { GeoLike } from '../logic/geolocation.js';
 import { lockFlagIn } from '../logic/lockFlag.js';
@@ -149,7 +149,14 @@ export function App(props: {
 
   useEffect(() => {
     const onFailure = (event: ErrorEvent | PromiseRejectionEvent): void => {
-      setAsyncError('reason' in event ? event.reason : event.error);
+      const value: unknown = 'reason' in event ? event.reason : event.error;
+      if (!isFatalUncaught(value)) {
+        // No value, so no code: a typed non-fatal note in the local console only (nothing is
+        // sent anywhere), and the app keeps running.
+        console.warn(`cantre: NON_FATAL_UNCAUGHT (${event.type} with no value)`);
+        return;
+      }
+      setAsyncError(value);
     };
     window.addEventListener('error', onFailure);
     window.addEventListener('unhandledrejection', onFailure);

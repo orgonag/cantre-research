@@ -124,6 +124,14 @@ describe('present: MATCHED', () => {
     }
   });
 
+  it('shows a fix stamped slightly in the future as 0 s old, never a negative age', () => {
+    expect(present(matched(1, { fixAgeMs: -1500 }), net(), MI, META).fixAgeText).toBe(
+      'fix 0 s ago',
+    );
+    expect(present(matched(1, { fixAgeMs: -1 }), net(), MI, META).fixAgeText).toBe('fix 0 s ago');
+    expect(present(matched(1, { fixAgeMs: 0 }), net(), MI, META).fixAgeText).toBe('fix 0 s ago');
+  });
+
   it('shows a calibrated milepost of 0 as "MP 0.00", never blank', () => {
     const m = present(matched(0), net(), MI, META);
     expect(m.mpText).toBe('MP 0.00');

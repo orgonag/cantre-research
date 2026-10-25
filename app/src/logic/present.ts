@@ -49,9 +49,10 @@ export type SingleRoute = 'partial' | 'diamond' | 'other';
 export type CardModel = {
   readonly headline: string;
   /**
-   * True for AMBIGUOUS_ROUTE caused by PARTIAL_COVERAGE with exactly one route in the data: there
-   * is no "more than one route" to report, a nearer track may simply be missing. The headline and
-   * the chooser help then say the data is incomplete instead.
+   * Set only for AMBIGUOUS_ROUTE with fewer than two distinct routes, saying why the matcher still
+   * withheld a choice: 'partial' (PARTIAL_COVERAGE: part of the search area is outside the data,
+   * a nearer track may be missing), 'diamond' (DIAMOND_NEARBY) or 'other'. The headline and the
+   * chooser help then say that reason instead of "more than one route fits". Null otherwise.
    */
   readonly singleRoute: SingleRoute | null;
   readonly subdivision: string | null;
@@ -114,9 +115,13 @@ function bandTextOf(bandMi: number, units: Settings['units']): string {
   return t('card.band', { value: fmt(value, DIGITS), unit });
 }
 
-/** "fix 2 s ago", "fix 1 min 20 s ago", "fix 1 h 5 min ago". Input milliseconds. */
+/**
+ * "fix 2 s ago", "fix 1 min 20 s ago", "fix 1 h 5 min ago". Input milliseconds.
+ * A fix stamped slightly in the future (within the matcher's tolerance, so still accepted) has a
+ * negative age; it is shown as "0 s", never "-1 s". Whole seconds, rounded down.
+ */
 function fixAgeTextOf(ageMs: number): string {
-  const totalS = Math.floor(ageMs / 1000);
+  const totalS = Math.floor(Math.max(0, ageMs) / 1000);
   const h = Math.floor(totalS / 3600);
   const min = Math.floor((totalS % 3600) / 60);
   const s = totalS % 60;
@@ -168,11 +173,6 @@ function lockTextOf(result: Result, net: NetworkView): string | null {
 }
 
 /**
- * The routes to choose from: one per base chain (the nearest pass wins), plus any unchained track
- * (shown but not lockable). Locking uses the base chain id, which the matcher's lock accepts for
- * every piece of the route, so crossing a gap inside one route is not a silent switch.
- */
-/**
  * Identity of the route a candidate belongs to: its base chain id, or for an unchained track its
  * segment key. A segment without a key falls back to its own attributes and residual, so
  * different tracks never collapse into one entry and the matched track always has the same key
@@ -217,6 +217,11 @@ function ambiguousOf(
   return { choices, singleRoute, headline };
 }
 
+/**
+ * The routes to choose from: one per base chain (the nearest pass wins), plus any unchained track
+ * (shown but not lockable). Locking uses the base chain id, which the matcher's lock accepts for
+ * every piece of the route, so crossing a gap inside one route is not a silent switch.
+ */
 function choicesOf(candidates: readonly Candidate[]): readonly Choice[] {
   const byKey = new Map<string, Choice>();
   const nearest = new Map<string, number>(); // metres, the best residual seen per route

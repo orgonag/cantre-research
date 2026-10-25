@@ -572,9 +572,12 @@ test.describe('the map and the basemap consent', () => {
     await page.getByRole('button', { name: 'Turn on basemap' }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText(
-      'That request tells OpenFreeMap which area you are looking at.',
+      'OpenFreeMap sees your internet address and which area you are looking at',
     );
-    await expect(dialog).toContainText('Your GPS position is not sent');
+    await expect(dialog).toContainText(
+      'When you have a GPS fix the map opens around it, so these requests show OpenFreeMap roughly where you are',
+    );
+    await expect(dialog).toContainText('Your exact GPS position is not sent');
     expect(traffic.urls().filter((u) => new URL(u).host === BASEMAP_HOST)).toEqual([]);
     await dialog.getByRole('button', { name: 'Turn on basemap' }).click();
 
@@ -592,6 +595,27 @@ test.describe('the map and the basemap consent', () => {
     // The consent is the one thing remembered, in settings.
     const settings = await page.evaluate(() => localStorage.getItem('cantre.settings.v1'));
     expect(JSON.parse(settings ?? '{}')).toMatchObject({ basemap: true });
+  });
+});
+
+test.describe('uncaught events', () => {
+  test('a promise rejected with no reason does not stop the app; a real error does', async ({
+    page,
+    context,
+  }) => {
+    await openAndInstall(page);
+    await moveTo(context, PLACES.chain);
+    await expect(headline(page)).toHaveText('Matched to a track');
+    await page.evaluate(() => {
+      void Promise.reject(); // eslint-disable-line @typescript-eslint/prefer-promise-reject-errors
+    });
+    await expect(headline(page)).toHaveText('Matched to a track');
+    await expect(page.locator('.error-screen')).toHaveCount(0);
+    await page.evaluate(() => {
+      void Promise.reject(new Error('boom'));
+    });
+    await expect(page.locator('.error-screen')).toBeVisible();
+    await expect(page.locator('.error-code')).toHaveText('UNEXPECTED');
   });
 });
 
