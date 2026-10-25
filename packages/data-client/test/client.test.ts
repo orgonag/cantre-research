@@ -144,6 +144,7 @@ describe('downloadSnapshot', () => {
       datasetVersion: a.manifest.datasetVersion,
       snapshotDate: a.manifest.snapshotDate,
       bytes: a.manifest.snapshot.gzipBytes + a.manifest.assetDetails.gzipBytes,
+      packageVersions: parseManifest(a.manifest).packageVersions,
     });
     const total = a.manifest.snapshot.gzipBytes + a.manifest.assetDetails.gzipBytes;
     expect(seen.length).toBeGreaterThan(1);
@@ -322,16 +323,55 @@ describe('downloadSnapshot', () => {
     expect((await installedSnapshot({ caches }))?.datasetVersion).toBe(a.datasetVersion);
   });
 
-  it('re-installing the same version overwrites it, and a failure then leaves nothing half-installed', async () => {
+  it('re-installing the same intact version downloads nothing and writes nothing', async () => {
     const caches = new FakeCacheStorage();
     const a = bundleA();
     await installBundle(a, caches);
-    await installBundle(a, caches); // fine
+    const putsBefore = caches.puts;
+    const deletes: string[] = [];
+    const del = caches.delete.bind(caches);
+    caches.delete = (name: string) => {
+      deletes.push(name);
+      return del(name);
+    };
+    const f = fakeFetch(serve(a));
+    const env: Partial<ClientEnv> = { fetch: f, caches };
+    const seen: DownloadProgress[] = [];
+    await downloadSnapshot(BASE, parseManifest(a.manifest), (p) => seen.push(p), env);
+    expect(f.requests).toEqual([]); // not even a request
+    expect(seen).toEqual([]);
+    expect(caches.puts).toBe(putsBefore);
+    expect(deletes).toEqual([]);
+    expect((await loadNetwork({ caches })).datasetVersion).toBe(a.manifest.datasetVersion);
+  });
+
+  it('re-installing the same version repairs a damaged install instead of skipping it', async () => {
+    const caches = new FakeCacheStorage();
+    const a = bundleA();
+    const m = await installBundle(a, caches);
+    const stored = caches.stores.get(cacheName(m.datasetVersion));
+    const snap = [...(stored?.entries() ?? [])].find(([k]) => k.endsWith('snapshot.bin.gz'));
+    flipByte(snap?.[1].bytes ?? new Uint8Array());
+    expect((await failure(loadNetwork({ caches }))).code).toBe('HASH_MISMATCH');
+    const f = fakeFetch(serve(a));
+    await downloadSnapshot(BASE, m, undefined, { fetch: f, caches });
+    expect(f.requests.length).toBe(2); // downloaded again
+    expect((await loadNetwork({ caches })).datasetVersion).toBe(m.datasetVersion);
+  });
+
+  it('a different build under the same version overwrites it, and a failure then leaves nothing half-installed', async () => {
+    const caches = new FakeCacheStorage();
+    const a = bundleA();
+    await installBundle(a, caches);
+    const rebuilt = { ...a, manifest: { ...a.manifest, snapshotDate: '2027-01-01' } };
+    await installBundle(rebuilt, caches); // fine: the manifest differs, so it is stored again
     expect([...caches.stores.keys()]).toHaveLength(1);
+    expect((await installedSnapshot({ caches }))?.snapshotDate).toBe('2027-01-01');
+    const later = { ...a, manifest: { ...a.manifest, snapshotDate: '2027-02-02' } };
     caches.failPutAfter = caches.puts + 1;
-    const env: Partial<ClientEnv> = { fetch: fakeFetch(serve(a)), caches };
+    const env: Partial<ClientEnv> = { fetch: fakeFetch(serve(later)), caches };
     expect(
-      (await failure(downloadSnapshot(BASE, parseManifest(a.manifest), undefined, env))).code,
+      (await failure(downloadSnapshot(BASE, parseManifest(later.manifest), undefined, env))).code,
     ).toBe('FETCH_FAILED');
     expect(await installedSnapshot({ caches })).toBeNull(); // no manifest: not installed, never decoded
     expect((await failure(loadNetwork({ caches }))).code).toBe('NOT_INSTALLED');

@@ -42,6 +42,8 @@ export type InstalledSnapshot = {
   readonly datasetVersion: string;
   readonly snapshotDate: string;
   readonly bytes: number;
+  /** NRWN package version of each province, by lower-case province code, as the manifest lists them. */
+  readonly packageVersions: Readonly<Record<string, string>>;
 };
 
 /** The loaded data. Times are milliseconds. */
@@ -200,6 +202,36 @@ async function verify(bytes: Uint8Array, ref: FileRef): Promise<void> {
   }
 }
 
+/** True when two manifests describe the same build: same version, date and file hashes. */
+function sameBuild(a: Manifest, b: Manifest): boolean {
+  return (
+    a.datasetVersion === b.datasetVersion &&
+    a.snapshotDate === b.snapshotDate &&
+    a.snapshot.sha256 === b.snapshot.sha256 &&
+    a.assetDetails.sha256 === b.assetDetails.sha256
+  );
+}
+
+/**
+ * True when `manifest` is already installed and intact: the stored manifest is the same build
+ * and both stored files still hash to it. A failed or unreadable check counts as "not
+ * installed", so the caller downloads again.
+ */
+async function alreadyInstalled(storage: CacheStorageLike, manifest: Manifest): Promise<boolean> {
+  const found = await findInstalled(storage);
+  if (found === null || !sameBuild(found.manifest, manifest)) {
+    return false;
+  }
+  try {
+    const files = await readFiles(found);
+    await verify(files.snapshotGz, manifest.snapshot);
+    await verify(files.assetDetailsGz, manifest.assetDetails);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Downloads the snapshot and the asset-details file named by `manifest`, verifies both, and only
  * then stores them in Cache Storage (`cantre-data-<datasetVersion>`). Older versions are deleted
@@ -209,7 +241,12 @@ async function verify(bytes: Uint8Array, ref: FileRef): Promise<void> {
  * `onProgress` gets the running total of gzip bytes received over both files.
  * Errors: `FETCH_FAILED` (request failure, non-2xx status, interrupted, short or long body, no
  * Cache Storage or SHA-256, or the browser refused to store), `HASH_MISMATCH`.
- * Limit: re-installing the version already installed overwrites it in place (see store.ts).
+ *
+ * Re-installing: when the installed manifest is the same build (same dataset version, snapshot
+ * date and file hashes) and its stored files still hash correctly, nothing is requested or
+ * written, so a good install is never put at risk by a repeat download. A damaged copy of the
+ * same build is downloaded again and repaired. A different build under the same dataset
+ * version overwrites it in place (see store.ts for that limit).
  */
 export async function downloadSnapshot(
   baseUrl: string,
@@ -219,6 +256,9 @@ export async function downloadSnapshot(
 ): Promise<void> {
   const e = envOf(env);
   const storage = storageOf(e);
+  if (await alreadyInstalled(storage, manifest)) {
+    return;
+  }
   const totalBytes = manifest.snapshot.gzipBytes + manifest.assetDetails.gzipBytes;
   let receivedBytes = 0;
   const fetchOne = async (file: 'snapshot' | 'assetDetails'): Promise<Uint8Array> => {
@@ -253,6 +293,7 @@ export async function installedSnapshot(
     datasetVersion: manifest.datasetVersion,
     snapshotDate: manifest.snapshotDate,
     bytes: manifest.snapshot.gzipBytes + manifest.assetDetails.gzipBytes,
+    packageVersions: manifest.packageVersions,
   };
 }
 
