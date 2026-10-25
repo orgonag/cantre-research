@@ -11,16 +11,22 @@ import type { Choice } from '../logic/present.js';
 export function RouteChooser(props: {
   readonly choices: readonly Choice[];
   readonly conflict: boolean;
+  /** One route, and the data is incomplete here: do not claim that more than one fits. */
+  readonly partialSingleRoute?: boolean;
   readonly onChoose: (lock: Lock) => void;
 }) {
-  const { choices, conflict, onChoose } = props;
+  const { choices, conflict, partialSingleRoute = false, onChoose } = props;
   if (choices.length === 0) {
     return null;
   }
   return (
     <section class="chooser" aria-labelledby="chooser-heading">
       <h3 id="chooser-heading">{t('route.heading')}</h3>
-      <p>{t(conflict ? 'route.conflictHelp' : 'route.help')}</p>
+      <p>
+        {t(
+          conflict ? 'route.conflictHelp' : partialSingleRoute ? 'route.partialHelp' : 'route.help',
+        )}
+      </p>
       <ul class="plain">
         {choices.map((c) => (
           <li key={c.key} class="chooser__item">

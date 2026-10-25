@@ -479,6 +479,7 @@ export function App(props: {
                 <RouteChooser
                   choices={view.model.choices}
                   conflict={view.conflict}
+                  partialSingleRoute={view.model.partialSingleRoute}
                   onChoose={choose}
                 />
                 <AssetList rows={view.rows} details={phase.data.details} />

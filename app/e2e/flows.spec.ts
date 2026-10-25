@@ -117,7 +117,13 @@ test.describe('ambiguity, the chooser and the lock', () => {
   }) => {
     await openAndInstall(page);
     await moveTo(context, PLACES.coverageEdge);
-    await expect(headline(page)).toHaveText('More than one route fits');
+    // One route, in incomplete data: the headline must not claim that more than one fits.
+    await expect(headline(page)).toHaveText('Route not certain: the data is incomplete here');
+    await expect(card(page)).not.toContainText('More than one route');
+    const chooser = page.locator('section.chooser');
+    await expect(chooser.locator('li')).toHaveCount(1);
+    await expect(chooser).toContainText('Only part of this area is in the data');
+    await expect(chooser).not.toContainText('More than one route');
     await expect(card(page)).toContainText(
       'Part of the search area is outside the loaded data, so a nearer track may be missing.',
     );
@@ -423,9 +429,9 @@ test.describe('data updates', () => {
     await page.getByRole('button', { name: /^Download data for Canada/ }).click();
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('The data could not be downloaded.');
-    expect(await page.evaluate(() => caches.keys())).not.toContain(
-      expect.stringMatching(/^cantre-data-/),
-    );
+    // First run: nothing was installed before, so nothing may be installed now.
+    const names = await page.evaluate(() => caches.keys());
+    expect(names.filter((n) => n.startsWith('cantre-data-'))).toEqual([]);
     await alert.getByRole('button', { name: 'Try again' }).click();
     await expect(headline(page)).toBeVisible();
   });

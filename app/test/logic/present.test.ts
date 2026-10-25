@@ -286,6 +286,49 @@ describe('present: MATCHED_SUBDIVISION', () => {
   });
 });
 
+describe('present: AMBIGUOUS_ROUTE with PARTIAL_COVERAGE', () => {
+  const one = [cand({ chainId: 'C1', chainBaseId: 'C1', residualM: 4.2 })];
+
+  it('does not claim "more than one route" when one route is all the data holds', () => {
+    const r: Result = {
+      ...blank,
+      status: 'AMBIGUOUS_ROUTE',
+      candidates: one,
+      reasons: ['PARTIAL_COVERAGE'],
+    };
+    const m = present(r, net(), MI);
+    expect(m.partialSingleRoute).toBe(true);
+    expect(m.headline).toBe(t('status.AMBIGUOUS_PARTIAL'));
+    expect(m.headline).not.toMatch(/more than one/i);
+    expect(m.mpText).toBeNull();
+    expect(m.choices).toHaveLength(1);
+    setLang('fr');
+    expect(present(r, net(), MI).headline).toBe(t('status.AMBIGUOUS_PARTIAL'));
+    expect(t('status.AMBIGUOUS_PARTIAL')).not.toBe('status.AMBIGUOUS_PARTIAL');
+  });
+
+  it('keeps the usual headline with two routes, or without partial coverage', () => {
+    const two = [...one, cand({ chainId: 'C2', chainBaseId: 'C2', subdivisionNid: 'sub-2' })];
+    const partialTwo: Result = {
+      ...blank,
+      status: 'AMBIGUOUS_ROUTE',
+      candidates: two,
+      reasons: ['PARTIAL_COVERAGE'],
+    };
+    const diamondOne: Result = {
+      ...blank,
+      status: 'AMBIGUOUS_ROUTE',
+      candidates: one,
+      reasons: ['DIAMOND_NEARBY'],
+    };
+    for (const r of [partialTwo, diamondOne]) {
+      const m = present(r, net(), MI);
+      expect(m.partialSingleRoute).toBe(false);
+      expect(m.headline).toBe(t('status.AMBIGUOUS_ROUTE'));
+    }
+  });
+});
+
 describe('present: AMBIGUOUS_ROUTE and LOCK_CONFLICT', () => {
   const two = [
     cand({ chainId: 'C1', chainBaseId: 'C1', residualM: 4.2 }),

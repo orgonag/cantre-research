@@ -42,6 +42,12 @@ export type Choice = {
 
 export type CardModel = {
   readonly headline: string;
+  /**
+   * True for AMBIGUOUS_ROUTE caused by PARTIAL_COVERAGE with exactly one route in the data: there
+   * is no "more than one route" to report, a nearer track may simply be missing. The headline and
+   * the chooser help then say the data is incomplete instead.
+   */
+  readonly partialSingleRoute: boolean;
   readonly subdivision: string | null;
   readonly operator: string | null;
   readonly trackClass: string | null;
@@ -175,6 +181,25 @@ function routeKey(c: Candidate): string {
   return `segment:${own}`;
 }
 
+/**
+ * The choices for AMBIGUOUS_ROUTE and LOCK_CONFLICT. An AMBIGUOUS_ROUTE caused by PARTIAL_COVERAGE
+ * with exactly one distinct route is not "more than one route fits": part of the search area is
+ * outside the data and a nearer track may be missing. It gets its own headline and help text.
+ */
+function ambiguousOf(
+  result: Result,
+  status: Result['status'],
+): { choices: readonly Choice[]; partialSingleRoute: boolean; headline?: string } {
+  const choices = choicesOf(result.candidates);
+  const partialSingleRoute =
+    status === 'AMBIGUOUS_ROUTE' &&
+    result.reasons.includes('PARTIAL_COVERAGE') &&
+    choices.length === 1;
+  return partialSingleRoute
+    ? { choices, partialSingleRoute, headline: t('status.AMBIGUOUS_PARTIAL') }
+    : { choices, partialSingleRoute };
+}
+
 function choicesOf(candidates: readonly Candidate[]): readonly Choice[] {
   const byKey = new Map<string, Choice>();
   const nearest = new Map<string, number>(); // metres, the best residual seen per route
@@ -271,6 +296,7 @@ export function present(
   const vintage = meta.snapshotDate ?? version;
   const base = {
     headline: t(`status.${status}`),
+    partialSingleRoute: false,
     vintageText: vintage === '' ? t('data.unknown') : t('data.version', { date: vintage }),
     reasons: reasonTexts(result),
     lockText: lockTextOf(result, net),
@@ -337,7 +363,11 @@ export function present(
     }
     case 'AMBIGUOUS_ROUTE':
     case 'LOCK_CONFLICT':
-      return { ...base, ...none, choices: choicesOf(result.candidates) };
+      return {
+        ...base,
+        ...none,
+        ...ambiguousOf(result, status),
+      };
     case 'STALE': {
       const past = result.historical;
       const lastValue = past === null ? null : (mpTextOf(past) ?? rangeTextOf(past.mpRange));

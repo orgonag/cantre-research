@@ -55,10 +55,33 @@ for (const scheme of ['light', 'dark'] as const) {
   test.describe(`axe, ${scheme} theme`, () => {
     test.use({ colorScheme: scheme });
 
+    /**
+     * The axe check, after proving the requested theme is really in effect: the media query
+     * matches, and the page background is dark (or light) as computed by the browser.
+     */
+    const check = async (page: Page): Promise<void> => {
+      const seen = await page.evaluate(() => {
+        const [r = 0, g = 0, b = 0] = getComputedStyle(document.body)
+          .backgroundColor.match(/\d+(\.\d+)?/g)
+          ?.map(Number) ?? [255, 255, 255];
+        return {
+          dark: matchMedia('(prefers-color-scheme: dark)').matches,
+          luminance: (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255,
+        };
+      });
+      expect(seen.dark, 'prefers-color-scheme: dark').toBe(scheme === 'dark');
+      if (scheme === 'dark') {
+        expect(seen.luminance, 'page background is dark').toBeLessThan(0.3);
+      } else {
+        expect(seen.luminance, 'page background is light').toBeGreaterThan(0.7);
+      }
+      await expectNoViolations(page);
+    };
+
     test('first-run screen', async ({ page }) => {
       await openApp(page);
       await expect(page.getByRole('button', { name: /^Download data for Canada/ })).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('first-run screen with a download error', async ({ page }) => {
@@ -66,7 +89,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await openApp(page);
       await page.getByRole('button', { name: /^Download data for Canada/ }).click();
       await expect(page.getByRole('alert')).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('status card with a milepost, assets and the research footer', async ({
@@ -76,14 +99,14 @@ for (const scheme of ['light', 'dark'] as const) {
       await openAndInstall(page);
       await moveTo(context, PLACES.chain);
       await expect(card(page).locator('.card__mp')).toHaveText('MP 11.91');
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('status card with an unverified milepost', async ({ page, context }) => {
       await openAndInstall(page);
       await moveTo(context, PLACES.secondProvince);
       await expect(card(page).locator('.badge--unverified')).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('status card, historical (stale)', async ({ page, context }) => {
@@ -93,21 +116,21 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(card(page).locator('.card__mp')).toBeVisible();
       await page.clock.fastForward(16_000);
       await expect(card(page)).toHaveClass(/card--historical/);
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('status card without permission', async ({ page, context }) => {
       await context.clearPermissions();
       await openAndInstall(page);
       await expect(headline(page)).toHaveText('Location permission is off');
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('route chooser', async ({ page }) => {
       await openAndInstall(page);
       await moveTo(page.context(), PLACES.diamond);
       await expect(page.locator('section.chooser')).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     // Seen first at the border there is no earlier match, so two routes are offered.
@@ -120,13 +143,13 @@ for (const scheme of ['light', 'dark'] as const) {
       }) => {
         await openAndInstall(page);
         await expect(page.locator('section.chooser li')).toHaveCount(2);
-        await expectNoViolations(page);
+        await check(page);
         await page.getByRole('button', { name: /^Choose this route: Border East,/ }).click();
         await expect(page.locator('.chip--locked')).toBeVisible();
-        await expectNoViolations(page);
+        await check(page);
         await moveTo(context, PLACES.chain);
         await expect(headline(page)).toHaveText('Your chosen route does not fit this fix');
-        await expectNoViolations(page);
+        await check(page);
       });
     });
 
@@ -134,7 +157,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await openAndInstall(page);
       await openScreen(page, 'Settings');
       await expect(page.getByRole('heading', { level: 2, name: 'Settings' })).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('settings with the basemap notice open', async ({ page }) => {
@@ -142,28 +165,28 @@ for (const scheme of ['light', 'dark'] as const) {
       await openScreen(page, 'Settings');
       await page.getByRole('button', { name: 'Turn on basemap' }).click();
       await expect(page.getByRole('alertdialog')).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('about', async ({ page }) => {
       await openAndInstall(page);
       await openScreen(page, 'About');
       await expect(page.getByRole('heading', { level: 2, name: 'About CANTRE' })).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('about before any data is installed', async ({ page }) => {
       await openApp(page);
       await openScreen(page, 'About');
       await expect(page.getByRole('heading', { level: 2, name: 'About CANTRE' })).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('offline data', async ({ page }) => {
       await openAndInstall(page);
       await openScreen(page, 'Offline data');
       await expect(page.getByRole('heading', { level: 2, name: 'Offline data' })).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('find a location with a result, and the open map', async ({ page }) => {
@@ -175,7 +198,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(find.locator('.find__result li')).toHaveCount(1);
       await find.getByRole('button', { name: 'Show on map' }).click();
       await expect(page.locator('.map__canvas canvas')).toBeVisible();
-      await expectNoViolations(page);
+      await check(page);
     });
 
     test('French text', async ({ page, context }) => {
@@ -184,10 +207,10 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(headline(page)).toHaveText('Matched to a track');
       await openScreen(page, 'Settings');
       await page.getByRole('radio', { name: 'Français' }).check();
-      await expectNoViolations(page);
+      await check(page);
       await page.getByRole('button', { name: 'Retour à la position' }).click();
       await expect(headline(page)).toHaveText('Associé à une voie');
-      await expectNoViolations(page);
+      await check(page);
     });
   });
 }
