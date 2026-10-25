@@ -1,7 +1,6 @@
 {"detail":"predicted MP 31.073 from K0-KX, actual MP 31.370 (limit 0.05 mi)","layer":"ANCHOR","nid":"KM1","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
-{"detail":"slope to previous 0.393, slope to next 1.620; bridge KM1-KM2 is consistent","layer":"ANCHOR","nid":"KX","reason":"ANCHOR_OUTLIER","severity":"rejected"}
-{"detail":"predicted MP 13.615 from X9-X3, actual MP 14.020 (limit 0.05 mi)","layer":"ANCHOR","nid":"M2","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
-{"detail":"slope to previous 4.133, slope to next 5.261; bridge M1-ST2 is consistent","layer":"ANCHOR","nid":"X5","reason":"ANCHOR_OUTLIER","severity":"rejected"}
+{"detail":"predicted MP 12.125 from X2-X9, actual MP 12.530 (limit 0.05 mi)","layer":"ANCHOR","nid":"M2","reason":"UNVERIFIED_DEVIATION","severity":"rejected"}
+{"detail":"slope to previous 2.570, slope to next 1.350; bridge X3-X6 is consistent","layer":"ANCHOR","nid":"X5","reason":"ANCHOR_OUTLIER","severity":"rejected"}
 {"detail":"4 segments close on themselves in subdivision S7","layer":"CHAIN","nid":"ch_25ba407aa1ab2ac2","reason":"CHAIN_CYCLE","severity":"info"}
 {"detail":"TC 1010 is a spur crossing (Spur Mile Point '2.5'); its Mile 10.85 is the turnout on the main line","layer":"CROSSING","nid":"X10","reason":"TC_SPUR_CROSSING","severity":"rejected"}
 {"detail":"NRWN posted 14.68 mi vs TC 14.98 mi (limit 0.05)","layer":"CROSSING","nid":"X11","reason":"SOURCE_DISAGREEMENT","severity":"rejected"}

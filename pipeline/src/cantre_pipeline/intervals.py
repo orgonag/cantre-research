@@ -8,8 +8,12 @@ of core's ``interpolateMilepost``; across an interval boundary nothing is ever i
 ``build_intervals`` applies these steps in this order to the anchors of one chain, sorted by
 ``(s_m, TIER_RANK[tier], id)``. Distances are metres, mileposts miles, ``1 mi = 1609.344 m``.
 
-1. **Coincident conflicts** (spec section 5.5, ruling R12). Two anchors *conflict* when
-   ``|Δs| <= anchor_collapse_span_m`` and ``|Δmp| > mp_equal_tol_mi``. The connected components
+1. **Coincident conflicts** (spec section 5.5, rulings R12 and R19). Two anchors *conflict* when
+   ``|Δs| <= anchor_collapse_span_m``, ``|Δmp| > mp_equal_tol_mi`` and the spacing cannot explain
+   the mileage difference within one posting step:
+   ``| |Δmp| * 1609.344 - |Δs| | > posting_step_mi * 1609.344`` (metres). NRWN posts mileage in
+   0.01 mi (16.09 m) steps, so neighbouring crossings 0.01 mi apart and 20 m apart are genuine
+   neighbours, not a conflict; 10.0 and 10.9 at the same spot are. The connected components
    of the conflict graph are *clusters*; anchors with no conflict are untouched. In a cluster,
    look at the members holding the cluster's best tier. If no conflict edge joins two of them,
    they agree with each other: all of them are kept and every other member is dropped
@@ -29,10 +33,13 @@ of core's ``interpolateMilepost``; across an interval boundary nothing is ever i
    and either ``Δs < slope_min_span_m`` (too short for the slope to mean anything) or
    ``| |Δmp| * 1609.344 / Δs - 1 | <= slope_tolerance``. A true track mile is 1609.344 m, so the
    implied slope of an honest pair is 1.
-4. **Outliers.** Repeat until stable: an interior anchor ``k`` is an outlier when neither
+4. **Outliers** (ruling R18: a lower tier never evicts a higher one). Repeat until stable: an
+   interior anchor ``k`` is an outlier when neither
    ``pair_ok(k-1, k)`` nor ``pair_ok(k, k+1)`` holds, ``pair_ok(k-1, k+1)`` holds, and the sign
    of that bridge agrees with every neighbouring pair ``(k-2, k-1)`` and ``(k+1, k+2)`` that is
-   itself ok. Several candidates in one pass: drop one only, the worst first (highest
+   itself ok, and neither bridge end ``k-1`` or ``k+1`` has a worse tier (higher ``TIER_RANK``)
+   than ``k`` (so unverified anchors can never bridge a posted one away). Several candidates in
+   one pass: drop one only, the worst first (highest
    ``TIER_RANK``, then the largest slope error of its two bad pairs, then id), then re-test.
    Each drop is an ``ANCHOR_OUTLIER`` ``rejected`` line carrying both slopes.
 5. **Unverified check** (Decision 3, ruling R4). ``H`` is the anchors left after step 2 whose
@@ -221,12 +228,20 @@ def _resolve_conflicts(
         return x
 
     edges: list[tuple[int, int]] = []
+    step_m = cfg.posting_step_mi * METRES_PER_MILE  # one posting step, metres
     for i, a in enumerate(anchors):
         for j in range(i + 1, n):
             b = anchors[j]
-            if b.s_m - a.s_m > cfg.anchor_collapse_span_m:
+            ds = b.s_m - a.s_m
+            if ds > cfg.anchor_collapse_span_m:
                 break  # sorted by s: nothing further can be within the span
-            if abs(b.mp - a.mp) > cfg.mp_equal_tol_mi + _EPS_MI:
+            dmp = abs(b.mp - a.mp)
+            # Ruling R19: the mileage difference must exceed what the spacing explains by more
+            # than one posting step (the 1e-6 m slack keeps an exact step off float noise).
+            if (
+                dmp > cfg.mp_equal_tol_mi + _EPS_MI
+                and abs(dmp * METRES_PER_MILE - ds) > step_m + 1e-6
+            ):
                 edges.append((i, j))
                 parent[find(i)] = find(j)
     clusters: dict[int, list[int]] = {}
@@ -267,6 +282,8 @@ def _outliers(
             p, a, n = cur[k - 1], cur[k], cur[k + 1]
             if _pair_ok(p, a, cfg) or _pair_ok(a, n, cfg) or not _pair_ok(p, n, cfg):
                 continue
+            if TIER_RANK[p.tier] > TIER_RANK[a.tier] or TIER_RANK[n.tier] > TIER_RANK[a.tier]:
+                continue  # ruling R18: a worse-tier bridge end never evicts anchor k
             bridge = _sign(p, n)
             if k >= 2 and _pair_ok(cur[k - 2], p, cfg) and _sign(cur[k - 2], p) != bridge:
                 continue
@@ -363,7 +380,7 @@ def build_intervals(
     """Split ``chain``'s anchors into calibrated intervals (spec section 5.5).
 
     Applies steps 1 to 6 of the module docstring to the anchors whose ``chain_id`` is the
-    chain's (others are ignored), after sorting by ``(s_m, id)``. Units: metres, miles.
+    chain's (others are ignored), after sorting by ``(s_m, TIER_RANK[tier], id)``. Units: metres, miles.
     Returns ``(intervals, kept, audit)``: the intervals (ids ``f"{chain.id}.i{n}"``, ``n`` from
     0 along ``s``), every anchor left after collapsing and after the ANCHOR_CONFLICT,
     ANCHOR_OUTLIER and UNVERIFIED_DEVIATION drops (in ``s`` order, a superset of the interval

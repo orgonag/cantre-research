@@ -113,14 +113,25 @@ def test_empty_province_has_no_rows_and_a_zero_percent_total() -> None:
     assert report["subdivisions"] == [] and report["zeroCalibrationSubdivisions"] == []
 
 
-def test_posted_only_rebuild_keeps_a_posted_anchor_the_all_tier_pass_dropped(built: Path) -> None:
-    """Ruling R17: KX (posted) is an outlier only because unverified KM1-KM2 bridge it."""
+def test_unverified_bridge_does_not_evict_a_posted_anchor(built: Path) -> None:
+    """Ruling R18: KX (posted) is kept although unverified KM1-KM2 would bridge it away."""
     report = load(built, "reports/coverage-sk.json")
     kappa = by_name(report)["Kappa"]
-    outliers = [line for line in audit_lines(built) if line["reason"] == "ANCHOR_OUTLIER"]
-    assert any(line["nid"] == "KX" and "KM1-KM2" in line["detail"] for line in outliers)
-    assert kappa["anchorsByTier"] == {"posted": 1, "tc": 0, "unverified": 1}  # KX is not kept
-    # Posted-only still counts KX: K0 to KX is about 2.95 km. Rebuilt from the kept posted
-    # anchors alone (K0) it would be 0.
-    assert kappa["calibratedKmPostedOnly"] == pytest.approx(2.951, abs=0.002)
-    assert kappa["calibratedKm"] == pytest.approx(3.935, abs=0.002)
+    lines = audit_lines(built)
+    assert not [
+        line for line in lines if line["reason"] == "ANCHOR_OUTLIER" and line["nid"] == "KX"
+    ]
+    assert any(line["nid"] == "KM1" and line["reason"] == "UNVERIFIED_DEVIATION" for line in lines)
+    assert kappa["anchorsByTier"] == {"posted": 2, "tc": 0, "unverified": 1}  # K0, KX, KM2
+    assert kappa["calibratedKm"] == pytest.approx(2.951, abs=0.002)  # K0 to KX
+    assert kappa["calibratedKmPostedOnly"] == kappa["calibratedKm"]
+
+
+def test_posted_only_exceeds_all_tier_when_a_lower_tier_anchor_breaks_the_interval(
+    built: Path,
+) -> None:
+    """Ruling R17: the TC anchor LT is 0.5 mi off; posted-only rebuilds L0-LX in one piece."""
+    lambda_ = by_name(load(built, "reports/coverage-sk.json"))["Lambda"]
+    assert lambda_["anchorsByTier"] == {"posted": 2, "tc": 1, "unverified": 0}
+    assert lambda_["calibratedKmPostedOnly"] == pytest.approx(5.221, abs=0.002)
+    assert lambda_["calibratedKm"] == pytest.approx(0.653, abs=0.002)  # only L0-LT survives

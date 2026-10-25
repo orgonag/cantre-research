@@ -21,8 +21,12 @@ Band      Sub     Scenario
 53.60     Theta   A subdivision change at a shared node.
 53.80     Iota    A posted anchor and a Transport Canada anchor: calibrated only with the
                   extra tier (posted-only coverage is 0).
-54.00     Kappa   A posted anchor dropped as an outlier only because unverified anchors bridge
-                  it: the all-tier pass loses it, the posted-only rebuild (ruling R17) keeps it.
+54.00     Kappa   A posted anchor that two agreeing unverified anchors would bridge away: it is
+                  kept (ruling R18), and the unverified anchor that disagrees with the posted
+                  line is dropped.
+54.20     Lambda  Two posted anchors and a Transport Canada anchor that is wrong: the TC
+                  anchor breaks the all-tier interval but not the posted-only rebuild, so
+                  posted-only coverage (ruling R17) exceeds the all-tier figure here.
 ========  ======  =====================================================================
 
 ``build_synthetic`` writes the fixture into a temporary directory and runs
@@ -121,9 +125,10 @@ def _alpha(fx: NrwnFixture) -> None:
     fx.crossing("X12", P(-6.5, lat + 0.002), "T1a", mp=at(-6.5))  # 220 m off the track
     fx.crossing("X13", P(-8.5, lat), "T1a", mp=at(-8.5), sub=("S9", "Other"))
     fx.crossing("X14", P(6.5, lat), "T1b", mp=None, qualifier="Unknown", tcid=1020)
-    fx.markerpost("M1", P(2.5, lat), "T1b", mp=at(2.5))
-    fx.markerpost("M2", P(-1.0, lat), "T1a", mp=at(-1.0) + 0.4)  # unverified deviation
-    fx.station("ST2", P(7.0, lat), "T1b", mp=at(7.0))
+    # M1, M2 and ST2 sit away from X5 so that its neighbours are posted (ruling R18).
+    fx.markerpost("M1", P(-9.0, lat), "T1a", mp=at(-9.0))
+    fx.markerpost("M2", P(-4.5, lat), "T1a", mp=at(-4.5) + 0.4)  # unverified deviation
+    fx.station("ST2", P(9.8, lat), "T1b", mp=at(9.8))
     fx.bridge("BR", [P(1.0, lat + 0.0001), P(1.4, lat + 0.0001)], "T1b")
     fx.culvert("CU", P(4.0, lat + 0.0001), "T1b")
     fx.junction("J1", P(0, lat), "Diamond")
@@ -222,8 +227,9 @@ def _others(fx: NrwnFixture) -> None:
     fx.crossing("I1", b, "IT", mp=None, qualifier="Unknown", tcid=1100, sub=sub)
     fx.tc_row(1100, mile=mp(a, b, 60.0), subdivision="Iota")
     # Kappa: posted X agrees with posted A (slope 0.88) but not with the unverified M1 and M2
-    # around it, which agree with each other (slope 1.0). The all-tier pass bridges M1-M2 and
-    # drops X as ANCHOR_OUTLIER; the posted-only rebuild sees only A and X and keeps both.
+    # around it, which agree with each other (slope 1.0). Bridging M1-M2 would drop X as an
+    # outlier, but ruling R18 forbids a worse tier evicting a better one: X stays and M1, which
+    # deviates from the posted line A-X, is dropped as UNVERIFIED_DEVIATION.
     lat = 54.0
     sub = ("S11", "Kappa")
     fx.track("KT", [P(i, lat) for i in range(0, 10)], sub=sub)
@@ -236,6 +242,18 @@ def _others(fx: NrwnFixture) -> None:
     fx.markerpost("KM1", P(3.5, lat), "KT", mp=round(30.0 + 1.12 * base(3.5), 2), sub=sub)
     fx.crossing("KX", P(5.0, lat), "KT", mp=round(30.0 + 0.88 * base(5.0), 2), sub=sub)
     fx.markerpost("KM2", P(6.5, lat), "KT", mp=round(30.0 + 1.12 * base(3.5) + 1.236, 2), sub=sub)
+    # Lambda: posted L0 and LX are 8 steps apart and agree. The TC-tier anchor LT sits one step
+    # (about 650 m, under slope_min_span_m, so the pair always passes) from L0 with a mileage
+    # 0.5 mi too high: L0-LT is "ok", LT-LX has slope 0.82, so LT is not an outlier and breaks
+    # the all-tier interval at LT. The posted-only rebuild has L0-LX in one piece.
+    lat = 54.2
+    sub = ("S12", "Lambda")
+    fx.track("LT", [P(i, lat) for i in range(0, 10)], sub=sub)
+    l0, lt, lx = P(0.5, lat), P(1.5, lat), P(8.5, lat)
+    fx.crossing("L0", l0, "LT", mp=50.0, sub=sub)
+    fx.crossing("LT1", lt, "LT", mp=None, qualifier="Unknown", tcid=1200, sub=sub)
+    fx.tc_row(1200, mile=round(mp(l0, lt, 50.0) + 0.5, 2), subdivision="Lambda")
+    fx.crossing("LX", lx, "LT", mp=mp(l0, lx, 50.0), sub=sub)
 
 
 def scenarios(tmp_path: Path, shuffle_seed: int | None = None) -> NrwnFixture:

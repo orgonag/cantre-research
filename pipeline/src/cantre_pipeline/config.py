@@ -23,6 +23,9 @@ class PipelineConfig:
         slope_min_span_m: Slope is tested only when the anchor spacing is at least this, m.
         anchor_collapse_span_m: Equal-mileage anchors this close along s are merged, m.
         mp_equal_tol_mi: Mileposts within this are equal, miles (NRWN resolution is 0.01 mi).
+        posting_step_mi: NRWN mileage posting resolution, miles. Two anchors within the collapse
+            span conflict only when their spacing leaves a mileage difference larger than this
+            (ruling R19).
         tc_max_disagreement_mi: Largest NRWN vs Transport Canada mileage disagreement, miles.
         unverified_max_deviation_mi: Largest deviation of an unverified anchor from its
             interval's interpolation, miles.
@@ -40,6 +43,7 @@ class PipelineConfig:
     slope_min_span_m: float = 800.0
     anchor_collapse_span_m: float = 30.0
     mp_equal_tol_mi: float = 0.005
+    posting_step_mi: float = 0.01
     tc_max_disagreement_mi: float = 0.05
     unverified_max_deviation_mi: float = 0.05
     tile_lat_deg: float = 0.25

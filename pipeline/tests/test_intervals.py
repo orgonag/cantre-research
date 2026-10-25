@@ -1,8 +1,6 @@
 """Tests for calibrated intervals and discontinuities (spec section 5.5, Task 6)."""
 
-import os
 from itertools import pairwise
-from pathlib import Path
 
 import pytest
 from hypothesis import given, settings
@@ -18,6 +16,7 @@ from cantre_pipeline.intervals import (
     interpolate_mp,
     isolated_anchors,
 )
+from real_data import needs_real_sk, real_sk_paths
 
 CFG = PipelineConfig()
 MILE = 1609.344
@@ -465,16 +464,14 @@ def test_property_emitted_intervals_satisfy_core_contract(
         assert all(v > 0 for v in d) or all(v < 0 for v in d)
 
 
-@pytest.mark.skipif(not os.environ.get("CANTRE_RAW_DIR"), reason="needs real SK data")
+@needs_real_sk
 def test_real_sk_interval_contract() -> None:  # pragma: no cover - env-gated
     from cantre_pipeline.anchors import qualify_anchors
     from cantre_pipeline.chains import build_chains
     from cantre_pipeline.reader import read_tc_inventory
     from cantre_pipeline.validate import load_network
 
-    raw = Path(os.environ["CANTRE_RAW_DIR"])
-    shp = next(p for p in raw.iterdir() if p.is_dir() and any(p.glob("NRWN_SK_*_TRACK.shp")))
-    csv_path = next(raw.rglob("*.csv"))
+    shp, csv_path = real_sk_paths()
     net = load_network(shp, "sk", CFG)
     chains = build_chains(net, CFG)
     anchors, _ = qualify_anchors(net, chains, read_tc_inventory(csv_path, "SK"), CFG)
@@ -499,3 +496,48 @@ def test_pair_rules_are_defensive_about_non_advancing_pairs() -> None:
     assert _slope(a, b) == float("inf")
     assert not _pair_ok(a, b, CFG)
     assert not _pair_ok(b, anchor("c", 50.0, 3.0), CFG)
+
+
+def test_neighbouring_postings_one_step_apart_are_not_a_conflict() -> None:
+    """Ruling R19: 0.19 and 0.20 posted 20.5 m apart are genuine neighbours (a 16 m step)."""
+    anchors = [
+        anchor("p0", 0.0, 0.0),
+        anchor("n1", 0.19 * MILE, 0.19),
+        anchor("n2", 0.19 * MILE + 20.5, 0.20),
+        anchor("p3", 0.5 * MILE, 0.5),
+    ]
+    _, kept, audit = build(anchors)
+    assert not [a for a in audit if a.reason == "ANCHOR_CONFLICT"]
+    assert [a.id for a in kept] == ["p0", "n1", "n2", "p3"]
+
+
+def test_same_spot_with_different_mileposts_is_still_a_conflict() -> None:
+    """Ruling R19: 10.0 and 10.9 at one spot cannot both be right, whatever the spacing."""
+    anchors = [anchor("p0", 0.0, 9.0), anchor("c1", MILE, 10.0), anchor("c2", MILE, 10.9)]
+    _, kept, audit = build(anchors)
+    assert sorted(a.nid for a in audit if a.reason == "ANCHOR_CONFLICT") == ["c1", "c2"]
+    assert [a.id for a in kept] == ["p0"]
+
+
+def test_spacing_that_explains_the_difference_is_not_a_conflict_but_a_wide_gap_is() -> None:
+    # 0.2 mi (321.9 m) of mileage over 25 m: not explained by spacing, a conflict.
+    a = [anchor("x1", 0.0, 5.0), anchor("x2", 25.0, 5.2)]
+    assert [m.nid for m in build(a)[2] if m.reason == "ANCHOR_CONFLICT"] == ["x1", "x2"]
+    # 0.02 mi (32.2 m) over 25 m: within one step (16.09 m) of the spacing, so no conflict.
+    b = [anchor("y1", 0.0, 5.0), anchor("y2", 25.0, 5.02)]
+    assert not [m for m in build(b)[2] if m.reason == "ANCHOR_CONFLICT"]
+
+
+def test_unverified_bridge_never_evicts_a_posted_anchor() -> None:
+    """Ruling R18: the outlier pass keeps a posted anchor that worse-tier ends bridge."""
+    # a02 is far off both neighbours, which agree with each other (a bridge exists).
+    mps = [10.0, 11.0, 47.0, 13.0, 14.0]
+    tiers: dict[int, AnchorTier] = {1: "unverified", 3: "unverified"}
+    _, _, audit = build(run_mps(mps, tiers=tiers))
+    assert not [a for a in audit if a.reason == "ANCHOR_OUTLIER"]
+    # The same shape with posted bridge ends still drops the posted outlier.
+    _, _, audit = build(run_mps(mps))
+    assert [a.nid for a in audit if a.reason == "ANCHOR_OUTLIER"] == ["a02"]
+    # A worse-tier anchor is still dropped by better-tier ends.
+    _, _, audit = build(run_mps(mps, tiers={2: "unverified"}))
+    assert [a.nid for a in audit if a.reason == "ANCHOR_OUTLIER"] == ["a02"]
