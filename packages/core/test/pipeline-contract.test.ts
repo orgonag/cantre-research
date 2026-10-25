@@ -6,7 +6,7 @@ import {
   interpolateMilepost,
   validateInterval,
 } from '../src/index.js';
-import type { Anchor, AnchorSource } from '../src/index.js';
+import type { Anchor, AnchorSource, AnchorTier } from '../src/index.js';
 
 /**
  * Contract test: `@cantre/core` run on the pipeline's committed synthetic build
@@ -30,6 +30,7 @@ type TileAnchor = {
   readonly sMm: number;
   readonly mp: number;
   readonly source: AnchorSource;
+  readonly tier: AnchorTier;
 };
 type TileInterval = {
   readonly id: string;
@@ -83,6 +84,7 @@ const anchorOf = (a: TileAnchor): Anchor => ({
   s: a.sMm / 1000,
   mp: a.mp,
   source: a.source,
+  tier: a.tier,
 });
 
 /** The tile's intervals as core anchors, each paired with its chain id. */

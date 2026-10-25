@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { gpsMilepostBandMi, interpolateMilepost } from '../src/index.js';
 import type { Anchor, MilepostResult } from '../src/index.js';
 
-const a = (id: string, s: number, mp: number): Anchor => ({ id, s, mp, source: 'crossing' });
+const a = (id: string, s: number, mp: number): Anchor => ({
+  id,
+  s,
+  mp,
+  source: 'crossing',
+  tier: 'posted',
+});
 
 function expectCalibrated(r: MilepostResult): Extract<MilepostResult, { kind: 'calibrated' }> {
   if (r.kind !== 'calibrated') {

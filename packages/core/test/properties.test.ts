@@ -105,11 +105,11 @@ const intervalArb = fc
   .map(({ s0, mp0, sign, steps }): Anchor[] => {
     let s = s0;
     let mp = mp0;
-    const anchors: Anchor[] = [{ id: 'a0', s, mp, source: 'crossing' }];
+    const anchors: Anchor[] = [{ id: 'a0', s, mp, source: 'crossing', tier: 'posted' }];
     steps.forEach((st, i) => {
       s += st.ds;
       mp += sign * st.dmp;
-      anchors.push({ id: `a${String(i + 1)}`, s, mp, source: 'crossing' });
+      anchors.push({ id: `a${String(i + 1)}`, s, mp, source: 'crossing', tier: 'posted' });
     });
     return anchors;
   });
@@ -176,8 +176,14 @@ describe('property: finite outputs', () => {
             expect(Number.isFinite(n)).toBe(true);
           }
           const anchors: Anchor[] = [
-            { id: 'start', s: 0, mp: 10, source: 'station' },
-            { id: 'end', s: r.totalLengthM, mp: 10 + r.totalLengthM / 1609.344, source: 'station' },
+            { id: 'start', s: 0, mp: 10, source: 'station', tier: 'posted' },
+            {
+              id: 'end',
+              s: r.totalLengthM,
+              mp: 10 + r.totalLengthM / 1609.344,
+              source: 'station',
+              tier: 'posted',
+            },
           ];
           const m = interpolateMilepost(r.alongM, anchors);
           if (m.kind !== 'calibrated') {
