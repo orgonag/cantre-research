@@ -66,6 +66,36 @@ describe('message catalogue', () => {
   });
 });
 
+describe('Task 7 text', () => {
+  it('keeps the first-run privacy text to about 60 words per language', () => {
+    for (const lang of ['en', 'fr'] as const) {
+      const words = CATALOGUES[lang]['firstRun.privacy'].split(/\s+/).length;
+      expect(words, lang).toBeGreaterThanOrEqual(50);
+      expect(words, lang).toBeLessThanOrEqual(70);
+    }
+  });
+
+  it('carries the OGL-Canada sentence verbatim in English, and the OSM attribution', () => {
+    expect(CATALOGUES.en['map.attribution.ogl']).toBe(
+      'Contains information licensed under the Open Government Licence – Canada',
+    );
+    expect(CATALOGUES.en['map.attribution.osm']).toContain('OpenStreetMap contributors');
+  });
+
+  it('puts the size in the download button in both languages', () => {
+    for (const lang of ['en', 'fr'] as const) {
+      expect(CATALOGUES[lang]['firstRun.download']).toContain('{size}');
+      expect(CATALOGUES[lang]['offline.update']).toContain('{size}');
+    }
+  });
+
+  it('has a message for every code the download screens can show', () => {
+    for (const code of ['INVALID_SNAPSHOT', 'UNEXPECTED']) {
+      expect(Object.keys(CATALOGUES.en)).toContain(`error.${code}`);
+    }
+  });
+});
+
 describe('t()', () => {
   it('reads the active language and switches', () => {
     setLang('en');

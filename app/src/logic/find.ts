@@ -1,7 +1,7 @@
 import { CoreInputError, locateMilepost, milepostAtPoint } from '@cantre/core';
 import type { LatLon, LocatedMilepost, NetworkView } from '@cantre/core';
-import { t } from '../i18n/index.js';
-import type { MessageKey } from '../i18n/index.js';
+import { getLang, t } from '../i18n/index.js';
+import type { Lang, MessageKey } from '../i18n/index.js';
 import { fmt } from './present.js';
 
 /**
@@ -137,15 +137,20 @@ function labelsOf(facts: ReadonlyMap<string, Facts>): Map<string, string> {
   return labels;
 }
 
-const optionsCache = new WeakMap<NetworkView, readonly SubdivisionOption[]>();
+/** Built options per network and per language, so a language switch rebuilds the labels. */
+const optionsCache = new WeakMap<NetworkView, Map<Lang, readonly SubdivisionOption[]>>();
 
 /**
  * The subdivisions in the loaded network, each once (by NID), sorted by name and then NID, with a
- * unique label each (see {@link labelsOf}). Built once per network. Proper names stay as
- * published (spec §7). The label text follows the language active when it is first built.
+ * unique label each (see {@link labelsOf}). Built once per network and language: the label text
+ * is in the active language, so a language switch builds (and then caches) the other set. Proper
+ * names stay as published (spec §7).
  */
 export function subdivisionsOf(net: NetworkView): readonly SubdivisionOption[] {
-  const cached = optionsCache.get(net);
+  const lang = getLang();
+  const perLang = optionsCache.get(net) ?? new Map<Lang, readonly SubdivisionOption[]>();
+  optionsCache.set(net, perLang);
+  const cached = perLang.get(lang);
   if (cached !== undefined) {
     return cached;
   }
@@ -154,7 +159,7 @@ export function subdivisionsOf(net: NetworkView): readonly SubdivisionOption[] {
   const options = [...facts]
     .map(([nid, f]) => ({ nid, name: f.name, label: labels.get(nid) ?? f.name }))
     .sort((a, b) => byText(a.name, b.name) || byText(a.nid, b.nid));
-  optionsCache.set(net, options);
+  perLang.set(lang, options);
   return options;
 }
 

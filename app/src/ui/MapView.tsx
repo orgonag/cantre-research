@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { LatLon, NetworkView } from '@cantre/core';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { t } from '../i18n/index.js';
+import { BasemapSwitch } from './BasemapSwitch.js';
 import { presentTap } from '../logic/find.js';
 import type { Pin, TapModel } from '../logic/find.js';
 import {
@@ -295,9 +296,8 @@ export function MapView(props: {
 
 /**
  * The map section: a show/hide button (the map and its chunk load only when opened) and the
- * basemap control. Turning the basemap on first shows the D2 notice: tiles are fetched for the
- * area shown. Turning it off needs no notice. The Settings screen (Task 7) will offer the same
- * switch; this is the minimal one.
+ * basemap control ({@link BasemapSwitch}, which shows the D2 notice before turning it on). The
+ * Settings screen offers the same switch.
  */
 export function MapPanel(props: {
   readonly net: NetworkView;
@@ -309,8 +309,6 @@ export function MapPanel(props: {
   readonly onBasemapChange: (on: boolean) => void;
 }) {
   const { net, fix, pins, basemap, open, onOpenChange, onBasemapChange } = props;
-  const [asking, setAsking] = useState(false);
-
   return (
     <section class="map-panel" aria-labelledby="map-heading">
       <h3 id="map-heading">{t('map.heading')}</h3>
@@ -325,49 +323,7 @@ export function MapPanel(props: {
       </button>
       {open && (
         <>
-          <div class="basemap">
-            <p class="muted">{t(basemap ? 'map.basemap.on' : 'map.basemap.off')}</p>
-            {basemap ? (
-              <button
-                type="button"
-                onClick={() => {
-                  onBasemapChange(false);
-                }}
-              >
-                {t('map.basemap.disable')}
-              </button>
-            ) : asking ? (
-              <div class="notice" role="alertdialog" aria-labelledby="basemap-notice">
-                <p id="basemap-notice">{t('map.basemap.notice')}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAsking(false);
-                    onBasemapChange(true);
-                  }}
-                >
-                  {t('map.basemap.accept')}
-                </button>{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAsking(false);
-                  }}
-                >
-                  {t('map.basemap.cancel')}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setAsking(true);
-                }}
-              >
-                {t('map.basemap.enable')}
-              </button>
-            )}
-          </div>
+          <BasemapSwitch basemap={basemap} onChange={onBasemapChange} />
           <MapView net={net} fix={fix} pins={pins} basemap={basemap} />
         </>
       )}

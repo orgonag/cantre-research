@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const source = (relative: string): string => fileURLToPath(new URL(relative, import.meta.url));
 
@@ -12,6 +13,22 @@ const source = (relative: string): string => fileURLToPath(new URL(relative, imp
  *
  * `base: './'` keeps every asset URL relative, so the app works from any path on a static host
  * (the planned GitHub Pages sub-path, or a local preview).
+ *
+ * Service worker (vite-plugin-pwa, Workbox `generateSW`): it precaches the APP SHELL only, the
+ * page, its script and style, and the icons, so the app opens offline. It does not cache the
+ * data. The manifest, the snapshot and the asset-details file are fetched and stored by the data
+ * client in Cache Storage (`cantre-data-<datasetVersion>`), which verifies them against their
+ * hashes first; a second copy here would bypass that. Rules, all checked by looking at the
+ * built `sw.js` and its precache list:
+ * - No precache of anything under `data/`, nor of the maplibre-gl chunk, its CSS or its worker
+ *   (ruling P30: they belong to the map library, outside the shell budget).
+ * - The maplibre files are cached only at run time, same-origin, after the map was opened once.
+ *   That adds no request of its own: it keeps the response of a request the page already made.
+ * - No runtime caching of any other URL, and none of any other host (the basemap tiles are not
+ *   stored by this app). Nothing the user did, and no position, is ever in a cached URL.
+ * - `registerType: 'prompt'` with no prompt in the UI: a new service worker waits until every
+ *   tab of the app is closed, so the page is never swapped (and the route lock never lost)
+ *   in the middle of a session. An app update takes effect on the next start.
  */
 export default defineConfig({
   base: './',
@@ -26,4 +43,42 @@ export default defineConfig({
   // The maplibre-gl chunk (about 1 MB raw) is loaded only when the map is opened and is excluded
   // from the 300 kB shell budget, so the default 500 kB chunk warning is raised above it.
   build: { target: 'es2023', sourcemap: false, chunkSizeWarningLimit: 1200 },
+  plugins: [
+    VitePWA({
+      registerType: 'prompt',
+      includeAssets: ['icons/*.png'],
+      manifest: {
+        name: 'CANTRE',
+        short_name: 'CANTRE',
+        description:
+          'Calculated railway milepost from your GPS, on this device. Research software.',
+        lang: 'en',
+        start_url: './',
+        scope: './',
+        display: 'standalone',
+        theme_color: '#0b4f9e',
+        background_color: '#ffffff',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{html,js,css,png,webmanifest}'],
+        globIgnores: ['**/maplibre-gl*', '**/data/**'],
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/\/data\//],
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && /\/assets\/maplibre-gl[^/]*$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: { cacheName: 'cantre-shell-maplibre', expiration: { maxEntries: 8 } },
+          },
+        ],
+      },
+    }),
+  ],
 });

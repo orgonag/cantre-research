@@ -6,6 +6,7 @@ import {
   SETTINGS_KEY,
   loadSettings,
   saveSettings,
+  updateSettings,
 } from '../../src/logic/settings.js';
 import type { StorageLike } from '../../src/logic/settings.js';
 import { blocked, memoryStorage } from './storage.js';
@@ -93,5 +94,21 @@ describe('browser storage accessors', () => {
     expect(browserLocalStorage()).toBeNull();
     expect(browserSessionStorage()).toBeNull();
     Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+});
+
+describe('updateSettings', () => {
+  it('merges a change into the CURRENT settings and saves the whole object', () => {
+    const store = memoryStorage();
+    const first = updateSettings(DEFAULT_SETTINGS, { units: 'km' }, store);
+    const second = updateSettings(first, { basemap: true }, store);
+    const third = updateSettings(second, { lang: 'fr' }, store);
+    expect(third).toEqual({ units: 'km', lang: 'fr', basemap: true });
+    // Nothing was lost to a stale copy: storage holds all three changes.
+    expect(loadSettings(store)).toEqual({ units: 'km', lang: 'fr', basemap: true });
+  });
+
+  it('still returns the new settings when storage is blocked', () => {
+    expect(updateSettings(DEFAULT_SETTINGS, { units: 'km' }, blocked).units).toBe('km');
   });
 });

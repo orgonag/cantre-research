@@ -134,6 +134,19 @@ describe('subdivision labels (repeated names must be told apart)', () => {
     expect(subdivisionsOf(multi).map((o) => o.label)).toEqual(['Alpha Sub (CN, CPKC)', 'Yard']);
   });
 
+  it('follows the language: labels are rebuilt when the language changes, and back', () => {
+    setLang('en');
+    const en = subdivisionsOf(twins).map((o) => o.label);
+    expect(en[0]).toContain('MP 40.00 to 42.00');
+    setLang('fr');
+    const fr = subdivisionsOf(twins).map((o) => o.label);
+    expect(fr[0]).toContain('PM 40,00 à 42,00');
+    expect(fr[0]).not.toContain('MP 40');
+    expect(subdivisionsOf(twins).map((o) => o.label)).toEqual(fr); // cached per language
+    setLang('en');
+    expect(subdivisionsOf(twins).map((o) => o.label)).toEqual(en);
+  });
+
   it('shows the label, not just the name, in a result line', () => {
     const r = findBySubdivision(twins, 'sub-far', 41);
     if (r.kind !== 'pins' || r.pins[0] === undefined) {

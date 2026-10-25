@@ -89,3 +89,18 @@ export function saveSettings(
     // Storage is blocked or full: keep working with the in-memory value.
   }
 }
+
+/**
+ * Apply a change to the CURRENT settings and save the whole object. The caller passes the
+ * latest settings (not a copy captured earlier), so two quick changes never overwrite each other
+ * with a stale field. Returns the new settings; saving never throws.
+ */
+export function updateSettings(
+  current: Settings,
+  change: Partial<Settings>,
+  storage: StorageLike | null = browserLocalStorage(),
+): Settings {
+  const next: Settings = { ...current, ...change };
+  saveSettings(next, storage);
+  return next;
+}
