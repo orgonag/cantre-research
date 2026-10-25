@@ -286,18 +286,20 @@ describe('present: MATCHED_SUBDIVISION', () => {
   });
 });
 
-describe('present: AMBIGUOUS_ROUTE with PARTIAL_COVERAGE', () => {
+describe('present: AMBIGUOUS_ROUTE with fewer than two routes', () => {
   const one = [cand({ chainId: 'C1', chainBaseId: 'C1', residualM: 4.2 })];
+  const two = [...one, cand({ chainId: 'C2', chainBaseId: 'C2', subdivisionNid: 'sub-2' })];
+  const make = (candidates: Result['candidates'], reasons: Result['reasons']): Result => ({
+    ...blank,
+    status: 'AMBIGUOUS_ROUTE',
+    candidates,
+    reasons,
+  });
 
-  it('does not claim "more than one route" when one route is all the data holds', () => {
-    const r: Result = {
-      ...blank,
-      status: 'AMBIGUOUS_ROUTE',
-      candidates: one,
-      reasons: ['PARTIAL_COVERAGE'],
-    };
+  it('says the data is incomplete for one route with PARTIAL_COVERAGE (EN and FR)', () => {
+    const r = make(one, ['PARTIAL_COVERAGE']);
     const m = present(r, net(), MI);
-    expect(m.partialSingleRoute).toBe(true);
+    expect(m.singleRoute).toBe('partial');
     expect(m.headline).toBe(t('status.AMBIGUOUS_PARTIAL'));
     expect(m.headline).not.toMatch(/more than one/i);
     expect(m.mpText).toBeNull();
@@ -307,23 +309,41 @@ describe('present: AMBIGUOUS_ROUTE with PARTIAL_COVERAGE', () => {
     expect(t('status.AMBIGUOUS_PARTIAL')).not.toBe('status.AMBIGUOUS_PARTIAL');
   });
 
-  it('keeps the usual headline with two routes, or without partial coverage', () => {
-    const two = [...one, cand({ chainId: 'C2', chainBaseId: 'C2', subdivisionNid: 'sub-2' })];
-    const partialTwo: Result = {
-      ...blank,
-      status: 'AMBIGUOUS_ROUTE',
-      candidates: two,
-      reasons: ['PARTIAL_COVERAGE'],
-    };
-    const diamondOne: Result = {
-      ...blank,
-      status: 'AMBIGUOUS_ROUTE',
-      candidates: one,
-      reasons: ['DIAMOND_NEARBY'],
-    };
-    for (const r of [partialTwo, diamondOne]) {
-      const m = present(r, net(), MI);
-      expect(m.partialSingleRoute).toBe(false);
+  it('says a crossing is nearby for one route with DIAMOND_NEARBY (EN and FR)', () => {
+    const r = make(one, ['DIAMOND_NEARBY']);
+    const m = present(r, net(), MI);
+    expect(m.singleRoute).toBe('diamond');
+    expect(m.headline).toBe('Route not certain: a crossing (diamond) is nearby');
+    expect(m.headline).not.toMatch(/more than one/i);
+    expect(m.reasons.join(' ')).toContain('crossing of two tracks');
+    setLang('fr');
+    expect(present(r, net(), MI).headline).toBe(t('status.AMBIGUOUS_DIAMOND'));
+    expect(t('route.diamondHelp')).not.toBe('route.diamondHelp');
+  });
+
+  it('says only "Route not certain" for one route with any other reason, or none', () => {
+    for (const reasons of [['HEADING_INCONSISTENT'], []] as const) {
+      const m = present(make(one, [...reasons]), net(), MI);
+      expect(m.singleRoute).toBe('other');
+      expect(m.headline).toBe('Route not certain');
+    }
+    expect(present(make([], ['NO_CANDIDATE_IN_RADIUS']), net(), MI).singleRoute).toBe('other');
+  });
+
+  it('partial coverage wins over the diamond when both are reasons', () => {
+    expect(present(make(one, ['DIAMOND_NEARBY', 'PARTIAL_COVERAGE']), net(), MI).singleRoute).toBe(
+      'partial',
+    );
+  });
+
+  it('keeps "More than one route fits" only for two or more routes, whatever the reasons', () => {
+    for (const reasons of [
+      ['MULTIPLE_ROUTES'],
+      ['PARTIAL_COVERAGE'],
+      ['DIAMOND_NEARBY'],
+    ] as const) {
+      const m = present(make(two, [...reasons]), net(), MI);
+      expect(m.singleRoute).toBeNull();
       expect(m.headline).toBe(t('status.AMBIGUOUS_ROUTE'));
     }
   });

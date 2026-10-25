@@ -91,7 +91,7 @@ test.describe('what the app keeps', () => {
       await expect(page.locator('#card-headline')).toBeVisible();
       await page.waitForTimeout(1100); // let the app tick on the new fix
     }
-    await expect(headline(page)).toHaveText('More than one route fits');
+    await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
     await choose(page).click();
     await expect(card(page).locator('.chip--locked')).toBeVisible();
 

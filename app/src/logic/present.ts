@@ -40,6 +40,9 @@ export type Choice = {
   readonly lock: Lock | null;
 };
 
+/** Why an AMBIGUOUS_ROUTE with fewer than two routes is uncertain. */
+export type SingleRoute = 'partial' | 'diamond' | 'other';
+
 export type CardModel = {
   readonly headline: string;
   /**
@@ -47,7 +50,7 @@ export type CardModel = {
    * is no "more than one route" to report, a nearer track may simply be missing. The headline and
    * the chooser help then say the data is incomplete instead.
    */
-  readonly partialSingleRoute: boolean;
+  readonly singleRoute: SingleRoute | null;
   readonly subdivision: string | null;
   readonly operator: string | null;
   readonly trackClass: string | null;
@@ -182,22 +185,33 @@ function routeKey(c: Candidate): string {
 }
 
 /**
- * The choices for AMBIGUOUS_ROUTE and LOCK_CONFLICT. An AMBIGUOUS_ROUTE caused by PARTIAL_COVERAGE
- * with exactly one distinct route is not "more than one route fits": part of the search area is
- * outside the data and a nearer track may be missing. It gets its own headline and help text.
+ * The choices for AMBIGUOUS_ROUTE and LOCK_CONFLICT, and the wording for an AMBIGUOUS_ROUTE with
+ * fewer than two distinct routes. "More than one route fits" is true only with two or more routes.
+ * With one (or none) the matcher withheld an automatic choice for another reason, and the card
+ * says which: part of the search area is outside the data (a nearer track may be missing), a
+ * crossing (diamond) is nearby, or neither (a plain "Route not certain" plus the reason lines).
  */
 function ambiguousOf(
   result: Result,
   status: Result['status'],
-): { choices: readonly Choice[]; partialSingleRoute: boolean; headline?: string } {
+): { choices: readonly Choice[]; singleRoute: SingleRoute | null; headline?: string } {
   const choices = choicesOf(result.candidates);
-  const partialSingleRoute =
-    status === 'AMBIGUOUS_ROUTE' &&
-    result.reasons.includes('PARTIAL_COVERAGE') &&
-    choices.length === 1;
-  return partialSingleRoute
-    ? { choices, partialSingleRoute, headline: t('status.AMBIGUOUS_PARTIAL') }
-    : { choices, partialSingleRoute };
+  if (status !== 'AMBIGUOUS_ROUTE' || choices.length >= 2) {
+    return { choices, singleRoute: null };
+  }
+  const singleRoute: SingleRoute = result.reasons.includes('PARTIAL_COVERAGE')
+    ? 'partial'
+    : result.reasons.includes('DIAMOND_NEARBY')
+      ? 'diamond'
+      : 'other';
+  const headline = t(
+    singleRoute === 'partial'
+      ? 'status.AMBIGUOUS_PARTIAL'
+      : singleRoute === 'diamond'
+        ? 'status.AMBIGUOUS_DIAMOND'
+        : 'status.AMBIGUOUS_SINGLE',
+  );
+  return { choices, singleRoute, headline };
 }
 
 function choicesOf(candidates: readonly Candidate[]): readonly Choice[] {
@@ -296,7 +310,7 @@ export function present(
   const vintage = meta.snapshotDate ?? version;
   const base = {
     headline: t(`status.${status}`),
-    partialSingleRoute: false,
+    singleRoute: null as SingleRoute | null,
     vintageText: vintage === '' ? t('data.unknown') : t('data.version', { date: vintage }),
     reasons: reasonTexts(result),
     lockText: lockTextOf(result, net),

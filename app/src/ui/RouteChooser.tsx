@@ -1,6 +1,6 @@
 import type { Lock } from '@cantre/core';
 import { t } from '../i18n/index.js';
-import type { Choice } from '../logic/present.js';
+import type { Choice, SingleRoute } from '../logic/present.js';
 
 /**
  * The route chooser for AMBIGUOUS_ROUTE and LOCK_CONFLICT (spec §7): each plausible route with
@@ -11,22 +11,28 @@ import type { Choice } from '../logic/present.js';
 export function RouteChooser(props: {
   readonly choices: readonly Choice[];
   readonly conflict: boolean;
-  /** One route, and the data is incomplete here: do not claim that more than one fits. */
-  readonly partialSingleRoute?: boolean;
+  /** Set when fewer than two routes are listed: the help text must not claim that more than one fits. */
+  readonly singleRoute?: SingleRoute | null;
   readonly onChoose: (lock: Lock) => void;
 }) {
-  const { choices, conflict, partialSingleRoute = false, onChoose } = props;
+  const { choices, conflict, singleRoute = null, onChoose } = props;
   if (choices.length === 0) {
     return null;
   }
+  // "More than one route fits" only when two or more routes are listed.
+  const helpKey = conflict
+    ? 'route.conflictHelp'
+    : singleRoute === 'partial'
+      ? 'route.partialHelp'
+      : singleRoute === 'diamond'
+        ? 'route.diamondHelp'
+        : singleRoute === 'other'
+          ? 'route.singleHelp'
+          : 'route.help';
   return (
     <section class="chooser" aria-labelledby="chooser-heading">
       <h3 id="chooser-heading">{t('route.heading')}</h3>
-      <p>
-        {t(
-          conflict ? 'route.conflictHelp' : partialSingleRoute ? 'route.partialHelp' : 'route.help',
-        )}
-      </p>
+      <p>{t(helpKey)}</p>
       <ul class="plain">
         {choices.map((c) => (
           <li key={c.key} class="chooser__item">

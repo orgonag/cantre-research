@@ -89,13 +89,19 @@ test.describe('ambiguity, the chooser and the lock', () => {
   }) => {
     await openAndInstall(page);
     await moveTo(context, PLACES.diamond);
-    await expect(headline(page)).toHaveText('More than one route fits');
+    await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
     await expect(card(page)).toContainText('A crossing of two tracks is nearby');
     await expect(card(page).locator('.card__mp')).toHaveCount(0);
     // The synthetic diamond is registered on one chain, so the chooser lists the one route the
     // data holds there (the two-route chooser is the border test below).
     const chooser = page.locator('section.chooser');
     await expect(chooser.locator('li')).toHaveCount(1);
+    // One route and a crossing nearby: the card must not claim that more than one route fits.
+    await expect(card(page)).not.toContainText('More than one route');
+    await expect(chooser).not.toContainText('More than one route');
+    await expect(chooser).toContainText(
+      'Another line crosses here. Pick this route if you are sure',
+    );
     await expect(chooser).toContainText('Your choice does not make the GPS more precise.');
 
     await choose(page, 'Alpha').click();
@@ -106,7 +112,7 @@ test.describe('ambiguity, the chooser and the lock', () => {
     await expect(card(page)).toContainText('GPS accuracy ± 5 m');
 
     await page.getByRole('button', { name: 'Unlock' }).click();
-    await expect(headline(page)).toHaveText('More than one route fits');
+    await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
     await expect(card(page).locator('.chip--auto')).toHaveText('Route: auto');
     await expect(chooser.locator('li')).toHaveCount(1);
   });
@@ -145,6 +151,9 @@ test.describe('ambiguity, the chooser and the lock', () => {
       await expect(card(page)).toContainText('Tracks of different routes are close together');
       await expect(card(page).locator('.card__mp')).toHaveCount(0);
       await expect(card(page)).not.toContainText(/\bMP \d/);
+      await expect(page.locator('section.chooser')).toContainText(
+        'More than one route fits this fix.',
+      );
       const items = page.locator('section.chooser li');
       await expect(items).toHaveCount(2);
       await expect(items.nth(0)).toContainText('Border East');
@@ -192,7 +201,7 @@ test.describe('ambiguity, the chooser and the lock', () => {
     await page.reload();
     const notice = page.getByText('Lock cleared on reload. Choose the route again if you need it.');
     await expect(notice).toBeVisible();
-    await expect(headline(page)).toHaveText('More than one route fits');
+    await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
     await expect(card(page).locator('.chip--auto')).toBeVisible();
     await page.getByRole('button', { name: 'Dismiss' }).click();
     await expect(notice).toHaveCount(0);
@@ -295,7 +304,9 @@ test.describe('find a location, language, units', () => {
     await expect(card(page).locator('.card__mp')).toHaveText('PM 11,91');
     await expect(card(page)).toContainText('selon la précision du GPS seulement');
     await moveTo(context, PLACES.diamond);
-    await expect(headline(page)).toHaveText("Plus d'un itinéraire possible");
+    await expect(headline(page)).toHaveText(
+      'Itinéraire incertain : un croisement (diamant) est proche',
+    );
     await expect(page.getByRole('heading', { name: 'Choisissez votre itinéraire' })).toBeVisible();
   });
 
@@ -353,7 +364,7 @@ test.describe('data updates', () => {
     );
     await expect(notice).toBeVisible();
     await expect(card(page).locator('.chip--auto')).toBeVisible(); // no lock was migrated
-    await expect(headline(page)).toHaveText('More than one route fits');
+    await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
     await page.getByRole('button', { name: 'Dismiss' }).click();
     await expect(notice).toHaveCount(0);
 
