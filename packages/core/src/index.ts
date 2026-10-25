@@ -44,3 +44,8 @@ export { coverageOf, diamondsNear, findCandidates, searchRadiusM } from './match
 export type { Candidate, Fix } from './match/candidates.js';
 export { lowerTier, milepostFor } from './match/milepost.js';
 export type { CandidateMilepost } from './match/milepost.js';
+export { selectCandidate } from './match/select.js';
+export type { Lock, PreviousMatch, Selection, SelectionInput } from './match/select.js';
+export type { Result } from './match/result.js';
+export { currentResult, initialMatchState, reduce } from './match/machine.js';
+export type { MatchEvent, MatchState } from './match/machine.js';
