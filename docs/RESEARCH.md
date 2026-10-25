@@ -175,3 +175,14 @@ figures are internal coverage, not surveyed accuracy. Commands run and measured 
 - The determinism and contract tests found two defects in earlier output, fixed here (see the decision register): vertex direction leaked into tile bytes, and derived mileposts were interpolated from unrounded `s`.
 
 Not done or not claimed: no datum transform (NAD83(CSRS98) used as-is); the residual check cannot test position accuracy (see the register); the synthetic golden was generated on Windows and has not been run on Linux. Tile numbers are integer-quantised (microdegrees and millimetres), so a libm difference could change a byte only at a 0.5 mm rounding boundary; the more plausible platform difference is the manifest's `gzipBytes`, which depends on zlib's deflate output. The golden test now names the first differing file. Other provinces, offline downloads and the evaluation are M5; hosting is owner-gated.
+
+## 2026-10-25 — Repository made public
+
+The owner made `orgonag/cantre-research` public, accepting that the full history, the
+commit emails and the private-reference summary figures are published. Reason: GitHub
+Actions minutes are free on public repositories, and the account's free private-repository
+allowance for October was used up (billing page: $12.33 gross usage, $12.33 covered by the
+included allowance, $0 owed), which had stopped CI from starting on `main`. Before the
+change, a scan of tracked files found no passwords, keys or tokens. The six branches
+already merged into `main` were deleted. Deployment, GitHub Pages and the NRC submission
+remain owner-gated.

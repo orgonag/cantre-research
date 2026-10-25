@@ -347,8 +347,8 @@ no independent truth), and references. Figures are generated from synthetic exam
 
 ## 12. Owner-gated steps
 
-These are prepared but never done without Orgo's explicit go-ahead: making the repo public;
-enabling GitHub Pages (which needs a public repo on the free plan) and running deploy;
+These are prepared but never done without Orgo's explicit go-ahead: making the repo public
+(done by the owner on 2026-10-25); enabling GitHub Pages (which needs a public repo on the free plan) and running deploy;
 announcing or submitting to NRC; adopting any non-NRWN data source. The owner adopted the
 TC Grade Crossings Inventory on 2026-10-24; any further source, RAC included, still needs a
 go-ahead.

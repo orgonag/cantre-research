@@ -1,7 +1,8 @@
 # Instructions for implementation agents
 
-Read README.md and all docs before proposing a change. This repository currently
-contains research documentation only. Do not describe planned features as built.
+Read README.md and all docs before proposing a change. This repository holds the
+research docs, the calculation core (M1) and the data pipeline (M2). Do not describe
+planned features as built.
 
 ## Scope and rights
 
@@ -9,9 +10,10 @@ contains research documentation only. Do not describe planned features as built.
 - Independently author implementation. Do not copy employer/private source,
   coordinates, fixtures, database records, photos or credentials without established
   rights and explicit authorization. Never commit downloaded private reference data.
-- Keep visibility private until the owner says otherwise. Making the repo public,
-  enabling Pages, deploying and external telemetry each need the owner's explicit
-  go-ahead. The owner chose MIT for independently authored code (2026-10-23); data
+- The repository is public: the owner made it public on 2026-10-25, accepting that
+  its full history, commit emails and the private-reference summary are published.
+  Treat everything committed as public. Enabling Pages, deploying and external
+  telemetry each still need the owner's explicit go-ahead. The owner chose MIT for independently authored code (2026-10-23); data
   stays under each source's own licence (NRWN: OGL-Canada). Never imply rights over
   material we did not author. Downloading every public NRWN province package for the
   pipeline is authorized by the v1 spec, as is the Transport Canada Grade Crossings

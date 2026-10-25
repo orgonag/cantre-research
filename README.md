@@ -2,19 +2,23 @@
 
 **CANTRE — Canada Track Rail Estimation** (formerly RailHUD).
 
-A collaborative math-and-coding research project, with eventual open-source publication
-as a goal. The repository is currently private; visibility has not been changed.
-**No application is implemented in this repository.** No source app, private railway
-data, coordinates, fixtures, credentials, photographs or database is included.
+An open-source research tool that works out where a GPS position is on the Canadian
+railway network, and what railway assets are near it, from public data. The repository
+is public (since 2026-10-25). Code is MIT-licensed; data stays under each source's own
+licence. Built so far: the calculation core (`packages/core`, milestone M1) and the data
+pipeline for Saskatchewan (`pipeline/`, milestone M2). The phone app is not built yet
+(M4). No source app, private railway data, credentials, photographs or database is
+included.
 
 ## How we work — approved method
 
-The owner and AI learn and build together, in small understandable steps. Explain
-prerequisites, each line of code and each calculation; work through examples and
-inspect results together. Pause for discussion before the next substantive
-implementation step. An agent must not autonomously build the entire project.
-The [learning roadmap](docs/LEARNING.md) governs the staged plan. This documentation
-update authorizes no app implementation or deployment.
+Since 2026-10-23 CANTRE is built to research grade, milestone by milestone, each on a
+branch with a reviewed PR that the owner approves, following the
+[v1 spec](docs/superpowers/specs/2026-10-23-cantre-v1-design.md) and the
+[plan roadmap](docs/superpowers/plans/2026-10-23-cantre-roadmap.md). Every formula is
+commented with its units, source and limits. The earlier teach-and-build-together
+method is kept in the [learning roadmap](docs/LEARNING.md). Deployment and hosting
+still need the owner's go-ahead.
 
 ## Goal and intended experience
 
@@ -203,6 +207,6 @@ October 16 size-only inventory of eleven English provincial/territorial SHP ZIPs
 was 29,643,408 bytes; PEI and Nunavut were absent from that listing. No national
 bulk download occurred. These historical counts are not promises of current availability.
 
-The repository includes documentation only. Eventual open-source publication is
-gated on rights review; private repository visibility is not a licence to import
-employer material. See the data plan for replay boundaries and provenance requirements.
+The owner made the repository public on 2026-10-25. Public visibility is not a licence
+to import employer material or any other unlicensed data. See the data plan for replay
+boundaries and provenance requirements.
