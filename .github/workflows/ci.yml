@@ -61,7 +61,7 @@ jobs:
         run: |
           python pipeline/scripts/make_e2e_fixture.py build/e2e-fixture
           diff -r build/e2e-fixture app/e2e/fixtures
-      - name: Keep the build for inspection (private repository, not a deployment)
+      - name: Keep the build for inspection (a workflow artifact, public like the repository; not a deployment)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cantre-sk-build

@@ -3,8 +3,10 @@
 The site serves a manifest at the fixed path ``data/manifest.json``. The manifest names the
 current build's two data files by relative path, ``<dir>/snapshot.bin.gz`` and
 ``<dir>/asset-details.json.gz``, where ``<dir>`` is the dataset version with ``+`` replaced by
-``-`` (the data client accepts only ``A-Z a-z 0-9 . _ -`` in a manifest path). A new release
-therefore adds a folder beside the old one and replaces only the manifest.
+``-`` (the data client accepts only ``A-Z a-z 0-9 . _ -`` in a manifest path). A GitHub Pages
+deploy replaces the whole site, so each release's ``data/`` holds the manifest and that one
+build's folder only; the old build's files are not kept on the site. Because the folder is named
+by version, one path never serves the files of two different builds.
 
 The browser-test fixture (``pipeline/scripts/make_e2e_fixture.py``) and the deploy workflow
 (``pipeline/scripts/lay_out_site_data.py``) both use these functions, so the two layouts cannot
