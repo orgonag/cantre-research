@@ -360,7 +360,7 @@ go-ahead.
 | M1 | Core geodesy, projection and interpolation | ACCEPTANCE geometry/anchor cases, property tests and GeographicLib goldens pass. |
 | M2 | Pipeline for one province (SK, the pilot) end to end | Deterministic tiles, manifest, audit and coverage report; `GEOACCURA` meaning verified from the spec. |
 | M3 | Matching state machine and scenarios | Every status in §6 is reachable and asserted by scenario replays. |
-| M4 | National app and public site (changed 2026-10-25 by the owner) | All NRWN provinces built into province bundles; status card, assets, chooser and lock, find-a-location, offline province downloads, EN/FR; Playwright, privacy and axe pass; deployed to GitHub Pages. |
+| M4 | National app and public site (changed 2026-10-25 by the owner) | All NRWN provinces built into one national snapshot downloaded once; status card, assets, chooser and lock, find-a-location, offline use, EN/FR; Playwright, privacy and axe pass; deployed to GitHub Pages. |
 | M5 | Evaluation | EVALUATION.md generated; datum offset quantified. |
 | M6 | Methods write-up and release kit | METHODS.md, licences, CITATION, CI green. |
 

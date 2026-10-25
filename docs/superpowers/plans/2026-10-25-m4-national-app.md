@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Put a working CANTRE web app online for all of Canada. A person opens it on a
-phone, downloads their province's data, and sees which track they are on, the calculated
+phone, downloads one small national snapshot once, and sees which track they are on, the calculated
 milepost with its uncertainty, nearby assets, and an explicit choice when the evidence is
 ambiguous. Evaluation and research continue afterwards (M5), and the app is labelled as
 research software throughout.
@@ -16,18 +16,23 @@ release kit. The roadmap is updated in this plan's PR.
 
 **Architecture:**
 - **Pipeline** (`pipeline/`): every NRWN province and territory package is built. A national
-  step then writes, per province:
-  - one data bundle (the province's `cantre.tile/1` tiles in one file, for calculation);
-  - one simplified display layer (GeoJSON, for the map only);
+  step then writes one dated **national snapshot** (`cantre.snapshot/1`). It holds:
+  - the whole country's calculation data in one compact binary file, gzip-compressed;
+  - a second national file with the full source attributes of every asset;
   - one national manifest listing both, with sizes and SHA-256.
-- **`@cantre/core`:** gains decoded assets and three lookups: nearby assets along a chain,
-  the place at a given subdivision and milepost, and the milepost at a tapped point.
+  The existing `cantre.tile/1` tiles stay as the reference format that the snapshot is
+  tested against.
+- **`@cantre/core`:**
+  - gains `networkFromSnapshot`, which decodes the snapshot into the same `NetworkView` as
+    `networkFromTiles`;
+  - gains decoded assets and three lookups: nearby assets along a chain, the place at a
+    given subdivision and milepost, and the milepost at a tapped point.
 - **`@cantre/data-client`** (new package):
   - reads the manifest;
-  - downloads a province bundle only when the user asks for it;
-  - verifies the bundle's hash;
-  - keeps it in the browser's Cache Storage, pinned to its dataset version;
-  - returns one `NetworkView`.
+  - downloads the national snapshot and the asset-details file once;
+  - verifies their hashes;
+  - keeps them in the browser's Cache Storage, pinned to the dataset version;
+  - returns one `NetworkView` for the whole country.
 - **`app/`** (new): a Vite + Preact phone web app.
   - It feeds geolocation into the M3 reducer and draws `currentResult` once a second.
   - It runs on GitHub Pages. A service worker serves the app shell offline.
@@ -80,17 +85,31 @@ Also read:
   timeout. So did SK, whose package is known to exist, so these are server timeouts and not
   evidence of missing packages. The NRCan server timed out repeatedly that day, so
   acquisition needs retries (Task 1).
-- **National size:** not measured. Task 2 measures it, and Task 9 checks it against the GitHub
-  Pages limits (1 GB site, 100 MB per file).
+- **SK snapshot trial** (Node script over the M2 SK tiles, 2026-10-25). Content: 132 chains,
+  38,562 chain vertices, 5,303 unchained segments, 7,224 anchors and 8,392 assets, at full
+  M2 precision (microdegrees, millimetres).
+
+  | Format | Size |
+  |---|---|
+  | One JSON file with the tile overlap removed | 10.10 MB, 2.05 MB gzip, 1.43 MB brotli |
+  | Lean binary layout: zigzag varint deltas for geometry, chained-segment geometry stored once inside its chain, and only the fields the app uses | geometry 0.43 MB + attributes 3.05 MB = 0.86 MB brotli (0.36 MB geometry, 0.48 MB attributes) |
+  | The full asset attributes the lean layout leaves out | about 0.3 MB brotli (1.33 MB total for everything vs 0.86 MB lean) |
+
+  The trial measured brotli only. Task 2 re-measures with the gzip actually shipped.
+- **National size:** not measured. If SK is a fifth to a sixth of the network, the national
+  snapshot would be about 4–6 MB compressed and about 20 MB decoded. That is an estimate,
+  which Task 2 replaces with a measurement and Task 9 checks against the GitHub Pages limits
+  (1 GB site, 100 MB per file).
 
 ## Owner decisions (defaults used unless the owner changes them at plan review)
 
 | # | Decision | Default | Why |
 |---|---|---|---|
-| D1 | How data reaches the phone | The user picks a province, and its whole bundle is downloaded once. The app never fetches data tiles by position. | A per-position tile request tells the host roughly where the user is. A whole-province download reveals only the province choice (ACCEPTANCE Privacy row; spec §7 Offline). |
+| D1 | How data reaches the phone | The whole national snapshot is downloaded once, from the first-run screen, and loaded whole, with no province picker. The asset-details file comes in the same download. The app never fetches data by position. | Everyone downloads the same files, so the host learns nothing about where anyone is (ACCEPTANCE Privacy row; spec §7 Offline). The SK trial puts the national size at a few megabytes. Fetching asset details one asset at a time would reveal which asset the user is near. This replaces spec §7's per-province downloads, if the owner approves. |
 | D2 | Basemap (OpenFreeMap) | Off by default. One tap turns it on, after a plain notice that map tiles are fetched for the area shown. | Basemap tile requests reveal the area being viewed. With it off, the app still works: tracks and assets draw on a plain background (spec §14 fallback). |
 | D3 | French text | Drafted in this milestone and marked "needs native review" in the catalogue and the About page. | §13 needs EN/FR. An unreviewed translation must not pass as reviewed. |
 | D4 | Hosting | GitHub Pages for the app and the data, at `https://orgonag.github.io/cantre-research/`. The owner gave the go-ahead to deploy on 2026-10-25. | Free on a public repo. The data stays inside the measured limits (Task 9 checks). Cloudflare R2 remains a fallback if the size check fails. |
+| D8 | Snapshot updates | A snapshot is dated, for example `NRWN snapshot 2026-10-25`, and replaced only by a deliberate rebuild. The app shows its date and offers "Update data" when the manifest names a newer one. | NRWN features are mostly from 2016 and change rarely, so a frozen dated copy is honest about its vintage. |
 | D5 | "Ahead / behind" for assets | Shown as "toward higher MP / toward lower MP" until two fresh matched fixes on the same chain give a direction. Then they are labelled ahead and behind. | A single fix has no direction. Guessing one would mislabel half the list. |
 | D6 | Lock lifetime | It lasts for the session (until reload). At start-up the app shows "Lock cleared on reload" if one was set before. | IMPLEMENTATION.md asks for a documented, visible lifecycle and no silent migration. |
 | D7 | Labelling | Every screen footer says "Research software. Not for safety, operations or track access." The About page carries the full disclaimer. | AGENTS.md: research use conveys no access authority or safety guarantee. |
@@ -106,11 +125,10 @@ Also read:
   - No request carries coordinates. The app fetches only:
     - its own files;
     - the manifest;
-    - province bundles;
-    - display layers;
+    - the national snapshot and the asset-details file;
     - basemap tiles, only after D2 consent.
   - No fix or trace is stored: not in localStorage, IndexedDB, Cache Storage or cookies.
-  - Settings may store units, language, basemap consent and downloaded provinces.
+  - Settings may store units, language, basemap consent and the downloaded snapshot's version.
   - There are no analytics and no telemetry.
 - **Honest output** (spec §2, §6):
   - The UI shows what `Result` says and never more:
@@ -137,11 +155,12 @@ Also read:
 - **Size budget** (spec §11):
   - App shell under 300 kB gzipped, excluding maplibre-gl.
   - Each tile under 500 kB compressed, unchanged.
-  - Each province bundle and display layer under 100 MB, the Pages per-file limit.
+  - The national snapshot and the asset-details file each under 100 MB, the Pages per-file limit.
+    Target: under 15 MB compressed for the snapshot (the SK trial projects about 4–6 MB).
   - Task 9 enforces all of these in CI.
 - **Units:** miles by default; kilometres by explicit conversion (`milesToKilometres`). Never mix.
-- **Determinism:** pipeline outputs stay byte-identical across runs (M2 rule). Bundles and
-  display layers are written with sorted keys and fixed float rounding.
+- **Determinism:** pipeline outputs stay byte-identical across runs (M2 rule). The snapshot is
+  written in a fixed record order with integer values only, so the same input gives the same bytes.
 - **Code and comments:** every formula is commented with its units, source and limits (AGENTS.md).
 - **Coverage gates:**
   - Core and data-client keep 95 / 90 / 100.
@@ -153,11 +172,10 @@ Also read:
 
 1. **Moving between provinces.** NRWN clips each province at its border, so a train crossing
    from SK into AB changes chain.
-   - Expected: with both provinces downloaded, a fix near the border has candidates on both
-     chains, with no bridging across the border. With only one province downloaded, a fix
-     within the search radius of the border is `AMBIGUOUS_ROUTE`/`PARTIAL_COVERAGE`, never a
-     confident match.
-   - Pinned in Task 3 (data-client: two bundles) and Task 8 (Playwright).
+   - Expected: the snapshot holds both provinces, so a fix near the border has candidates on
+     both chains, with no bridging across the border. A fix near Canada's outer edge (the end of
+     the snapshot's coverage) is `AMBIGUOUS_ROUTE`/`PARTIAL_COVERAGE`, never a confident match.
+   - Pinned in Task 2 (two fake provinces in one snapshot) and Task 8 (Playwright).
 2. **Mixed dataset versions.** Provinces carry different NRWN package versions, but M3 throws
    `MIXED_DATASET_VERSION` when tiles disagree.
    - Expected: one national `datasetVersion` per build, with each province's NRWN version
@@ -167,7 +185,7 @@ Also read:
    - Expected: on resume the card shows `STALE` (historical), never a fresh match from an old
      fix. A denied permission gives `NO_PERMISSION` with a reason.
    - Pinned in Task 4.
-4. **A bundle that fails its hash or is half-downloaded.**
+4. **A snapshot that fails its hash or is half-downloaded.**
    - Expected: it is rejected and never decoded, the user sees a typed error with a retry,
      and an older cached version, if present, stays in use.
    - Pinned in Task 3.
@@ -224,64 +242,86 @@ Also read:
   real-data tests with `CANTRE_RAW_DIR`), `ruff check`, `ruff format --check` and `mypy --strict`.
 - [ ] **Step 5: Commit** `feat(pipeline): register every NRWN province, retry downloads, one national dataset version`.
 
-### Task 2: Province bundles, display layers and the national manifest
+### Task 2: The national snapshot and asset-details file
 
 **Files:**
 - Create:
-  - `pipeline/src/cantre_pipeline/bundle.py`: one bundle per province;
-  - `pipeline/src/cantre_pipeline/display.py`: simplified GeoJSON;
-  - `pipeline/schema/bundle.schema.json` (`cantre.bundle/1`).
+  - `pipeline/src/cantre_pipeline/snapshot.py`: the writer, plus a reader used only by tests;
+  - `pipeline/schema/snapshot.md`: the byte layout below, as the shared contract with core.
 - Modify:
-  - `pipeline/src/cantre_pipeline/cli.py`: add a `national --out DIR` command that builds every
-    province, then writes bundles, display layers and one manifest;
-  - `pipeline/schema/manifest.schema.json`: add `bundles[]` and `display[]`.
+  - `pipeline/src/cantre_pipeline/cli.py`: add a `national --out DIR` command. It builds every
+    province's tiles as today, merges them into one network, then writes
+    `snapshot.bin.gz`, `asset-details.json.gz` and `manifest.json`.
+  - `pipeline/schema/manifest.schema.json`: add `snapshot` and `assetDetails`, each `{ path,
+    sha256, bytes, gzipBytes }`, plus `snapshotDate`.
+  - `pipeline/scripts/make_golden.py`: also write the synthetic golden `snapshot.bin.gz`,
+    which Task 3 uses.
 - Test:
-  - `pipeline/tests/test_bundle.py`;
-  - `pipeline/tests/test_display.py`;
+  - `pipeline/tests/test_snapshot.py`;
   - `pipeline/tests/test_national_cli.py`, using the synthetic golden network split into two
     fake provinces.
 
 **Interfaces:**
-- Produces:
-  - **Bundle file** `bundles/<pr>.json`: `{ schema: 'cantre.bundle/1', datasetVersion,
-    province, tiles: TileObj[] }`. The tiles are exactly the province's `cantre.tile/1`
-    objects, sorted by key.
-  - **Display file** `display/<pr>.geojson`: a FeatureCollection of LineStrings, one per chain
-    and per unchained segment. Properties: `{ id, kind: 'chain'|'segment', subdivisionName,
-    operator, trackClass }`. Coordinates are simplified by Douglas–Peucker with tolerance
-    `display_simplify_m = 5` m, measured on the M1 tangent plane, and rounded to 6 decimals.
-  - **Manifest `bundles[]` and `display[]`:** `{ province, path, sha256, bytes, gzipBytes,
-    bounds }`.
+- Produces `snapshot.bin.gz`: gzip, level 9, of the bytes below. All integers are
+  little-endian.
+  1. Magic `CNTS`, then `u8` format version `1`.
+  2. `u32` length, then a UTF-8 JSON **meta** object:
+     `{ datasetVersion, snapshotDate, attribution, packageVersions: { pr: version },
+     coverage: [[southE6, westE6, northE6, eastE6], …] }`. `coverage` holds the tile cells,
+     unbuffered and sorted.
+  3. `u32` length, then a UTF-8 JSON **records** object holding the fields the app uses, as
+     positional arrays:
+     - `chains: [id, subdivisionNid, subdivisionName, operators, cycle, trackClasses]`, sorted
+       by id;
+     - `segments: [key, trackClass, status, subdivisionNid, subdivisionName, operator,
+       geoAccuracyM]`, unchained only, sorted by key;
+     - `anchors: [chainId, id, sMm, mp, source, tier]`;
+     - `intervals: [id, chainId, anchorIds]`;
+     - `assets: [id, kind, name, posted, [[chainId, sStartMm, sEndMm, residualMm,
+       derivedMpStart, derivedMpEnd], …], latE6, lonE6]`.
+  4. **Geometry**: a stream of zigzag LEB128 varints. Each chain, in records order, is
+     written as `n` and then `n` triples `(ΔlatE6, ΔlonE6, ΔsMm)`. Each unchained segment
+     follows as `n` and then `n` pairs `(ΔlatE6, ΔlonE6)`. Every delta is taken from the
+     previous vertex, and the first vertex from 0.
+
+  Chains are whole: they are merged across tiles before writing, so the snapshot has no
+  split pieces.
+- Produces `asset-details.json.gz`: `{ assetId: { layer, attrs } }` for every asset, sorted by
+  id. It is downloaded together with the snapshot (D1).
 - Consumes: Task 1 `national_dataset_version`; existing `tiles.py` output.
 
 - [ ] **Step 1: Write the failing tests.**
-  - `test_bundle_round_trips_tiles`: the bundle's tiles equal the per-tile files, byte for
-    byte after canonical JSON.
-  - `test_display_never_used_for_calculation`: the display layer holds no `sMm`, anchors or
-    mileposts.
-  - `test_simplify_within_tolerance`: every original vertex lies within 5 m of the
-    simplified line, and the endpoints are kept.
-  - `test_national_deterministic`: two runs give an identical tree hash.
-  - `test_border_not_bridged`: two fake provinces sharing a border give two chains that both
-    end at the border, and nothing joins them.
+  - `test_snapshot_round_trips_tiles`: reading the snapshot back gives exactly the tiles'
+    chains, unchained segments, anchors, intervals and assets, after removing overlap.
+    Integers are equal, with no rounding.
+  - `test_snapshot_deterministic`: two runs give byte-identical files.
+  - `test_varint_zigzag`: a round trip of 0, ±1, ±2^31 and ±2^40 (millimetre `s` on long
+    chains).
+  - `test_border_not_bridged`: two fake provinces sharing a border give two chains in one
+    snapshot. Both end at the border, and nothing joins them (Review Focus 1).
+  - `test_size_gate`: `national` fails loudly when either file exceeds 100,000,000 bytes.
 - [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
-  - Douglas–Peucker is recursive on tangent-plane metres. Comment the tolerance's units and
-    its limits: display only; never used for matching.
-  - `national` fails loudly when any province bundle or display file exceeds 100,000,000
-    bytes uncompressed.
+- [ ] **Step 3: Implement.** Comment the units of each field (microdegrees, millimetres,
+  miles) and the format's limits: integers only, and the full M2 precision is kept.
 - [ ] **Step 4: Run the full national build** (`python -m cantre_pipeline national --out C:/tmp/nat`)
-  and record the per-province and total bytes and gzip bytes in the task report. These
-  are the national size figures for docs/RESEARCH.md.
-- [ ] **Step 5: Run** the pytest suite, ruff and mypy.
-- [ ] **Step 6: Commit** `feat(pipeline): national build with province bundles, display layers and manifest`.
+  and record the following in the task report:
+  - the snapshot's bytes and gzip bytes;
+  - the asset-details file's bytes and gzip bytes;
+  - per-province counts of chains, vertices, anchors and assets.
 
-### Task 3: `@cantre/core` assets and lookups; `@cantre/data-client`
+  These are the national size figures for docs/RESEARCH.md. If the snapshot exceeds 15 MB
+  gzipped, report it before going on.
+- [ ] **Step 5: Run** the pytest suite, ruff and mypy.
+- [ ] **Step 6: Commit** `feat(pipeline): national snapshot, asset details and manifest`.
+
+### Task 3: `@cantre/core` snapshot decoding, assets and lookups; `@cantre/data-client`
 
 **Files:**
 - Modify:
   - `packages/core/src/network/types.ts` and `decode.ts`: decode every asset into a
     `NetworkAsset`;
+  - `packages/core/src/network/snapshot.ts` (new): `networkFromSnapshot(bytes: Uint8Array):
+    NetworkView`, reading the Task 2 layout from the bytes after gunzip;
   - `packages/core/src/index.ts`.
 - Create:
   - `packages/core/src/lookup/assets.ts`;
@@ -289,12 +329,16 @@ Also read:
   - `packages/data-client/src/{manifest,store,client}.ts`;
   - `packages/data-client/package.json`.
 - Test:
+  - `packages/core/test/network-snapshot.test.ts`;
   - `packages/core/test/lookup-assets.test.ts`;
   - `packages/core/test/lookup-locate.test.ts`;
   - `packages/data-client/test/client.test.ts`, with a fake `fetch` and a fake `CacheStorage`.
 
 **Interfaces:**
 - Produces (core):
+  - **`networkFromSnapshot`:** returns a `NetworkView` deep-equal to `networkFromTiles` on
+    the same data, coverage included. Bad bytes throw `INVALID_SNAPSHOT` naming the offset.
+    The format version must be 1.
   - **`NetworkAsset`:** `{ id, kind, name: string | null, posted: { mp, subdivisionNid, tier }
     | null, positions: readonly { chainId, sM, residualM, derivedMp: number | null }[], at:
     LatLon }`. `positions[].sM` is the midpoint of the start and end, as M3 does for diamonds.
@@ -310,16 +354,22 @@ Also read:
     desk use, labelled "from map position, no GPS".
 - Produces (data-client):
   - `fetchManifest(baseUrl): Promise<Manifest>`, validating `schema === 'cantre.manifest/1'`.
-  - `downloadProvince(baseUrl, manifest, province, onProgress?): Promise<void>`. It verifies
-    the SHA-256 with `crypto.subtle` before storing, and stores in Cache Storage under the
-    `cantre-data-<datasetVersion>` cache.
-  - `loadNetwork(manifest, provinces: readonly string[]): Promise<NetworkView>`, which calls
-    `networkFromTiles` on the union of the bundles' tiles.
-  - `downloadedProvinces(): Promise<readonly { province, datasetVersion, bytes }[]>`.
-  - `DataClientError` codes: `MANIFEST_INVALID`, `FETCH_FAILED`, `HASH_MISMATCH`,
-    `VERSION_MISMATCH`.
+  - `downloadSnapshot(baseUrl, manifest, onProgress?): Promise<void>`. It fetches the snapshot
+    and the asset-details file, verifies both SHA-256 values with `crypto.subtle` before
+    storing, and stores them in Cache Storage under the `cantre-data-<datasetVersion>` cache.
+    The previous version is deleted only after the new one is stored.
+  - `loadNetwork(): Promise<{ net: NetworkView; details: AssetDetails }>`. It gunzips the
+    snapshot with `DecompressionStream('gzip')` and calls `networkFromSnapshot`. It records
+    the decode time in ms.
+  - `installedSnapshot(): Promise<{ datasetVersion, snapshotDate, bytes } | null>`.
+  - `AssetDetails = Readonly<Record<string, { layer: string; attrs: Readonly<Record<string, string>> }>>`.
+    Task 5's asset list opens these source attributes when an asset is tapped. No network request is made.
+  - `DataClientError` codes: `MANIFEST_INVALID`, `FETCH_FAILED`, `HASH_MISMATCH`.
 
 - [ ] **Step 1: Write the failing tests** (core).
+  - `networkFromSnapshot`:
+    - on the committed golden snapshot it deep-equals `networkFromTiles(goldenTiles())`;
+    - a truncated file, a wrong magic or a version of 2 each throw `INVALID_SNAPSHOT`.
   - `assetsAlong`: signs, order, range limit, and split chains via `chainBaseId`.
   - `locateMilepost`:
     - it round-trips `interpolateMilepost` within 1e-6 m;
@@ -331,16 +381,18 @@ Also read:
 - [ ] **Step 2: Write the failing tests** (data-client).
   - A hash mismatch never stores and throws `HASH_MISMATCH`.
   - A failed fetch keeps the old cached version.
-  - Two bundles (two synthetic provinces) load into one view, and a fix near their shared
-    border yields candidates on both chains (Review Focus 1).
-  - `loadNetwork` throws `VERSION_MISMATCH` if cached bundles carry different `datasetVersion`
-    values.
+  - A half-downloaded snapshot (the fetch stops early) is rejected and the old one is kept
+    (Review Focus 4).
+  - `loadNetwork` on the two-fake-province golden snapshot gives candidates on both chains
+    at their shared border (Review Focus 1).
+  - Decode time and JS heap after `loadNetwork` are measured in Node for the SK snapshot,
+    and recorded in the report.
 - [ ] **Step 3: Run** `npx vitest run packages/core packages/data-client`. Expected: FAIL.
 - [ ] **Step 4: Implement**, with no runtime dependencies in either package. Comment the
   inverse interpolation formula: s = s₁ + (mp − mp₁)/(mp₂ − mp₁)·(s₂ − s₁), in metres and
   miles, inside one interval only.
 - [ ] **Step 5: Run** `npm run lint`, `format:check`, `typecheck` and `coverage`. All gates hold.
-- [ ] **Step 6: Commit** `feat(core,data-client): assets, milepost lookups and province data client`.
+- [ ] **Step 6: Commit** `feat(core,data-client): snapshot decoder, assets, milepost lookups and data client`.
 
 ### Task 4: App shell, geolocation and the matcher store
 
@@ -457,8 +509,10 @@ Also read:
 
 **Interfaces:**
 - Produces:
-  - **`MapView`:** maplibre-gl with the downloaded provinces' display GeoJSON. Assets come
-    from the network. A "you" marker uses the last accepted fix, with an accuracy circle.
+  - **`MapView`:** maplibre-gl drawing tracks from a GeoJSON source built in memory from the
+    `NetworkView`. MapLibre simplifies its own copy for display. The calculation geometry is
+    never altered, so it stays separate from what is drawn (AGENTS.md). Assets come from the
+    network. A "you" marker uses the last accepted fix, with an accuracy circle.
     The basemap style URL is loaded only when `settings.basemap` is true (D2). Tapping the map
     calls `milepostAtPoint`. Attribution shows OGL-Canada always, and OSM when the basemap is on.
   - **`findBySubdivision(net, subdivisionNid, mp)`:** wraps `locateMilepost`. It returns pins,
@@ -487,22 +541,22 @@ Also read:
   `idle → downloading(progress) → verifying → ready | error(code)`.
 
 **Interfaces:**
-- **Offline data:** lists every manifest province with its gzip size, a download or remove
-  button, and the dataset version. Downloading and removing call data-client.
+- **Offline data:** shows the installed snapshot's date, dataset version and size. When the
+  manifest names a newer snapshot, it shows "Update data" with that snapshot's download size
+  (D8). A "Remove data" button deletes the cached snapshot. All of these call data-client.
 - **First run:**
-  - explains, in about 60 words per language, what leaves the device: the province download,
-    and the basemap only if turned on;
+  - explains, in about 60 words per language, what leaves the device: one national download
+    that is the same for everyone, and the basemap only if turned on;
   - shows the D7 disclaimer;
-  - offers a "Download my province" picker.
-  No location is used to suggest the province.
+  - offers one "Download data for Canada (N MB)" button, with N taken from the manifest.
 - **About:** methods summary, data sources and licences (OGL-Canada sentence verbatim, OSM),
-  dataset vintage per province, D3 translation note, D7 disclaimer, link to the repo.
+  snapshot date and the NRWN package version per province, D3 translation note, D7 disclaimer, link to the repo.
 
 - [ ] **Step 1: Write the failing offline state-machine tests**, including that a
   `HASH_MISMATCH` goes to `error` while the old version stays loaded (Review Focus 4).
 - [ ] **Step 2: Run** (FAIL), **Step 3: implement**, **Step 4: run** (PASS), plus lint,
   format and typecheck.
-- [ ] **Step 5: Commit** `feat(app): offline province data, settings, about and first run`.
+- [ ] **Step 5: Commit** `feat(app): offline snapshot, settings, about and first run`.
 
 ### Task 8: Playwright, privacy and accessibility tests in CI
 
@@ -512,7 +566,7 @@ Also read:
   - `app/e2e/flows.spec.ts`;
   - `app/e2e/privacy.spec.ts`;
   - `app/e2e/a11y.spec.ts`;
-  - `app/e2e/fixtures/`: a manifest plus two bundles made from the synthetic golden network,
+  - `app/e2e/fixtures/`: a manifest plus a snapshot made from the synthetic golden network,
     split into two fake provinces by `pipeline/scripts/make_e2e_fixture.py`.
 - Modify: `.github/workflows/ci.yml`, adding an `app` job that installs Playwright Chromium,
   builds, then runs `npm run -w app e2e`.
@@ -522,18 +576,19 @@ through Playwright `context.setGeolocation` and `grantPermissions`. Mobile viewp
 Pixel 7 and iPhone 13 emulation.
 
 - [ ] **Step 1: Write the flows.**
-  - First run, then download a fake province, then a fix on a chain: `MATCHED` with an MP.
+  - First run, then download the snapshot, then a fix on a chain: `MATCHED` with an MP.
   - A fix at the golden diamond: `AMBIGUOUS_ROUTE`. The chooser lists both, choosing one
     locks it, and unlock returns to the chooser.
   - Deny permission: `NO_PERMISSION`.
   - Stop fixes for 16 s (clock mocked with `page.clock`): `STALE`, labelled historical.
   - Find-a-location by subdivision and MP drops a pin.
   - Switching to FR shows FR text for the visible status.
-  - A fix near the fake provinces' border with only one downloaded: `AMBIGUOUS_ROUTE`,
-    shown as partial coverage (Review Focus 1).
+  - A fix at the fake provinces' shared border has candidates on both chains, with no single
+    milepost from bridging. A fix at the outer edge of the snapshot's coverage is
+    `AMBIGUOUS_ROUTE`, shown as partial coverage (Review Focus 1).
 - [ ] **Step 2: Write the privacy tests.**
   - Record every request during all flows, and assert that each URL is in the allowlist:
-    app origin files, `manifest.json`, `bundles/*.json`, `display/*.geojson`.
+    app origin files, `manifest.json`, `snapshot.bin.gz`, `asset-details.json.gz`.
   - No URL or body contains the mocked latitude or longitude, to 3 decimals.
   - With the basemap off, no request goes to the OpenFreeMap host.
   - After the flows, localStorage holds only `cantre.settings.v1`. IndexedDB is empty. Cache
@@ -566,12 +621,12 @@ Pixel 7 and iPhone 13 emulation.
   - runs `acquire` with retries and verification;
   - runs `national`;
   - builds the app with `base: '/cantre-research/'`;
-  - copies the manifest, bundles and display layers under `data/<datasetVersion>/`;
+  - copies the manifest, snapshot and asset-details file under `data/<datasetVersion>/`;
   - runs `check-budget.mjs`;
   - uploads with `actions/upload-pages-artifact` and deploys with `actions/deploy-pages`.
 - **`check-budget.mjs`** fails the job when:
   - the shell is over 300 kB gzipped, excluding maplibre;
-  - any tile is over 500 kB gzipped;
+  - any pipeline tile is over 500 kB gzipped (tiles are built and checked but not deployed);
   - any file is over 100 MB;
   - the site is over 1 GB.
 
@@ -587,7 +642,7 @@ Pixel 7 and iPhone 13 emulation.
   - Enabling Pages (Settings → Pages → Source: GitHub Actions) is a repository setting, so
     the owner does it, or gives an explicit yes for it to be done with `gh api`.
   - Run the deploy workflow once.
-  - Open the live URL on a phone-sized viewport and confirm that the first run, a province
+  - Open the live URL on a phone-sized viewport and confirm that the first run, the national
     download and the status card work.
   - Report the URL.
 
