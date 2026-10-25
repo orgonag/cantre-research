@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 
-from fixtures.synthetic import build_synthetic, tree_sha256
+from fixtures.synthetic import build_golden, tree_sha256
 
 PIPELINE = Path(__file__).resolve().parents[1]
 GOLDEN_DIR = PIPELINE / "tests" / "golden" / "synthetic"
@@ -35,7 +35,7 @@ def assert_same_tree(actual: Path, expected: Path) -> None:
 
 
 def test_synthetic_build_matches_committed_golden(tmp_path: Path) -> None:
-    build_synthetic(tmp_path)
+    build_golden(tmp_path)
     assert_same_tree(tmp_path, GOLDEN_DIR)
 
 
@@ -53,7 +53,7 @@ def test_build_is_byte_identical_across_runs_and_hash_seeds(tmp_path: Path) -> N
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_shuffled_records_and_reversed_lines_give_the_same_bytes(tmp_path: Path, seed: int) -> None:
-    build_synthetic(tmp_path, shuffle_seed=seed)
+    build_golden(tmp_path, shuffle_seed=seed)
     assert_same_tree(tmp_path, GOLDEN_DIR)
 
 

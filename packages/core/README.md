@@ -109,6 +109,10 @@ clock. Time enters only through each fix's timestamp and the `nowMs` argument to
 | `searchRadiusM` | `(accuracyM, cfg) => m` | m | §6 |
 | `findCandidates` | `(net, fix, cfg) => Candidate[]`, one per distinct pass of a chain, sorted by `(residualM, chainId, segmentKey, s)` | m | §6 |
 | `coverageOf` | `(net, fix, radiusM) => 'outside' \| 'partial' \| 'covered'` | m | §6 |
+| `networkFromSnapshot` | `(bytes: Uint8Array) => NetworkView` (decodes the national snapshot of `pipeline/schema/snapshot.md`, after gunzip; deep-equal to `networkFromTiles` on the tiles it was written from; throws `CoreInputError` `INVALID_SNAPSHOT` with a `byte N:` message for any layout, varint, range or invariant violation) | deg, m, mi | §6, §8 |
+| `assetsAlong` | `(net, chainBaseId, s, rangeM) => { asset, deltaM }[]` (assets within `rangeM` of `s` along one chain, signed `deltaM` = asset position minus `s`, nearest first) | m | §7 |
+| `locateMilepost` | `(net, subdivisionNid, mp) => { chainId, sM, at, intervalId }[]` (inverse of `interpolateMilepost` inside each calibrated interval; never extrapolates; one entry per track) | mi, m, deg | §7 |
+| `milepostAtPoint` | `(net, p, cfg?) => { candidate, milepost }[]` (tracks within `searchRadiusMinM` of a tapped point and the milepost each gives, at nominal accuracy 0; "from map position, no GPS") | deg, m, mi | §7 |
 | `diamondsNear` | `(net, candidates, radiusM) => DiamondPosition[]` | m | §6 |
 | `milepostFor` | `(net, candidate, accuracyM) => CandidateMilepost` | m in; mi out | §6 |
 | `lowerTier` | `(a, b) => AnchorTier` (the lower-ranked of two tiers) | n/a | §3 |
@@ -117,7 +121,7 @@ clock. Time enters only through each fix's timestamp and the `nowMs` argument to
 
 Types: `MatchEvent`, `MatchState`, `Result`, `MatchStatus`, `MatchReason`, `MatchConfig`,
 `Fix`, `Lock`, `Candidate`, `CandidateMilepost`, `Selection`, `SelectionInput`,
-`PreviousMatch`, `NetworkView`, `NetworkChain`, `NetworkSegment`, `NetworkInterval`,
+`PreviousMatch`, `NetworkView`, `NetworkAsset`, `AssetKind`, `AssetPosition`, `AssetPosted`, `AssetAlong`, `LocatedMilepost`, `PointMilepost`, `NetworkChain`, `NetworkSegment`, `NetworkInterval`,
 `DiamondPosition`, `TileBounds`, `AnchorTier`.
 
 Events: `{ type: 'fix', fix }`, `{ type: 'permission', state: 'granted' | 'denied' }`,
@@ -145,7 +149,7 @@ const result = currentResult(state, nowMs); // result.status, result.milepost, r
 | `NO_COVERAGE` | The fix is outside every loaded tile. | no candidates |
 | `OFF_NETWORK` | Covered, but no track within the search radius. | no candidates |
 | `AMBIGUOUS_ROUTE` | More than one route is plausible, a diamond is near, or the search disk is only partly covered. No route is chosen. | the choices in `candidates` |
-| `MATCHED_SUBDIVISION` | One subdivision is certain, the parallel track is not. | `candidates`, and `mpRange` when the tracks agree |
+| `MATCHED_SUBDIVISION` | One subdivision is certain, the parallel track is not. | `rangeGroup` (the tracks the range is about; label from it), `candidates` (may also hold another railway set aside by CONTINUITY), and `mpRange` when the tracks agree |
 | `MATCHED` | One track is selected, by evidence or by the user's lock. | `chosen`, `s`, `milepost` (null when the chain is uncalibrated, the position is in a gap, or the track is unchained), and every other plausible track in `candidates` |
 | `LOCK_CONFLICT` | The user's lock does not fit the fix. The lock is kept; no milepost is shown. | the alternatives in `candidates` |
 

@@ -1,5 +1,6 @@
 # Documentation-only handoff; raw and private material stay outside git.
 data/
+!app/e2e/fixtures/data/
 raw/
 processed/
 baseline/
@@ -16,6 +17,8 @@ node_modules/
 .DS_Store
 dist/
 coverage/
+test-results/
+playwright-report/
 .superpowers/
 .tsc-check/
 build/

@@ -3,7 +3,9 @@
 Deterministic Python pipeline that turns the NRCan National Railway Network (NRWN) and the
 Transport Canada Grade Crossings Inventory into chains, anchors, calibrated intervals, assets,
 regional tiles, a manifest, an audit log and a per-subdivision coverage report for CANTRE.
-Milestone M2 runs Saskatchewan only (`--province sk`); M5 runs the rest.
+Every NRWN province and territory with a published package is registered (see
+`NO_PACKAGE` in `provinces.py` for any without one); `build` is run per province, and a national
+build stamps one dataset version with `national_dataset_version` (M4).
 
 **Research use only.** Every threshold below is experimental, chosen by inspecting Saskatchewan
 data and not validated against ground truth. The coverage report measures internal coverage, not
@@ -20,15 +22,25 @@ py -3.12 -m venv .venv
 python -m cantre_pipeline acquire --source sk          # download (once), verify the SHA-256
 python -m cantre_pipeline acquire --source tc-gci
 python -m cantre_pipeline build --province sk --out build/sk --check-budget
+python -m cantre_pipeline national --out build/national     # every province, one snapshot
 ```
 
 - `acquire --source ID` takes a province code or `tc-gci`. It checks the cached bytes against
   `pipeline/sources/<id>.json` and fails with `HASH_MISMATCH` on any difference. `--record`
   measures a source and rewrites its record instead (a deliberate, reviewed act).
+- Downloads try up to 5 times, waiting 1, 2, 4 and 8 s, and only after a timeout or connection
+  error. A hash mismatch or an HTTP error answer (such as 404) is never retried.
 - `build --province PR --out DIR [--raw DIR] [--check-budget]` acquires both sources in verify
   mode, so a changed cached copy stops the build before anything is written. It exits 0 on
   success, 2 on a `PipelineError` and 3 when `--check-budget` finds a tile over the budget (the
   output is still written for inspection).
+- `national --out DIR [--raw DIR] [--snapshot-date YYYY-MM-DD] [--check-budget]` builds every
+  registered province as `build` does, stamps all of them with one national dataset version, merges
+  them into one network and writes `snapshot.bin.gz`, `asset-details.json.gz` and `manifest.json`
+  (see "National output"). The exit codes are those of `build`; a published file over 100 MB stops
+  the build (`SIZE_GATE`), and an id that two provinces describe differently stops it
+  (`MERGE_CONFLICT`). `snapshotDate` is the latest `retrievedUtc` date among the source records
+  used, not the wall clock, unless `--snapshot-date` overrides it.
 - Raw bytes are cached in `.cache/raw/` (override with `--raw` or `CANTRE_RAW_DIR`); build output
   goes where you say. Both are git-ignored. **Windows deep checkouts need a short
   `CANTRE_RAW_DIR`** (for example `C:\cv-raw`): the extracted NRWN files sit under a 64-character
@@ -57,6 +69,43 @@ A line asset (bridge, tunnel) has `sStartMm <= sEndMm`: **its direction is not p
 neither is the stored vertex direction of a segment or line asset (vertices are written in a
 canonical direction so reversing a record cannot change a byte).
 
+### National output
+
+```
+DIR/snapshot.bin.gz          the whole network in one lean binary file (schema/snapshot.md)
+DIR/asset-details.json.gz    layer and source attributes of every asset, by asset id
+DIR/manifest.json            cantre.manifest/1 with snapshot, assetDetails, snapshotDate; tiles: []
+DIR/build/<pr>/              each province's ordinary build tree (tiles, audit, reports)
+```
+
+The byte layout of the snapshot is the contract in [`schema/snapshot.md`](schema/snapshot.md); the
+app's decoder is written from it. The provinces' tiles are built (and size-checked against the
+tile budget) but not published: the manifest lists no tiles. Provinces are merged by id; chains
+are never joined across a province border, because NRWN clips each province at its border.
+
+**Dataset version and the release rule.** The national dataset version is
+`nrwn-national-<sha8>+cantre.<pipeline version>`, where `sha8` is the first 8 hex characters of
+the SHA-256 over every input package hash (each province and `tc-gci`) and the configuration's
+SHA-256 (`configSha256`), so a new input or a changed threshold is a new version. The pipeline's
+code is not hashed. **Release rule: any change to pipeline code that changes the output bytes must
+bump `__version__` in `cantre_pipeline/__init__.py`.** Otherwise a rebuild with new bytes would
+carry the old version, and the app, which offers an update only when the version differs, would
+never offer it. The manifest also records `snapshotFormat`, the snapshot's byte-layout version
+(`schema/snapshot.md`), so an app can refuse a layout it cannot decode before downloading anything.
+
+A package may leave a layer out when NRCan has no features for it (`MARKERPOST` in NL and YT,
+`STRUCTURE_0` in MB). Such a layer reads as empty and the build writes one `LAYER_ABSENT` audit
+line; any other missing layer, or a layer with only some of its files, is still `SCHEMA_DRIFT`.
+
+### Site layout
+
+`python pipeline/scripts/lay_out_site_data.py NATIONAL_DIR SITE_DIR` writes the site's `data/` folder
+from a national output: `SITE_DIR/data/manifest.json` (at a fixed path) and
+`SITE_DIR/data/<datasetVersion with + as ->/` holding the snapshot and the asset-details file. Only
+the two `path` values of the manifest change; the data files are copied byte for byte. The layout
+code (`cantre_pipeline.site_layout`) is shared with the browser-test fixture generator, and the
+deploy workflow uses it before the size gate (`scripts/check-budget.mjs`).
+
 ### Pipeline stages
 
 `acquire` -> `reader` -> `validate` -> `chains` -> `anchors` -> `intervals` -> `assets` ->
@@ -70,7 +119,7 @@ record order, the vertex direction of a record or `PYTHONHASHSEED`, with one exc
 several TRACK records share a `TRACKSEGID`, the `~1`, `~2` suffixes that keep their keys distinct
 follow file order (Decision 1), so reordering those records can change their keys. JSON is canonical (sorted
 keys, `separators=(",", ":")`, UTF-8, LF, one trailing newline), gzip size is measured at level 9
-with `mtime=0`, chain ids are content hashes and no wall-clock time is written. Tests: the
+with every header byte pinned (`mtime=0`, OS byte 255, so the bytes do not depend on the platform), chain ids are content hashes and no wall-clock time is written. Tests: the
 synthetic build under `tests/golden/synthetic/` (regenerate with
 `python pipeline/scripts/make_golden.py`; it contains no NRWN data) is compared by tree hash
 against fresh builds made with two hash seeds and with shuffled and reversed input. CI builds

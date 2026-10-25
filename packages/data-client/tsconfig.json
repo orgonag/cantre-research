@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsc-check",
+    "tsBuildInfoFile": ".tsc-check/.tsbuildinfo",
+    "types": ["node"],
+    "paths": { "@cantre/core": ["../core/src/index.ts"] }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [{ "path": "../core" }]
+}

@@ -11,6 +11,8 @@ PipelineErrorCode = Literal[
     "UNSAFE_ARCHIVE",
     "TRUNCATED_DOWNLOAD",
     "INCOMPLETE_EXTRACTION",
+    "MERGE_CONFLICT",
+    "SIZE_GATE",
 ]
 """Closed set of fatal error codes; callers branch on ``PipelineError.code``.
 
@@ -19,6 +21,9 @@ PipelineErrorCode = Literal[
 a readable zip.
 ``INCOMPLETE_EXTRACTION``: the files on disk differ from the archive's file list (names, sizes or
 SHA-256), for example because a write failed or a Windows path was too long.
+``MERGE_CONFLICT``: a national build found the same id with different bytes in two tiles or
+provinces, mixed dataset versions, or a chain whose pieces disagree or leave a gap.
+``SIZE_GATE``: a national output file is larger than the 100 MB hosting limit.
 """
 
 

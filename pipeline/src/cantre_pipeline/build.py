@@ -57,6 +57,7 @@ class BuildResult:
         over_budget: ``(tile key, gzip bytes)`` of every tile above ``tile_budget_gzip_bytes``.
         gzip_bytes: Gzip size of every tile by key.
         audit_lines: Number of audit lines written.
+        tiles: The tile objects by key, as written (a national build merges them).
     """
 
     manifest: dict[str, Any]
@@ -65,6 +66,7 @@ class BuildResult:
     over_budget: list[tuple[str, int]]
     gzip_bytes: dict[str, int]
     audit_lines: int
+    tiles: dict[str, dict[str, Any]]
 
 
 def _attribution(
@@ -102,13 +104,16 @@ def build_province(
     sources: Sequence[SourceRecord],
     out_dir: Path,
     cfg: PipelineConfig,
+    dataset_version: str = DATASET_VERSION,
 ) -> BuildResult:
     """Build ``province`` from the NRWN files in ``nrwn_dir`` and the TC inventory ``tc_csv``.
 
     ``province`` is the lower-case code. ``sources`` are the provenance records copied into the
     manifest and report. Writes the tree in the module doc into ``out_dir`` (the ``tiles``
-    directory is replaced). The same inputs give byte-identical output: no wall-clock time is
-    written and every collection is sorted before it is serialised.
+    directory is replaced). ``dataset_version`` is stamped on every tile, the manifest and the
+    report; it defaults to the per-province version and a national build overrides it. The same
+    inputs give byte-identical output: no wall-clock time is written and every collection is
+    sorted before it is serialised.
 
     Raises:
         PipelineError: from the reader on schema drift or a CRS mismatch.
@@ -132,7 +137,7 @@ def build_province(
         interval_audit += chain_audit
     assets, asset_audit = extract_assets(net, chains, intervals, kept, tc_rows, cfg)
     tiles = build_tiles(
-        province, chains, net.segments, kept, intervals, assets, cfg, DATASET_VERSION
+        province, chains, net.segments, kept, intervals, assets, cfg, dataset_version
     )
 
     audit = [
@@ -154,7 +159,7 @@ def build_province(
         qualified_posted=[a for a in qualified if a.tier == "posted"],
     )
     total = totals_row(rows, audit)
-    report = build_report(province, rows, audit, chains, sources, DATASET_VERSION)
+    report = build_report(province, rows, audit, chains, sources, dataset_version)
 
     tiles_bytes = {key: canonical_json(tile) for key, tile in tiles.items()}
     totals = {
@@ -168,11 +173,11 @@ def build_province(
             tiles=tuple(sorted(tiles_bytes)),
         )
     }
-    manifest = build_manifest(sources, tiles_bytes, totals, cfg)
+    manifest = build_manifest(sources, tiles_bytes, totals, cfg, dataset_version)
     write_build(out_dir, tiles_bytes, manifest)
     write_audit_jsonl(out_dir / "audit" / f"{province}.jsonl", audit)
     write_reports(out_dir, province, report)
 
     sizes = {key: gzip_size(data) for key, data in tiles_bytes.items()}
     over = sorted((k, n) for k, n in sizes.items() if n > cfg.tile_budget_gzip_bytes)
-    return BuildResult(manifest, rows, total, over, sizes, len(audit))
+    return BuildResult(manifest, rows, total, over, sizes, len(audit), tiles)

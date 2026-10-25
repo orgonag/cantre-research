@@ -269,6 +269,17 @@ export function replay(
     if (result.chosen !== null) {
       expect(result.status, `${where}: only MATCHED carries a chosen track`).toBe('MATCHED');
     }
+    if (result.status === 'MATCHED_SUBDIVISION') {
+      expect(
+        result.rangeGroup.length,
+        `${where}: a subdivision group has 2+ tracks`,
+      ).toBeGreaterThan(1);
+      for (const c of result.rangeGroup) {
+        expect(result.candidates, `${where}: the range group is inside candidates`).toContain(c);
+      }
+    } else {
+      expect(result.rangeGroup, `${where}: only MATCHED_SUBDIVISION has a range group`).toEqual([]);
+    }
     results.push(result);
   });
   return { statuses: results.map((r) => r.status), results, ignored: ignoredSeen };

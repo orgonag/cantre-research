@@ -437,6 +437,48 @@ describe('MATCHED_SUBDIVISION range (Decision 9, ruling R11)', () => {
     expect(r.reasons).toContain('TRACK_UNCALIBRATED');
   });
 
+  it('a different railway beside a CONTINUITY-narrowed double track is in candidates, not in rangeGroup', () => {
+    // CN double track A (y 0) and A2 (y +5 m) in sub-cn; a CPKC line P (y -6 m) in sub-cp. A2 and
+    // P start at x 400 m, so the first fix (x 350 m) sees A alone and is MATCHED on A. The second
+    // fix (x 500 m, 1 m north of A) is within d_min + 10 m of all three: two routes, and the
+    // previous chain A keeps its own (sub-cn, CN) group by CONTINUITY.
+    const net = network({
+      coverage: [coverageAround(ORIGIN, 5000)],
+      chains: [
+        straightChain('A', ORIGIN, 0, 2000, { sub: 'sub-cn' }),
+        straightChain('A2', ORIGIN, 400, 2000, { sub: 'sub-cn', lateralM: -5 }),
+        straightChain('P', ORIGIN, 400, 2000, { sub: 'sub-cp', op: 'CPKC', lateralM: 6 }),
+      ],
+      intervals: [
+        interval('iA', 'A', [
+          { s: 0, mp: 0 },
+          { s: 2000, mp: 1 },
+        ]),
+        interval('iA2', 'A2', [
+          { s: 400, mp: 0.2 },
+          { s: 2000, mp: 1 },
+        ]),
+        interval('iP', 'P', [
+          { s: 400, mp: 70 },
+          { s: 2000, mp: 71 },
+        ]),
+      ],
+    });
+    const first = currentResult(play(net, [fixEvent(fixAt(350, 0, 1000))]), 1000);
+    expect(first.status).toBe('MATCHED');
+    expect(first.rangeGroup).toEqual([]);
+    const s = play(net, [fixEvent(fixAt(350, 0, 1000)), fixEvent(fixAt(500, 1, 11000))]);
+    const r = currentResult(s, 11000);
+    expect(r.status).toBe('MATCHED_SUBDIVISION');
+    expect(r.reasons).toContain('CONTINUITY');
+    expect(r.candidates.map((c) => c.chainId).sort()).toEqual(['A', 'A2', 'P']);
+    expect(r.rangeGroup.map((c) => c.chainId)).toEqual(['A', 'A2']);
+    expect(new Set(r.rangeGroup.map((c) => c.operator))).toEqual(new Set(['CN']));
+    // The range is CN's (about mp 0.25), never the CPKC line's mp 70.
+    expect(r.mpRange?.lowerMp).toBeCloseTo(0.25, 2);
+    expect(r.mpRange?.upperMp).toBeCloseTo(0.25, 2);
+  });
+
   it('a calibrated agreeing range keeps a user lock as origin', () => {
     const lock: Lock = { kind: 'subdivision', subdivisionNid: 'sub-1' };
     const s = play(parallel('calibrated'), [
@@ -794,6 +836,14 @@ describe('result invariants (property)', () => {
     }
     if (r.chosen !== null || r.s !== null) {
       expect(r.status).toBe('MATCHED');
+    }
+    if (r.status === 'MATCHED_SUBDIVISION') {
+      expect(r.rangeGroup.length).toBeGreaterThan(1);
+      for (const c of r.rangeGroup) {
+        expect(r.candidates).toContain(c);
+      }
+    } else {
+      expect(r.rangeGroup).toEqual([]);
     }
     expect(r.accuracyM).toBe(accuracyM);
     expect(r.datasetVersion).toBe('test-1');

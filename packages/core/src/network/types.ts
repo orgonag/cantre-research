@@ -1,4 +1,4 @@
-import type { Anchor } from '../anchors.js';
+import type { Anchor, AnchorTier } from '../anchors.js';
 import type { LatLon } from '../coords.js';
 
 /**
@@ -89,6 +89,55 @@ export type DiamondPosition = {
   readonly sM: number;
 };
 
+/** The kinds of asset the pipeline places on the network (tile schema `assets[].kind`). */
+export type AssetKind =
+  'crossing' | 'bridge' | 'moveableBridge' | 'tunnel' | 'culvert' | 'station' | 'diamond';
+
+/**
+ * Where an asset lies along one chain it was placed on.
+ *
+ * Units: `sM` is metres along the BASE chain (the midpoint of the stored start and end, the same
+ * rule as {@link DiamondPosition}); `residualM` is the distance from the asset to the chain in
+ * metres (a residual, not an accuracy). `derivedMp` is the milepost in miles that the pipeline
+ * derived at this position, or null when the position is not inside a calibrated interval or the
+ * start or end had none. For a line asset it is the milepost at the midpoint `sM`, interpolated
+ * inside the one calibrated interval that holds both ends; when no single interval holds both
+ * (for example across a milepost equation) it is null, never an average across the gap.
+ */
+export type AssetPosition = {
+  /** The pipeline (base) chain id. */
+  readonly chainId: string;
+  readonly sM: number;
+  readonly residualM: number;
+  readonly derivedMp: number | null;
+};
+
+/** An asset's own posted milepost, as published (miles) with its subdivision and tier. */
+export type AssetPosted = {
+  readonly mp: number;
+  readonly subdivisionNid: string;
+  readonly tier: AnchorTier;
+};
+
+/**
+ * One asset (level crossing, bridge, tunnel, culvert, station or diamond) on the network.
+ *
+ * `at` is a representative point in degrees: the asset's only vertex, or for a line asset the
+ * middle vertex (index floor((n - 1) / 2) of n), not an extent. `positions` is where the asset
+ * lies along each chain it was placed on (empty when it was placed on none). The asset's layer
+ * and source attributes are not here; they live in the separate asset-details file.
+ * Limits: positions are as good as the pipeline's snapping (see `residualM`); no safety or
+ * survey claim.
+ */
+export type NetworkAsset = {
+  readonly id: string;
+  readonly kind: AssetKind;
+  readonly name: string | null;
+  readonly posted: AssetPosted | null;
+  readonly positions: readonly AssetPosition[];
+  readonly at: LatLon;
+};
+
 /**
  * Everything the matcher needs, merged across the loaded tiles and sorted by id (code-point
  * order) so that the same tiles in any order give a deep-equal view.
@@ -104,4 +153,6 @@ export type NetworkView = {
   readonly segments: readonly NetworkSegment[];
   readonly intervals: readonly NetworkInterval[];
   readonly diamonds: readonly DiamondPosition[];
+  /** Every asset, sorted by id. `diamonds` is the subset of kind `diamond`, in match form. */
+  readonly assets: readonly NetworkAsset[];
 };

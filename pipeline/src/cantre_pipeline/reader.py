@@ -41,10 +41,12 @@ from cantre_pipeline.schema_nrwn import (
 )
 
 __all__ = [
+    "OPTIONAL_LAYERS",
     "TC_REQUIRED_COLUMNS",
     "RawFeature",
     "TcCrossing",
     "TcInventory",
+    "layer_published",
     "norm_subdivision",
     "read_layer",
     "read_tc_inventory",
@@ -67,6 +69,25 @@ class RawFeature:
     index: int
     attrs: dict[str, str]
     parts: list[list[tuple[float, float]]]
+
+
+OPTIONAL_LAYERS: frozenset[str] = frozenset({"MARKERPOST", "STRUCTURE_0"})
+"""Layers a package may leave out entirely, because NRCan publishes a layer only where it has
+features. Checked 2026-10-25 against the 11 published packages (from the member lists in
+``pipeline/sources/``): ``MARKERPOST`` is absent from the NRWN 1.0 packages of Newfoundland and
+Labrador and of Yukon, and ``STRUCTURE_0`` (point structures such as culverts) is absent from the
+Manitoba 2.0 package; every other layer is in all 11. Absence means "none published", never a
+guess: the layer reads as empty and the build audits it (``LAYER_ABSENT``). Every other layer is
+required, and a layer with only some of its files is still ``SCHEMA_DRIFT``."""
+
+
+def layer_published(directory: Path, province: str, layer: str) -> bool:
+    """True when any file of ``NRWN_<PR>_*_<LAYER>.*`` exists in ``directory``.
+
+    A layer with no file at all is absent; one with some files is published and
+    :func:`read_layer` then checks it fully (a missing ``.shp`` beside a ``.dbf`` is drift).
+    """
+    return any(directory.glob(f"NRWN_{province.upper()}_*_{layer}.*"))
 
 
 def _layer_base(directory: Path, province: str, layer: str) -> Path:

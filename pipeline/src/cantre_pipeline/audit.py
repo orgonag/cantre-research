@@ -54,9 +54,12 @@ AuditReason = Literal[
     "SECOND_SUBDIVISION_IGNORED",
     # assets
     "ASSET_UNPOSITIONED",
+    # package contents
+    "LAYER_ABSENT",
 ]
-"""The closed set of audit reason codes (34); ``ASSET_UNPOSITIONED`` (info) marks an asset that ends
-with no chain position, the cause being in the detail."""
+"""The closed set of audit reason codes (35); ``ASSET_UNPOSITIONED`` (info) marks an asset that ends
+with no chain position, the cause being in the detail. ``LAYER_ABSENT`` (info) marks an optional
+NRWN layer that the package does not publish at all (see ``reader.OPTIONAL_LAYERS``)."""
 
 AUDIT_REASONS: frozenset[str] = frozenset(get_args(AuditReason))
 

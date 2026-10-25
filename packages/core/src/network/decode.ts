@@ -3,8 +3,13 @@ import type { Anchor, AnchorSource, AnchorTier } from '../anchors.js';
 import { CANADA_ENVELOPE } from '../coords.js';
 import type { LatLon } from '../coords.js';
 import { CoreInputError } from '../errors.js';
+import { interpolateMilepost } from '../interpolate.js';
 import type {
+  AssetKind,
+  AssetPosition,
+  AssetPosted,
   DiamondPosition,
+  NetworkAsset,
   NetworkChain,
   NetworkInterval,
   NetworkSegment,
@@ -24,8 +29,17 @@ import type {
  * (metres = value / 1000). All values are integers, so the sums are exact in a double up to 2^53.
  */
 
-const ANCHOR_SOURCES: readonly string[] = ['crossing', 'station', 'structure', 'markerpost'];
-const ANCHOR_TIERS: readonly string[] = ['posted', 'tc', 'unverified'];
+export const ANCHOR_SOURCES: readonly string[] = ['crossing', 'station', 'structure', 'markerpost'];
+export const ANCHOR_TIERS: readonly string[] = ['posted', 'tc', 'unverified'];
+export const ASSET_KINDS: readonly string[] = [
+  'crossing',
+  'bridge',
+  'moveableBridge',
+  'tunnel',
+  'culvert',
+  'station',
+  'diamond',
+];
 
 /** |latitude| and |longitude| limits in microdegrees. A decoded value beyond them is corrupt. */
 const MAX_LAT_E6 = 90_000_000;
@@ -67,9 +81,8 @@ type ParsedTile = {
   }[];
   readonly assets: readonly {
     readonly raw: Rec;
-    readonly id: string;
-    readonly kind: string;
-    readonly positions: readonly { chainId: string; sStartMm: number; sEndMm: number }[];
+    /** The asset's validated parts; built into a NetworkAsset once the intervals are known. */
+    readonly parts: AssetParts;
   }[];
 };
 
@@ -208,7 +221,7 @@ function decodeLatLonE6(o: Rec, path: string): { latE6: number[]; lonE6: number[
 }
 
 /** Microdegree arrays to degree points: degrees = E6 / 1e6. */
-function toPoints(latE6: readonly number[], lonE6: readonly number[]): LatLon[] {
+export function toPoints(latE6: readonly number[], lonE6: readonly number[]): LatLon[] {
   return latE6.map((la, i) => ({ lat: la / 1e6, lon: (lonE6[i] as number) / 1e6 }));
 }
 
@@ -315,18 +328,205 @@ function parseInterval(raw: unknown, path: string): ParsedTile['intervals'][numb
   };
 }
 
+/** The input of {@link buildAsset}: one asset with its vertices already made absolute. */
+export type AssetParts = {
+  readonly id: string;
+  readonly kind: AssetKind;
+  readonly name: string | null;
+  readonly posted: AssetPosted | null;
+  readonly positions: readonly {
+    readonly chainId: string;
+    readonly sStartMm: number;
+    readonly sEndMm: number;
+    readonly residualMm: number;
+    readonly derivedMpStart: number | null;
+    readonly derivedMpEnd: number | null;
+  }[];
+  /** Absolute microdegrees, same length, at least one vertex. */
+  readonly latE6: readonly number[];
+  readonly lonE6: readonly number[];
+};
+
+/** The calibrated intervals of each chain, by chain id (an interval's `chainId`, the base id). */
+export type IntervalsByChain = ReadonlyMap<string, readonly NetworkInterval[]>;
+
+/** Groups intervals by their chain id, for {@link buildAsset}. */
+export function intervalsByChain(intervals: readonly NetworkInterval[]): IntervalsByChain {
+  const out = new Map<string, NetworkInterval[]>();
+  for (const iv of intervals) {
+    const list = out.get(iv.chainId) ?? [];
+    list.push(iv);
+    out.set(iv.chainId, list);
+  }
+  return out;
+}
+
+/**
+ * The derived milepost of one asset position, miles, or null.
+ *
+ * - Either stored end has no milepost: null (the pipeline found no calibrated interval there).
+ * - A point asset (`sStartMm === sEndMm`): the pipeline's own value at that point.
+ * - A line asset (bridge, tunnel): the milepost at its midpoint `sM` (metres), interpolated
+ *   linearly between the anchors of the ONE calibrated interval of the chain that contains both
+ *   ends (`interpolateMilepost`, the M1 rule). When no single interval contains both ends, for
+ *   example across a milepost equation or a gap between intervals, it is null: averaging the two
+ *   ends would interpolate across a discontinuity and give a milepost that is posted nowhere.
+ * Limits: the interval list is the decoded network's; an interval dropped for missing anchors
+ * makes the line asset's milepost null rather than guessed.
+ */
+function derivedMpOf(
+  p: AssetParts['positions'][number],
+  sM: number,
+  intervals: IntervalsByChain,
+): number | null {
+  if (p.derivedMpStart === null || p.derivedMpEnd === null) {
+    return null;
+  }
+  if (p.sStartMm === p.sEndMm) {
+    return p.derivedMpStart; // a point: start and end are the same place
+  }
+  const startM = p.sStartMm / 1000; // millimetres -> metres
+  const endM = p.sEndMm / 1000;
+  const holder = (intervals.get(p.chainId) ?? []).find((iv) => {
+    const first = iv.anchors[0];
+    const last = iv.anchors[iv.anchors.length - 1];
+    return first !== undefined && last !== undefined && first.s <= startM && endM <= last.s;
+  });
+  if (holder === undefined) {
+    return null;
+  }
+  const mp = interpolateMilepost(sM, holder.anchors);
+  return mp.kind === 'calibrated' ? mp.mp : null; // miles
+}
+
+/**
+ * Builds the app-facing {@link NetworkAsset} from stored integers. Shared by the tile and
+ * snapshot decoders so the two views are deep-equal.
+ *
+ * Formulas (units): `sM = (sStartMm + sEndMm) / 2 / 1000` metres (midpoint of the stored start
+ * and end, as for diamonds); `residualM = residualMm / 1000` metres; `derivedMp` in miles by
+ * {@link derivedMpOf} (a line asset's milepost is interpolated at its midpoint inside one
+ * interval, or null across an interval boundary); `at` = vertex floor((n - 1) / 2) in degrees
+ * (E6 / 1e6). `intervals` are the decoded network's calibrated intervals.
+ */
+export function buildAsset(a: AssetParts, intervals: IntervalsByChain): NetworkAsset {
+  const mid = Math.floor((a.latE6.length - 1) / 2); // index of the representative vertex
+  const positions: AssetPosition[] = a.positions.map((p) => {
+    const sM = (p.sStartMm + p.sEndMm) / 2 / 1000; // millimetres -> metres
+    return {
+      chainId: p.chainId,
+      sM,
+      residualM: p.residualMm / 1000, // millimetres -> metres
+      derivedMp: derivedMpOf(p, sM, intervals),
+    };
+  });
+  return {
+    id: a.id,
+    kind: a.kind,
+    name: a.name,
+    posted: a.posted,
+    positions,
+    at: { lat: (a.latE6[mid] as number) / 1e6, lon: (a.lonE6[mid] as number) / 1e6 },
+  };
+}
+
+/**
+ * One diamond position per `positions` entry of each asset of kind `diamond`, sorted by
+ * (asset id, chain id, s). Same midpoint rule as {@link buildAsset}: metres along the base chain.
+ */
+export function diamondsOf(assets: readonly NetworkAsset[]): DiamondPosition[] {
+  const out: DiamondPosition[] = [];
+  for (const asset of assets) {
+    if (asset.kind === 'diamond') {
+      for (const p of asset.positions) {
+        out.push({ assetId: asset.id, chainId: p.chainId, sM: p.sM });
+      }
+    }
+  }
+  return out.sort(
+    (a, b) => byString(a.assetId, b.assetId) || byString(a.chainId, b.chainId) || a.sM - b.sM,
+  );
+}
+
+function nullableNumberAt(o: Rec, key: string, path: string): number | null {
+  if (o[key] === null) {
+    return null;
+  }
+  return finiteAt(o, key, path);
+}
+
+function parsePosted(o: Rec, path: string): AssetPosted | null {
+  const v = o.posted;
+  if (v === null) {
+    return null;
+  }
+  const r = recAt(v, `${path}.posted`);
+  return {
+    mp: finiteAt(r, 'mp', `${path}.posted`),
+    subdivisionNid: strAt(r, 'subdivisionNid', `${path}.posted`),
+    tier: oneOf(r, 'tier', `${path}.posted`, ANCHOR_TIERS) as AnchorTier,
+  };
+}
+
+/**
+ * Decodes an asset's `latE6` / `lonE6` into absolute microdegrees: same length, at least one
+ * vertex, a real point on the globe (|lat| <= 90, |lon| <= 180 degrees). Unlike chain and segment
+ * vertices there is no Canada-envelope check: the matcher never projects onto an asset, so an
+ * odd asset position cannot make it throw, and M3's tests build tiles with placeholder assets.
+ */
+function decodeAssetVertices(o: Rec, path: string): { latE6: number[]; lonE6: number[] } {
+  const latE6 = decodeDeltas(o, 'latE6', path);
+  const lonE6 = decodeDeltas(o, 'lonE6', path);
+  if (latE6.length === 0) {
+    invalid(`${path}.latE6`, 'expected at least one vertex');
+  }
+  if (lonE6.length !== latE6.length) {
+    invalid(`${path}.lonE6`, 'length differs from latE6');
+  }
+  if (latE6.some((v) => Math.abs(v) > MAX_LAT_E6)) {
+    invalid(`${path}.latE6`, 'decoded latitude outside +-90 degrees');
+  }
+  if (lonE6.some((v) => Math.abs(v) > MAX_LON_E6)) {
+    invalid(`${path}.lonE6`, 'decoded longitude outside +-180 degrees');
+  }
+  return { latE6, lonE6 };
+}
+
 function parseAsset(raw: unknown, path: string): ParsedTile['assets'][number] {
   const o = recAt(raw, path);
   const positions = arrAt(o, 'positions', path).map((p, i) => {
     const pp = `${path}.positions[${String(i)}]`;
     const r = recAt(p, pp);
+    const residualMm = intAt(r, 'residualMm', pp);
+    if (residualMm < 0) {
+      invalid(`${pp}.residualMm`, 'expected a non-negative integer');
+    }
     return {
       chainId: strAt(r, 'chainId', pp),
       sStartMm: intAt(r, 'sStartMm', pp),
       sEndMm: intAt(r, 'sEndMm', pp),
+      residualMm,
+      derivedMpStart: nullableNumberAt(r, 'derivedMpStart', pp),
+      derivedMpEnd: nullableNumberAt(r, 'derivedMpEnd', pp),
     };
   });
-  return { raw: o, id: strAt(o, 'id', path), kind: strAt(o, 'kind', path), positions };
+  const name = o.name;
+  if (name !== null && typeof name !== 'string') {
+    invalid(`${path}.name`, 'expected a string or null');
+  }
+  const { latE6, lonE6 } = decodeAssetVertices(o, path);
+  return {
+    raw: o,
+    parts: {
+      id: strAt(o, 'id', path),
+      kind: oneOf(o, 'kind', path, ASSET_KINDS) as AssetKind,
+      name,
+      posted: parsePosted(o, path),
+      positions,
+      latE6,
+      lonE6,
+    },
+  };
 }
 
 function parseTile(raw: unknown, index: number): ParsedTile {
@@ -370,7 +570,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 }
 
 /** Code-point order, so results do not depend on the host locale. */
-function byString(a: string, b: string): number {
+export function byString(a: string, b: string): number {
   if (a < b) {
     return -1;
   }
@@ -492,6 +692,7 @@ function mergePieces(
  *   never throw on a decoded network, so a bad interval is rejected here, loudly).
  * - Every vertex lies inside `CANADA_ENVELOPE` and chain `sMm` never decreases, else
  *   `INVALID_TILE` (ruling R28).
+ * - Every asset becomes a {@link NetworkAsset} (see {@link buildAsset}), sorted by id.
  * - A diamond position is emitted for each `positions` entry of each asset of kind `diamond`,
  *   at the midpoint of its stored start and end: sM = (sStartMm + sEndMm) / 2 / 1000 metres. The
  *   pipeline stores a point diamond with start = end, so the midpoint is that point; if a diamond
@@ -542,7 +743,7 @@ export function networkFromTiles(tiles: readonly unknown[]): NetworkView {
       addUnique(intervals, v.id, v, v.raw, 'interval');
     }
     for (const a of t.assets) {
-      addUnique(assets, a.id, a, a.raw, 'asset');
+      addUnique(assets, a.parts.id, a, a.raw, 'asset');
     }
   }
 
@@ -579,22 +780,10 @@ export function networkFromTiles(tiles: readonly unknown[]): NetworkView {
   }
   outIntervals.sort((a, b) => byString(a.id, b.id));
 
-  const diamonds: DiamondPosition[] = [];
-  for (const asset of assets.values()) {
-    if (asset.kind === 'diamond') {
-      for (const p of asset.positions) {
-        // millimetres -> metres: midpoint of start and end, divided by 1000.
-        diamonds.push({
-          assetId: asset.id,
-          chainId: p.chainId,
-          sM: (p.sStartMm + p.sEndMm) / 2 / 1000,
-        });
-      }
-    }
-  }
-  diamonds.sort(
-    (a, b) => byString(a.assetId, b.assetId) || byString(a.chainId, b.chainId) || a.sM - b.sM,
-  );
+  const byChain = intervalsByChain(outIntervals);
+  const outAssets = [...assets.values()]
+    .map((a) => buildAsset(a.parts, byChain))
+    .sort((a, b) => byString(a.id, b.id));
 
   const coverage = parsed
     .map((t) => t.bounds)
@@ -609,6 +798,7 @@ export function networkFromTiles(tiles: readonly unknown[]): NetworkView {
       .filter((s) => s.chainId === null)
       .sort((a, b) => byString(a.key, b.key)),
     intervals: outIntervals,
-    diamonds,
+    diamonds: diamondsOf(outAssets),
+    assets: outAssets,
   };
 }

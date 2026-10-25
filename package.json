@@ -6,7 +6,8 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "app"
   ],
   "engines": {
     "node": ">=22.13"

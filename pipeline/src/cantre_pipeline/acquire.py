@@ -18,6 +18,8 @@ import os
 import re
 import shutil
 import tempfile
+import time
+import urllib.error
 import urllib.request
 import zipfile
 import zlib
@@ -33,6 +35,12 @@ from cantre_pipeline.provinces import OGL_NAME, OGL_URL, SourceSpec, source_spec
 
 Opener = Callable[..., Any]
 """``urllib.request.urlopen``-compatible callable; tests inject a local-server opener."""
+
+MAX_ATTEMPTS = 5
+"""Download attempts per source: one try plus up to four retries (M4 Task 1)."""
+
+_BACKOFF_BASE_S = 1.0
+"""Wait before retry ``n`` (1-based) is ``_BACKOFF_BASE_S * 2 ** (n - 1)`` seconds: 1, 2, 4, 8."""
 
 _CHUNK = 1 << 20
 _USER_AGENT = "cantre-pipeline/0.1 (research; +https://github.com/orgonag/cantre-research)"
@@ -147,6 +155,44 @@ def _download(
         part.unlink(missing_ok=True)
         raise
     return part, digest.hexdigest(), size, last_modified
+
+
+def _is_transient(exc: BaseException | None) -> bool:
+    """True for a timeout or connection failure, the only errors worth retrying.
+
+    An :class:`~urllib.error.HTTPError` (the server answered, e.g. 404) is not transient, and
+    neither is a short body (``TRUNCATED_DOWNLOAD``): both repeat identically. A
+    :class:`~urllib.error.URLError` is transient when the error it wraps is.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return False
+    if isinstance(exc, urllib.error.URLError):
+        return _is_transient(exc.reason if isinstance(exc.reason, BaseException) else None)
+    return isinstance(exc, TimeoutError | ConnectionError)
+
+
+def _download_with_retries(
+    spec: SourceSpec, cache_dir: Path, opener: Opener, sleep: Callable[[float], None]
+) -> tuple[Path, str, int, str | None]:
+    """Call :func:`_download` up to ``MAX_ATTEMPTS`` times, retrying only transient failures.
+
+    Waits 1, 2, 4, 8 s between attempts (``sleep`` is injected so tests do not wait). The hash
+    check happens in the caller, after this returns, so a hash mismatch is never retried. The
+    last ``DOWNLOAD_FAILED`` is re-raised once the attempts are used up, with the attempt count
+    in its message.
+    """
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return _download(spec, cache_dir, opener)
+        except PipelineError as exc:
+            if exc.code != "DOWNLOAD_FAILED" or not _is_transient(exc.__cause__):
+                raise
+            if attempt == MAX_ATTEMPTS:
+                raise PipelineError(
+                    "DOWNLOAD_FAILED", f"{exc} (gave up after {MAX_ATTEMPTS} attempts)"
+                ) from exc.__cause__
+            sleep(_BACKOFF_BASE_S * 2 ** (attempt - 1))
+    raise AssertionError("unreachable")  # pragma: no cover - the loop returns or raises
 
 
 def _check_member_name(name: str) -> str:
@@ -290,6 +336,7 @@ def acquire(
     sources_dir: Path,
     record: bool = False,
     opener: Opener = urllib.request.urlopen,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> tuple[SourceRecord, Path]:
     """Fetch ``source_id``, verify or record its provenance, and return (record, directory).
 
@@ -304,6 +351,7 @@ def acquire(
         sources_dir: Directory of committed ``<id>.json`` provenance files.
         record: Measure and write provenance instead of verifying it.
         opener: ``urlopen``-compatible callable (injected in tests).
+        sleep: Backoff wait between download attempts, in seconds (injected in tests).
 
     Raises:
         PipelineError: ``UNKNOWN_PROVINCE``, ``DOWNLOAD_FAILED``, ``HASH_MISMATCH``,
@@ -321,7 +369,7 @@ def acquire(
         raw, sha256, size = cached, known.sha256, cached.stat().st_size
     else:
         retrieved = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        part, sha256, size, last_modified = _download(spec, cache_dir, opener)
+        part, sha256, size, last_modified = _download_with_retries(spec, cache_dir, opener, sleep)
         if known is not None and sha256 != known.sha256:
             part.unlink()
             raise PipelineError(

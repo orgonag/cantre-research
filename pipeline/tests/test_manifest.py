@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -155,7 +156,7 @@ def test_tile_provinces_come_from_the_totals(
         "sk": totals_for(r.tiles)["sk"],
         "ab": ProvinceTotals(0.0, 0.0, 0.0, {}, 0, {}, ("208_-213",)),
     }
-    m = build_manifest([SOURCE], tb, two, CFG)
+    m = build_manifest([SOURCE, replace(SOURCE, sourceId="ab")], tb, two, CFG)
     by_key = {t["key"]: t["provinces"] for t in m["tiles"]}
     assert by_key["208_-213"] == ["ab", "sk"] and by_key["208_-212"] == ["sk"]
 
@@ -191,3 +192,20 @@ def test_build_bytes_stable_across_hash_seeds(tmp_path: Path) -> None:
         )
         outs.append(res.stdout.strip())
     assert outs[0] == outs[1] and len(outs[0]) == 64
+
+
+def test_province_package_version_and_dataset_version_override(
+    built: tuple[Run, dict[str, bytes], dict[str, Any]],
+) -> None:
+    r, tb, m = built
+    assert m["provinces"]["sk"]["packageVersion"] == SOURCE.packageVersion
+    national = build_manifest([SOURCE], tb, totals_for(r.tiles), CFG, "nrwn-national-00000000+x")
+    assert national["datasetVersion"] == "nrwn-national-00000000+x"
+
+
+def test_manifest_rejects_province_without_source(
+    built: tuple[Run, dict[str, bytes], dict[str, Any]],
+) -> None:
+    r, tb, _ = built
+    with pytest.raises(ValueError, match="no source record"):
+        build_manifest([TC_SOURCE], tb, totals_for(r.tiles), CFG)

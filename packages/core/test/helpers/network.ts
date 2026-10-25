@@ -13,6 +13,7 @@ import type {
   Anchor,
   DiamondPosition,
   LatLon,
+  NetworkAsset,
   NetworkChain,
   NetworkInterval,
   NetworkSegment,
@@ -168,6 +169,7 @@ export type NetworkParts = {
   readonly segments?: readonly NetworkSegment[];
   readonly intervals?: readonly NetworkInterval[];
   readonly diamonds?: readonly DiamondPosition[];
+  readonly assets?: readonly NetworkAsset[];
 };
 
 /** Composes a `NetworkView`. Order is kept as given (tests shuffle it on purpose). */
@@ -179,6 +181,7 @@ export function network(parts: NetworkParts = {}): NetworkView {
     segments: parts.segments ?? [],
     intervals: parts.intervals ?? [],
     diamonds: parts.diamonds ?? [],
+    assets: parts.assets ?? [],
   };
 }
 
@@ -198,4 +201,21 @@ export function withDiamond(
   sM: number,
 ): NetworkView {
   return { ...net, diamonds: [...net.diamonds, { assetId, chainId, sM }] };
+}
+
+/** A point asset on the BASE chain `chainId` at `sM` metres; other fields default. */
+export function pointAsset(
+  id: string,
+  chainId: string,
+  sM: number,
+  opts: { readonly kind?: NetworkAsset['kind']; readonly name?: string | null } = {},
+): NetworkAsset {
+  return {
+    id,
+    kind: opts.kind ?? 'crossing',
+    name: opts.name ?? null,
+    posted: null,
+    positions: [{ chainId, sM, residualM: 0, derivedMp: null }],
+    at: ORIGIN,
+  };
 }

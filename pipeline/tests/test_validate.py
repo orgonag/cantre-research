@@ -10,6 +10,7 @@ import pytest
 
 from cantre_pipeline.audit import AuditReason, AuditRecord, write_audit_jsonl
 from cantre_pipeline.config import PipelineConfig
+from cantre_pipeline.errors import PipelineError
 from cantre_pipeline.geodesy import LatLon
 from cantre_pipeline.model import Network
 from cantre_pipeline.validate import load_network
@@ -30,10 +31,16 @@ def _reasons(net: Network) -> Counter[str]:
     return Counter(a.reason for a in net.audit)
 
 
-def test_reason_set_is_the_closed_set_of_34() -> None:
+def test_reason_set_is_the_closed_set_of_35() -> None:
     reasons = set(get_args(AuditReason))
-    assert len(reasons) == 34
-    assert {"NULL_GEOMETRY", "TC_DUPLICATE_NUMBER", "CHAIN_CYCLE", "ANCHOR_OUTLIER"} <= reasons
+    assert len(reasons) == 35
+    assert {
+        "NULL_GEOMETRY",
+        "TC_DUPLICATE_NUMBER",
+        "CHAIN_CYCLE",
+        "ANCHOR_OUTLIER",
+        "LAYER_ABSENT",
+    } <= reasons
 
 
 def test_valid_package_maps_to_dataclasses(tmp_path: Path) -> None:
@@ -308,3 +315,52 @@ def test_loads_real_sk_network_and_accounts_for_every_record() -> None:
     assert len(net.junctions) + rejected["JUNCTION"] == 5163
     assert len({s.key for s in net.segments}) == len(net.segments)  # keys are unique
     assert sum(1 for a in net.audit if a.reason == "DUPLICATE_SEGID") == 1
+
+
+def _fixture_with_track(tmp_path: Path) -> NrwnFixture:
+    fx = NrwnFixture(tmp_path)
+    fx.track("SEG1", [A, B, C], nid="T1")
+    fx.crossing("X1", B, "T1", mp=3.5)
+    return fx
+
+
+@pytest.mark.parametrize("layer", ["MARKERPOST", "STRUCTURE_0"])
+def test_a_package_without_an_optional_layer_has_an_empty_one(tmp_path: Path, layer: str) -> None:
+    """NL and YT publish no MARKERPOST file and MB no STRUCTURE_0: nothing is invented for it."""
+    fx = _fixture_with_track(tmp_path)
+    shp = fx.write()
+    for f in shp.glob(f"NRWN_SK_2_0_{layer}.*"):
+        f.unlink()
+    net = load_network(shp, "sk", CFG)
+    assert net.markerposts == ()
+    assert net.structures_pt == ()
+    assert len(net.segments) == 1
+    assert len(net.crossings) == 1
+    absent = [a for a in net.audit if a.reason == "LAYER_ABSENT"]
+    assert [(a.layer, a.nid, a.severity) for a in absent] == [(layer, "-", "info")]
+
+
+def test_a_present_but_empty_optional_layer_is_not_reported_absent(tmp_path: Path) -> None:
+    net = _load(_fixture_with_track(tmp_path))
+    assert net.markerposts == ()
+    assert "LAYER_ABSENT" not in _reasons(net)
+
+
+@pytest.mark.parametrize("layer", ["TRACK", "CROSSING", "STATION", "STRUCTURE_1", "JUNCTION"])
+def test_any_other_missing_layer_is_still_schema_drift(tmp_path: Path, layer: str) -> None:
+    fx = _fixture_with_track(tmp_path)
+    shp = fx.write()
+    for f in shp.glob(f"NRWN_SK_2_0_{layer}.*"):
+        f.unlink()
+    with pytest.raises(PipelineError) as err:
+        load_network(shp, "sk", CFG)
+    assert err.value.code == "SCHEMA_DRIFT"
+
+
+def test_a_markerpost_layer_with_only_some_files_is_still_drift(tmp_path: Path) -> None:
+    fx = _fixture_with_track(tmp_path)
+    shp = fx.write()
+    (shp / "NRWN_SK_2_0_MARKERPOST.shp").unlink()  # the .dbf and .prj remain
+    with pytest.raises(PipelineError) as err:
+        load_network(shp, "sk", CFG)
+    assert err.value.code == "SCHEMA_DRIFT"

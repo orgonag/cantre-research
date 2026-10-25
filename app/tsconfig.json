@@ -1,0 +1,31 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".tsc-check",
+    "tsBuildInfoFile": ".tsc-check/.tsbuildinfo",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "resolveJsonModule": true,
+    "paths": {
+      "@cantre/core": ["../packages/core/src/index.ts"],
+      "@cantre/data-client": ["../packages/data-client/src/index.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.json",
+    "test/**/*.ts",
+    "e2e/**/*.ts",
+    "playwright.config.ts",
+    "vite.config.ts",
+    "licenses-plugin.ts",
+    "vitest.config.ts"
+  ],
+  "references": [{ "path": "../packages/core" }, { "path": "../packages/data-client" }]
+}

@@ -1,11 +1,13 @@
 """Number and byte encoding for tiles and the manifest (spec section 5.7, Global Constraints).
 
 Coordinates are stored as integer microdegrees, arrays as first-absolute-then-differences, JSON as
-canonical UTF-8 bytes and sizes as gzip level 9 with ``mtime=0``. Nothing here reads a clock.
+canonical UTF-8 bytes and sizes as gzip level 9 with every header byte pinned
+(:func:`gzip_bytes`). Nothing here reads a clock.
 """
 
-import gzip
 import json
+import struct
+import zlib
 from collections.abc import Sequence
 
 
@@ -46,6 +48,27 @@ def canonical_json(obj: object) -> bytes:
     return (text + "\n").encode("utf-8")
 
 
+# gzip member header (RFC 1952 section 2.3), all ten bytes fixed so the output does not depend on
+# the platform or zlib build: ID1 ID2 = 1f 8b, CM = 8 (deflate), FLG = 0 (no name, extra, comment or
+# header CRC), MTIME = 0 (4 bytes, no clock), XFL = 2 (slowest compression, level 9), OS = 255
+# (unknown). zlib's own wrapper writes its build platform's OS code here (3 on Unix, 10 on Windows),
+# which made the same input give different bytes on Linux CI and on a Windows machine.
+_GZIP_HEADER = b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\xff"
+
+
+def gzip_bytes(data: bytes) -> bytes:
+    """Gzip ``data`` at level 9 with a fully pinned header: same header bytes on every platform.
+
+    Layout: the 10-byte header above, a raw deflate stream (``wbits=-15``, level 9, default
+    memLevel), then CRC-32 and ISIZE (``len(data)`` mod 2**32), each 4 bytes little-endian. Only
+    the header's platform byte used to differ between machines; the deflate stream is what zlib's
+    level 9 gives for the input.
+    """
+    comp = zlib.compressobj(9, zlib.DEFLATED, -15)
+    body = comp.compress(data) + comp.flush()
+    return _GZIP_HEADER + body + struct.pack("<II", zlib.crc32(data), len(data) & 0xFFFFFFFF)
+
+
 def gzip_size(data: bytes) -> int:
-    """Return the gzip size of ``data`` in bytes, level 9, ``mtime=0`` (the tile budget metric)."""
-    return len(gzip.compress(data, compresslevel=9, mtime=0))
+    """Return the gzip size of ``data`` in bytes, level 9 (the tile budget metric)."""
+    return len(gzip_bytes(data))

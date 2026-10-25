@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cantre.invalid/schema/manifest.schema.json",
   "title": "CANTRE manifest (cantre.manifest/1)",
-  "description": "Build manifest: versions, configuration, sources, per-province totals (km, counts) and per-tile hashes and sizes (bytes).",
+  "description": "Build manifest: versions, configuration, sources, per-province totals (km, counts) and per-tile hashes and sizes (bytes). A national build (python -m cantre_pipeline national) also sets snapshot, assetDetails and snapshotDate, and lists no tiles: the tiles are built and size-checked but only the two data files are deployed.",
   "type": "object",
   "properties": {
     "schema": {
@@ -136,6 +136,10 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
+          "packageVersion": {
+            "type": "string",
+            "description": "NRWN package version of this province, e.g. 2.0"
+          },
           "chainKm": {
             "type": "number",
             "minimum": 0
@@ -174,6 +178,7 @@
           }
         },
         "required": [
+          "packageVersion",
           "chainKm",
           "calibratedKm",
           "calibratedKmPostedOnly",
@@ -231,6 +236,24 @@
         ],
         "additionalProperties": false
       }
+    },
+    "snapshot": {
+      "$ref": "#/$defs/fileRef",
+      "description": "The national snapshot (layout: schema/snapshot.md). Present only in a national manifest."
+    },
+    "snapshotFormat": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The snapshot's byte-layout version (the format byte after the magic, schema/snapshot.md). A client that does not support it must refuse the build before downloading anything. Present only in a national manifest."
+    },
+    "assetDetails": {
+      "$ref": "#/$defs/fileRef",
+      "description": "Asset details (layer and attributes by asset id), downloaded together with the snapshot. Present only in a national manifest."
+    },
+    "snapshotDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "UTC date (YYYY-MM-DD) of the latest source retrieval the snapshot used, or the date given to the build; never the wall clock. Present only in a national manifest."
     }
   },
   "required": [
@@ -267,6 +290,35 @@
         "west",
         "north",
         "east"
+      ],
+      "additionalProperties": false
+    },
+    "fileRef": {
+      "type": "object",
+      "description": "A published file. sha256 is the SHA-256 of the file at path exactly as served (the gzip bytes), so a client can check it before decoding. bytes is the size of the decompressed content; gzipBytes is the size of the file at path.",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File name, relative to the manifest."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gzipBytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "bytes",
+        "gzipBytes"
       ],
       "additionalProperties": false
     }
