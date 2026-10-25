@@ -40,6 +40,12 @@ const prefersDark = (): boolean =>
  * Privacy (ruling P15, decision D2): with `basemap` false the map uses an inline style with no
  * glyphs, no sprite and no symbol layer, so it fetches nothing. With `basemap` true it loads the
  * OpenFreeMap style, the only extra host; the caller shows the consent notice first.
+ *
+ * The map is always created with the offline style, which carries the app's own sources and
+ * layers. The basemap, whether already on when the map opens (stored consent) or turned on
+ * later, is applied by one path: `setStyle(BASEMAP_STYLE_URL, { transformStyle })`, which adds
+ * the app's sources and layers on top of the remote style, watched for failure. So the tracks,
+ * assets, "you" marker and pins draw in every case.
  * Tracks and assets are drawn from a copy of the network (`displayDataOf`), built once; the
  * calculation geometry is never changed. The "you" marker uses the last accepted fix only.
  * A tap calls `milepostAtPoint` and shows the result as "from map position, no GPS": it never
@@ -140,7 +146,9 @@ export function MapView(props: {
         const start = first.fix ?? first.pins[0]?.at ?? null;
         const map = new maplibre.Map({
           container: element,
-          style: first.basemap ? BASEMAP_STYLE_URL : offlineStyle(prefersDark()),
+          // Always the offline style first; the basemap effect below swaps in the remote style
+          // through the same path as a later toggle, so the app's layers are always added.
+          style: offlineStyle(prefersDark()),
           center: start === null ? CANADA_CENTER : [start.lon, start.lat],
           zoom: start === null ? CANADA_ZOOM : CLOSE_ZOOM,
           // The attribution is drawn by this component, so it can follow the basemap setting.
@@ -150,9 +158,6 @@ export function MapView(props: {
         });
         map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
         mapRef.current = map;
-        if (first.basemap) {
-          watchBasemap(map);
-        }
         map.on('style.load', () => {
           watch.current.ready = true;
           stopTimer();
@@ -182,13 +187,15 @@ export function MapView(props: {
     // `pushAll` reads refs only; the map is created once per mount.
   }, []);
 
-  // Switch the basemap on or off after creation. The app's own sources and layers are put back
-  // on top of the new style, and their data is pushed again on `style.load`.
-  const applied = useRef(basemap);
+  // Apply the basemap setting to the map: once it exists (it starts with the offline style, so
+  // `applied` starts false) and on every later toggle. `applied` records what the map shows, so
+  // it is not touched before the map exists: the effect runs again when `state` turns 'ready'.
+  // The app's own sources and layers are put back on top of the new style, and their data is
+  // pushed again on `style.load`.
+  const applied = useRef(false);
   useEffect(() => {
     const map = mapRef.current;
     if (map === null || applied.current === basemap) {
-      applied.current = basemap;
       return;
     }
     applied.current = basemap;

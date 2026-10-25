@@ -425,6 +425,75 @@ test.describe('data updates', () => {
     ).toEqual([`cantre-data-${next.datasetVersion}`]);
   });
 
+  test('a download that passes its hash but cannot be read keeps the old data', async ({
+    page,
+    context,
+  }) => {
+    const current = JSON.parse(
+      readFileSync(new URL('./fixtures/data/manifest.json', import.meta.url), 'utf8'),
+    ) as { snapshot: { path: string; sha256: string; bytes: number; gzipBytes: number } };
+    await openAndInstall(page);
+    await moveTo(context, PLACES.chain);
+    await expect(card(page).locator('.card__mp')).toHaveText('MP 11.91');
+    const before = (await page.evaluate(() => caches.keys())).filter((n) =>
+      n.startsWith('cantre-data-'),
+    );
+
+    // The new manifest names the old build's snapshot bytes, so the file passes its hash, but
+    // it holds another build's dataset version and cannot be this one: it must not be installed.
+    const odd = JSON.parse(nextManifest) as Record<string, unknown> & {
+      snapshot: Record<string, unknown>;
+    };
+    odd.snapshot = { ...current.snapshot, path: next.snapshot.path };
+    await page.route('**/data/manifest.json', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(odd) }),
+    );
+    await page.route(`**/data/${next.snapshot.path}`, async (route) => {
+      const response = await route.fetch({
+        url: route.request().url().replace(next.snapshot.path, current.snapshot.path),
+      });
+      await route.fulfill({ response });
+    });
+    await openScreen(page, 'Offline data');
+    await page.getByRole('button', { name: /^Update data \(/ }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'could not be read' })).toContainText(
+      'The data was downloaded but could not be read. It was not used.',
+    );
+    expect(
+      (await page.evaluate(() => caches.keys())).filter((n) => n.startsWith('cantre-data-')),
+    ).toEqual(before);
+    await backToPosition(page);
+    await expect(card(page).locator('.card__mp')).toHaveText('MP 11.91');
+  });
+
+  test('a build in a snapshot format this app cannot read is refused before downloading', async ({
+    page,
+    context,
+    traffic,
+  }) => {
+    await openAndInstall(page);
+    await moveTo(context, PLACES.chain);
+    await expect(card(page).locator('.card__mp')).toHaveText('MP 11.91');
+    const before = (await page.evaluate(() => caches.keys())).filter((n) =>
+      n.startsWith('cantre-data-'),
+    );
+    const future = { ...(JSON.parse(nextManifest) as Record<string, unknown>), snapshotFormat: 2 };
+    await page.route('**/data/manifest.json', (route) =>
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(future) }),
+    );
+    await openScreen(page, 'Offline data');
+    await page.getByRole('button', { name: /^Update data \(/ }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'newer version' })).toContainText(
+      'This data needs a newer version of the app.',
+    );
+    expect(traffic.urls().filter((u) => u.includes(next.snapshot.path))).toEqual([]);
+    expect(
+      (await page.evaluate(() => caches.keys())).filter((n) => n.startsWith('cantre-data-')),
+    ).toEqual(before);
+    await backToPosition(page);
+    await expect(card(page).locator('.card__mp')).toHaveText('MP 11.91');
+  });
+
   test('a download that is cut short is rejected and the first run can retry', async ({ page }) => {
     await openApp(page);
     let calls = 0;
@@ -523,6 +592,62 @@ test.describe('the map and the basemap consent', () => {
     // The consent is the one thing remembered, in settings.
     const settings = await page.evaluate(() => localStorage.getItem('cantre.settings.v1'));
     expect(JSON.parse(settings ?? '{}')).toMatchObject({ basemap: true });
+  });
+});
+
+test.describe('the map with the basemap consent already stored', () => {
+  test('a return visit opens the map on the basemap and still draws the tracks', async ({
+    page,
+    context,
+    traffic,
+  }) => {
+    traffic.basemapConsented = true; // the stored setting is the user's consent
+    // The basemap host is answered by a small local stand-in style (a plain background, no
+    // tiles, no glyphs), so no real external request is made. Anything else on it fails.
+    const stub = {
+      version: 8,
+      sources: {},
+      // A colour the app never uses, so a screenshot shows that the stand-in style is drawn.
+      layers: [{ id: 'stub-bg', type: 'background', paint: { 'background-color': '#ff00ff' } }],
+    };
+    const styleAsked: string[] = [];
+    await context.route(`**://${BASEMAP_HOST}/**`, (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === '/styles/liberty') {
+        styleAsked.push(url.href);
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify(stub) });
+      }
+      return route.abort('failed');
+    });
+    await openAndInstall(page);
+    await moveTo(context, PLACES.chain);
+    await expect(headline(page)).toHaveText('Matched to a track');
+
+    // A later visit: the consent is already in the settings when the app starts.
+    await page.evaluate(() => {
+      const key = 'cantre.settings.v1';
+      const stored = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
+      localStorage.setItem(key, JSON.stringify({ ...stored, basemap: true }));
+    });
+    await page.reload();
+    await expect(headline(page)).toHaveText('Matched to a track');
+    await page.getByRole('button', { name: 'Show map' }).click();
+    await expect(page.locator('.map__canvas canvas')).toBeVisible();
+    await expect(page.locator('.map__attribution')).toContainText('OpenStreetMap');
+    // The stand-in basemap and the app's tracks in the same picture: the tracks are drawn on top
+    // of the basemap style, not only on the offline style the map starts with.
+    await expect
+      .poll(async () => {
+        const shot = await page.locator('.map__canvas').screenshot();
+        const basemapPx = await countColour(context, shot, [0xff, 0x00, 0xff], 24);
+        const trackPx = await countColour(context, shot, TRACK_RGB, 24);
+        return basemapPx > 1000 && trackPx > 100;
+      })
+      .toBe(true);
+    expect(styleAsked.length).toBeGreaterThan(0);
+    await expect(
+      page.getByText('The basemap could not be loaded, so the plain background is shown.'),
+    ).toHaveCount(0);
   });
 });
 
