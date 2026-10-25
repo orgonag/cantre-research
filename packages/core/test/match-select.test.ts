@@ -221,6 +221,21 @@ describe('selectCandidate rules', () => {
     expect(s.reasons).toEqual(['LOCKED_BY_USER']);
   });
 
+  it('5. R29: a chain lock may name the piece id (id#2) as well as the base id', () => {
+    const piece = cand('c1#2', 3, { chainBaseId: 'c1' });
+    const s = direct([piece, cand('other', 4, { subdivisionNid: 'sub-2' })], {
+      lock: { kind: 'chain', chainId: 'c1#2' },
+    });
+    expect(s.status).toBe('MATCHED');
+    expect(s.chosen?.chainId).toBe('c1#2');
+    expect(s.selectionOrigin).toBe('user');
+    // A piece-id lock does not capture the other pieces of the base chain.
+    const other = direct([cand('c1', 3), cand('x', 30, { subdivisionNid: 'sub-2' })], {
+      lock: { kind: 'chain', chainId: 'c1#2' },
+    });
+    expect(other.status).toBe('LOCK_CONFLICT');
+  });
+
   it('5. a subdivision lock with several tracks is MATCHED_SUBDIVISION with origin user', () => {
     const s = direct(
       [cand('a', 3), cand('b', 5), cand('x', 4, { subdivisionNid: 'sub-2', operator: 'CP' })],

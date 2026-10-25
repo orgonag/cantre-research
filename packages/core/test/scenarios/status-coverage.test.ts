@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { MATCH_STATUSES } from '../../src/index.js';
-import type { MatchStatus } from '../../src/index.js';
+import { MATCH_REASONS, MATCH_STATUSES } from '../../src/index.js';
+import type { MatchReason, MatchStatus } from '../../src/index.js';
 import { scenarios as coverage } from './coverage.scenarios.js';
 import { scenarios as diamond } from './diamond.scenarios.js';
 import { scenarios as doubleTrack } from './double-track.scenarios.js';
@@ -65,5 +65,28 @@ describe('scenario replays cover every match status', () => {
       const b = replay(sc.net, sc.steps).results;
       expect(b, sc.name).toEqual(a);
     }
+  });
+});
+
+/**
+ * Reason-code coverage guard: every code of the closed MatchReason vocabulary is produced by at
+ * least one scenario replay, either in a result's `reasons` or as `reduce`'s `ignored` reason
+ * (FIX_IGNORED_*). Each replayed step has already asserted its exact reason list where it states
+ * one, so every code is reachable through the public reducer, not only in unit tests.
+ */
+describe('scenario replays cover every reason code', () => {
+  const seen = new Set<MatchReason>();
+  beforeAll(() => {
+    for (const sc of ALL) {
+      const { results, ignored } = replay(sc.net, sc.steps);
+      for (const r of results) {
+        r.reasons.forEach((x) => seen.add(x));
+      }
+      ignored.forEach((x) => seen.add(x));
+    }
+  });
+
+  it.each([...MATCH_REASONS])('produces %s in at least one scenario', (reason) => {
+    expect(seen.has(reason)).toBe(true);
   });
 });

@@ -219,17 +219,23 @@ function check(result: Result, e: Expectation, where: string): void {
 
 /**
  * Replays `steps` against `net` from a fresh state and asserts every step in order. Returns the
- * status seen after each step and every step's result, for the coverage test and `after` hooks.
+ * status seen after each step, every step's result and every reason `reduce` gave for ignoring an
+ * event, for the coverage tests and `after` hooks.
  * Honesty checks applied to EVERY step regardless of the expectation: a milepost or range exists
  * only for the statuses that may carry one, and `chosen` only for MATCHED.
  */
 export function replay(
   net: NetworkView,
   steps: readonly Step[],
-): { readonly statuses: readonly MatchStatus[]; readonly results: readonly Result[] } {
+): {
+  readonly statuses: readonly MatchStatus[];
+  readonly results: readonly Result[];
+  readonly ignored: readonly MatchReason[];
+} {
   let state = initialMatchState(net);
   let lastAtMs = 0;
   const results: Result[] = [];
+  const ignoredSeen: MatchReason[] = [];
   steps.forEach((step, i) => {
     const where = `step ${String(i)}`;
     let ignored: MatchReason | null = null;
@@ -240,6 +246,9 @@ export function replay(
       const r = reduce(state, step.event);
       state = r.state;
       ignored = r.ignored;
+      if (ignored !== null) {
+        ignoredSeen.push(ignored);
+      }
       atMs = step.atMs ?? (step.event.type === 'fix' ? step.event.fix.timestampMs : lastAtMs);
     }
     lastAtMs = atMs;
@@ -262,7 +271,7 @@ export function replay(
     }
     results.push(result);
   });
-  return { statuses: results.map((r) => r.status), results };
+  return { statuses: results.map((r) => r.status), results, ignored: ignoredSeen };
 }
 
 /** Registers one `it` per scenario that replays it (and runs its `after` hook). */

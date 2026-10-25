@@ -34,6 +34,30 @@ describe('lowerTier', () => {
   });
 });
 
+describe('milepostFor input checks', () => {
+  it('T4: a non-finite s throws NON_FINITE instead of reading as DISCONTINUITY_GAP', () => {
+    const net = withIntervals(
+      base,
+      interval('i1', 'c1', [
+        { s: 0, mp: 0 },
+        { s: 1000, mp: 1 },
+      ]),
+      interval('i2', 'c1', [
+        { s: 3000, mp: 3 },
+        { s: 4000, mp: 4 },
+      ]),
+    );
+    for (const bad of [Number.NaN, Infinity, -Infinity]) {
+      expect(() => milepostFor(net, cand(bad), 5)).toThrow(/s/);
+      try {
+        milepostFor(net, cand(bad), 5);
+      } catch (e) {
+        expect((e as { code: string }).code).toBe('NON_FINITE');
+      }
+    }
+  });
+});
+
 describe('milepostFor', () => {
   const one = withIntervals(
     base,

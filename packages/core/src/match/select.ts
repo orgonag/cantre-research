@@ -6,9 +6,13 @@ import type { MatchConfig } from './config.js';
 import type { MatchReason, MatchStatus } from './reasons.js';
 
 /**
- * The user's route choice (ruling R8). A chain lock names a pipeline chain id; a subdivision
- * lock names a subdivision NID. A lock is never switched silently: while it is set the policy
- * either honours it or reports LOCK_CONFLICT (Decision 7, AGENTS.md "no silent switching").
+ * The user's route choice (ruling R8). A chain lock names a chain: either the pipeline chain id
+ * (`Candidate.chainBaseId`, which survives a chain split across unloaded tiles, ruling R4) or a
+ * decoded piece id such as `id#2` (`Candidate.chainId`); a candidate matches when EITHER equals
+ * `chainId` (ruling R29, so a UI that passes back `chosen.chainId` never gets a permanent
+ * LOCK_CONFLICT). A piece-id lock covers only that piece. A subdivision lock names a subdivision
+ * NID. A lock is never switched silently: while it is set the policy either honours it or reports
+ * LOCK_CONFLICT (Decision 7, AGENTS.md "no silent switching").
  */
 export type Lock =
   | { readonly kind: 'chain'; readonly chainId: string }
@@ -69,10 +73,13 @@ function groupKey(c: Candidate): string {
   return JSON.stringify([c.subdivisionNid, c.operator]);
 }
 
-/** True when `c` is inside the lock (R4: a chain lock survives a chain split via chainBaseId). */
+/**
+ * True when `c` is inside the lock. A chain lock matches the candidate's piece id or its base id
+ * (rulings R4, R29); a subdivision lock matches its NID.
+ */
 function inLock(c: Candidate, lock: Lock): boolean {
   return lock.kind === 'chain'
-    ? c.chainBaseId === lock.chainId
+    ? c.chainId === lock.chainId || c.chainBaseId === lock.chainId
     : c.subdivisionNid === lock.subdivisionNid;
 }
 
@@ -139,7 +146,7 @@ function applyHeading(
  *    max(accuracyM, indistinguishableMinM) } (all metres). Spec §6; the 10 m floor is
  *    experimental. Candidates inside this band cannot be told apart by position alone: a small
  *    residual is not a confidence interval, and the margin does not improve GPS precision.
- * 4. lock (Decision 7, rulings R4/R8): L = candidates of C inside the lock. Empty L, or the
+ * 4. lock (Decision 7, rulings R4/R8/R29): L = candidates of C inside the lock. Empty L, or the
  *    best of L outside I, is LOCK_CONFLICT (LOCK_NOT_SUPPORTED); the lock is kept, never
  *    switched. Otherwise I := I intersect L, origin 'user', LOCKED_BY_USER, and steps 5-8 are
  *    skipped (the user's choice replaces them; the heading is not consulted, ruling R22).

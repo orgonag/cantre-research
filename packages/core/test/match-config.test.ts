@@ -28,4 +28,9 @@ describe('closed vocabularies', () => {
     expect(MATCH_STATUSES).toHaveLength(9);
     expect(new Set(MATCH_STATUSES).size).toBe(9);
   });
+
+  it('T1: both lists are frozen (a caller cannot add or remove a code at run time)', () => {
+    expect(Object.isFrozen(MATCH_REASONS)).toBe(true);
+    expect(Object.isFrozen(MATCH_STATUSES)).toBe(true);
+  });
 });

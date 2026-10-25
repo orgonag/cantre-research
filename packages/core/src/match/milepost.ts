@@ -4,6 +4,7 @@ import type { MilepostResult } from '../interpolate.js';
 import type { NetworkInterval, NetworkView } from '../network/types.js';
 import { gpsMilepostBandMi } from '../uncertainty.js';
 import type { Candidate } from './candidates.js';
+import { assertFinite } from '../units.js';
 import type { MatchReason } from './reasons.js';
 
 /**
@@ -69,9 +70,10 @@ function span(iv: NetworkInterval): { readonly first: number; readonly last: num
  *  - `s` strictly between two intervals: null, `DISCONTINUITY_GAP`.
  * Units: `s` and `accuracyM` in metres; milepost and band in miles.
  * Limits: never extrapolates and never bridges a gap between intervals; MP 0 is a valid value.
- * The band is from GPS accuracy only; not a confidence interval. Throws `CoreInputError` as the
- * M1 functions do (negative or non-finite `accuracyM`, invalid interval), only when a milepost
- * is actually computed.
+ * The band is from GPS accuracy only; not a confidence interval. Throws `CoreInputError`
+ * (`NON_FINITE`) for a chain candidate whose `s` is NaN or infinite (it must never read as a
+ * DISCONTINUITY_GAP), and as the M1 functions do (negative or non-finite `accuracyM`, invalid
+ * interval) when a milepost is actually computed.
  */
 export function milepostFor(
   net: NetworkView,
@@ -82,6 +84,8 @@ export function milepostFor(
   if (candidate.chainId === null || chainBaseId === null || s === null) {
     return NO_MILEPOST('UNCHAINED_TRACK');
   }
+  // A non-finite s is a caller bug, not a position between intervals: throw, never report a gap.
+  assertFinite(s, 's');
 
   const intervals = net.intervals
     .filter((iv) => iv.chainId === chainBaseId && iv.anchors.length > 0)
