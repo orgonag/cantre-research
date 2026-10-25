@@ -28,11 +28,10 @@ is not for safety, operations or track access.
   a guess; a chosen route stays visible until you unlock it or reload.
 - English and French (the French text is a draft that needs native review).
 
-**Live link:** <https://orgonag.github.io/cantre-research/>. This address is **not live yet**. It
-becomes active only after the owner enables GitHub Pages for the repository and runs the
-[deploy workflow](.github/workflows/deploy.yml) by hand. Until then, build and run it locally
-(`npm ci`, `npm run -w app build`, then serve `app/dist`; the data comes from the pipeline's
-`national` command).
+**Live link:** <https://orgonag.github.io/cantre-research/>. Live since 2026-10-25. The owner
+enabled GitHub Pages and the [deploy workflow](.github/workflows/deploy.yml) runs by hand. To run it
+locally instead: `npm ci`, `npm run -w app build`, then serve `app/dist` (the data comes from
+the pipeline's `national` command).
 
 Data sources, versions and the required attribution are in
 [docs/DATA-LICENSES.md](docs/DATA-LICENSES.md); measured sizes, test counts and the open items
@@ -45,8 +44,7 @@ branch with a reviewed PR that the owner approves, following the
 [v1 spec](docs/superpowers/specs/2026-10-23-cantre-v1-design.md) and the
 [plan roadmap](docs/superpowers/plans/2026-10-23-cantre-roadmap.md). Every formula is
 commented with its units, source and limits. The earlier teach-and-build-together
-method is kept in the [learning roadmap](docs/LEARNING.md). Enabling Pages and
-running the deploy still need the owner's go-ahead.
+method is kept in the [learning roadmap](docs/LEARNING.md).
 
 ## Goal and intended experience
 
@@ -207,8 +205,8 @@ browser dependencies. No stack decision is settled by this document.
 ## Hosting and storage
 
 **M4 decision (2026-10-25):** the app and one national data download are hosted on GitHub Pages
-at the address above, with Cloudflare R2 as the fallback if a size limit fails. The deploy
-workflow exists but has not been run, and the repository's Pages setting is off. The older
+at the address above, with Cloudflare R2 as the fallback if a size limit fails. The owner
+enabled Pages on 2026-10-25 and the first deploy ran that day. The older
 proposal below (Cloudflare Pages, R2 and regional bundles requested by position) is superseded
 for v1: a request by region would reveal approximate location to the host, which is why the app
 downloads the whole national snapshot instead.

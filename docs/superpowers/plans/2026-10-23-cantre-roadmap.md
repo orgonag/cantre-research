@@ -12,8 +12,8 @@ the contracts that cross milestone boundaries, so the plans agree with each othe
 | M1 | [Calculation core](2026-10-23-m1-calculation-core.md) | Monorepo, CI, `@cantre/core` geodesy, projection, polyline and interpolation | Merged (PR #4) |
 | M2 | [Pipeline: one province (SK)](2026-10-24-m2-pipeline-sk.md) | `pipeline/` ingest, audit, chains, anchors, tiles, manifest, coverage report | Merged (PR #6) |
 | M3 | [Matching state machine](2026-10-25-m3-matching.md) | `@cantre/core` `network/` and `match/`, synthetic scenario replays | Merged (PR #9) |
-| M4 | [National app and public site](2026-10-25-m4-national-app.md) | All NRWN provinces in one national snapshot, `@cantre/data-client`, `app/`, Playwright, privacy and axe tests, GitHub Pages deploy workflow (not run; Pages not enabled) | Built (PR pending) |
-| M5 | Evaluation and datum study | `eval/`, EVALUATION.md, leave-one-anchor-out evaluation, the datum offset study, cross-border chains, threshold tuning | Plan after M4 merges |
+| M4 | [National app and public site](2026-10-25-m4-national-app.md) | All NRWN provinces in one national snapshot, `@cantre/data-client`, `app/`, Playwright, privacy and axe tests, GitHub Pages deploy workflow | Merged (PR #11), live 2026-10-25 |
+| M5 | Evaluation and datum study | `eval/`, EVALUATION.md, leave-one-anchor-out evaluation, the datum offset study, cross-border chains, threshold tuning | Next: plan |
 | M6 | Methods and release kit | METHODS.md, release files | Plan after M5 |
 
 ## Cross-milestone contracts
