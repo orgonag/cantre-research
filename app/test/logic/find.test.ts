@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { networkFromSnapshot } from '@cantre/core';
 import { setLang } from '../../src/i18n/index.js';
 import {
   findBySubdivision,
@@ -38,8 +41,8 @@ const sample = net({
 describe('subdivisionsOf', () => {
   it('lists each subdivision once, sorted by name', () => {
     expect(subdivisionsOf(sample)).toEqual([
-      { nid: 'sub-a', name: 'Alpha Sub' },
-      { nid: 'sub-b', name: 'Beta Sub' },
+      { nid: 'sub-a', name: 'Alpha Sub', label: 'Alpha Sub (CN)' },
+      { nid: 'sub-b', name: 'Beta Sub', label: 'Beta Sub (CN)' },
     ]);
   });
 
@@ -65,6 +68,88 @@ describe('subdivisionsOf', () => {
 
   it('is empty for an empty network', () => {
     expect(subdivisionsOf(net())).toEqual([]);
+  });
+});
+
+describe('subdivision labels (repeated names must be told apart)', () => {
+  // Two subdivisions called "Cartier": one calibrated 10..12 near the origin, one 40..42 far away.
+  const farChain = chain('far', 'sub-far', 'Cartier', 0, 2000);
+  const nearChain = chain('near', 'sub-near', 'Cartier', 0, 2000);
+  const moved = {
+    ...farChain,
+    pts: farChain.pts.map((p) => ({ lat: p.lat + 3, lon: p.lon })),
+  };
+  const twins = net({
+    chains: [nearChain, moved],
+    intervals: [
+      interval('i1', 'near', [
+        [0, 10],
+        [2000, 12],
+      ]),
+      interval('i2', 'far', [
+        [0, 40],
+        [2000, 42],
+      ]),
+    ],
+  });
+
+  it('adds the milepost range and a coarse place for a repeated name, only for those', () => {
+    const labels = subdivisionsOf(twins).map((o) => o.label);
+    expect(labels).toEqual([
+      // Same name: ordered by NID (sub-far, then sub-near).
+      'Cartier (CN), MP 40.00 to 42.00, near 53.0, -100.0',
+      'Cartier (CN), MP 10.00 to 12.00, near 50.0, -100.0',
+    ]);
+    // A unique name gets the operator only.
+    expect(subdivisionsOf(sample)[0]?.label).toBe('Alpha Sub (CN)');
+  });
+
+  it('adds the NID as a last resort when everything else is equal', () => {
+    const same = net({
+      chains: [chain('x1', 'sub-1', 'Dup', 0, 2000), chain('x2', 'sub-2', 'Dup', 0, 2000)],
+    });
+    const labels = subdivisionsOf(same).map((o) => o.label);
+    expect(new Set(labels).size).toBe(2);
+    expect(labels[0]).toContain('ID sub-1');
+    expect(labels[1]).toContain('ID sub-2');
+  });
+
+  it('lists several operators, and a segment-only subdivision by its operator', () => {
+    const multi = net({
+      chains: [{ ...alpha1, operators: ['CN', 'CPKC'] }],
+      segments: [
+        {
+          key: 'k',
+          chainId: null,
+          trackClass: 'Siding',
+          status: 'Operational',
+          subdivisionNid: 'sub-s',
+          subdivisionName: 'Yard',
+          operator: '',
+          geoAccuracyM: null,
+          pts: [ORIGIN, ORIGIN],
+        },
+      ],
+    });
+    expect(subdivisionsOf(multi).map((o) => o.label)).toEqual(['Alpha Sub (CN, CPKC)', 'Yard']);
+  });
+
+  it('shows the label, not just the name, in a result line', () => {
+    const r = findBySubdivision(twins, 'sub-far', 41);
+    if (r.kind !== 'pins' || r.pins[0] === undefined) {
+      throw new Error('expected a pin');
+    }
+    expect(pinText(r.pins[0], 41)).toContain('Cartier (CN), MP 40.00 to 42.00, near 53.0');
+  });
+
+  it('gives every option a unique label on the golden snapshots', () => {
+    const dir = new URL('../../../pipeline/tests/golden/synthetic/', import.meta.url);
+    for (const file of ['snapshot.bin.gz', 'national/snapshot.bin.gz']) {
+      const golden = networkFromSnapshot(gunzipSync(readFileSync(new URL(file, dir))));
+      const options = subdivisionsOf(golden);
+      expect(options.length, file).toBeGreaterThan(0);
+      expect(new Set(options.map((o) => o.label)).size, file).toBe(options.length);
+    }
   });
 });
 

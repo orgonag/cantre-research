@@ -11,36 +11,159 @@ import { fmt } from './present.js';
  * dataset's reference points; they are not surveyed positions.
  */
 
-/** One entry of the subdivision picker. */
-export type SubdivisionOption = { readonly nid: string; readonly name: string };
+/**
+ * One entry of the subdivision picker. `label` is what the picker and the result show: NRWN
+ * repeats subdivision names across provinces (several "Cartier", many "Unknown"), so the name
+ * alone could send a user to the wrong place with a valid-looking answer. The label is always
+ * unique within the network.
+ */
+export type SubdivisionOption = {
+  readonly nid: string;
+  readonly name: string;
+  readonly label: string;
+};
 
 /** Code-point order, so the picker order is the same on every device and locale. */
 const byText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/** What is known about one subdivision, gathered from the network. */
+type Facts = {
+  name: string;
+  operators: Set<string>;
+  /** Calibrated milepost range over its intervals, miles; null when it has none. */
+  mpMin: number | null;
+  mpMax: number | null;
+  /** Sum of vertex latitudes and longitudes (degrees) and the vertex count, for a centroid. */
+  latSum: number;
+  lonSum: number;
+  count: number;
+};
+
 /**
- * The subdivisions in the loaded network, each once (by NID), sorted by name and then NID.
- * Chains and unchained segments both count, so a subdivision with only sidings is listed (it
- * will simply have no milepost range). Proper names stay as published (spec §7).
+ * Gathers per-subdivision facts. Chains and unchained segments both count, so a subdivision with
+ * only sidings is listed (it will simply have no milepost range). The centroid is the plain mean
+ * of the vertices, in degrees: a coarse "where", good to a few km, used only to tell repeated
+ * names apart (not a position anyone should navigate to). Chain geometry is read, never changed.
  */
-export function subdivisionsOf(net: NetworkView): readonly SubdivisionOption[] {
-  const byNid = new Map<string, string>();
+function factsOf(net: NetworkView): Map<string, Facts> {
+  const facts = new Map<string, Facts>();
+  const get = (nid: string, name: string): Facts => {
+    let f = facts.get(nid);
+    if (f === undefined) {
+      f = { name, operators: new Set(), mpMin: null, mpMax: null, latSum: 0, lonSum: 0, count: 0 };
+      facts.set(nid, f);
+    }
+    return f;
+  };
+  const addPoints = (f: Facts, pts: readonly LatLon[]): void => {
+    for (const p of pts) {
+      f.latSum += p.lat;
+      f.lonSum += p.lon;
+      f.count += 1;
+    }
+  };
+  const nidOfChain = new Map<string, string>();
   for (const c of net.chains) {
-    byNid.set(c.subdivisionNid, c.subdivisionName);
+    const f = get(c.subdivisionNid, c.subdivisionName);
+    for (const op of c.operators) {
+      f.operators.add(op);
+    }
+    addPoints(f, c.pts);
+    nidOfChain.set(c.chainBaseId, c.subdivisionNid);
   }
   for (const s of net.segments) {
-    if (!byNid.has(s.subdivisionNid)) {
-      byNid.set(s.subdivisionNid, s.subdivisionName);
+    const f = get(s.subdivisionNid, s.subdivisionName);
+    if (s.operator !== '') {
+      f.operators.add(s.operator);
+    }
+    addPoints(f, s.pts);
+  }
+  for (const iv of net.intervals) {
+    const f = facts.get(nidOfChain.get(iv.chainId) ?? '');
+    if (f === undefined) {
+      continue;
+    }
+    for (const a of iv.anchors) {
+      f.mpMin = f.mpMin === null ? a.mp : Math.min(f.mpMin, a.mp);
+      f.mpMax = f.mpMax === null ? a.mp : Math.max(f.mpMax, a.mp);
     }
   }
-  return [...byNid]
-    .map(([nid, name]) => ({ nid, name }))
-    .sort((a, b) => byText(a.name, b.name) || byText(a.nid, b.nid));
+  return facts;
 }
 
-/** One place a typed milepost lies: the core lookup result plus the subdivision's name. */
+/**
+ * Builds the unique labels. Every label has the operator(s) when known: "Cartier (CN)".
+ * A name that more than one subdivision uses also gets its calibrated milepost range and a
+ * coarse place ("MP 0.00 to 99.10, near 46.5, -80.9"). If two labels are still equal, the NID
+ * is added, which is unique by construction, so uniqueness always holds.
+ */
+function labelsOf(facts: ReadonlyMap<string, Facts>): Map<string, string> {
+  const nameCount = new Map<string, number>();
+  for (const f of facts.values()) {
+    nameCount.set(f.name, (nameCount.get(f.name) ?? 0) + 1);
+  }
+  const labels = new Map<string, string>();
+  for (const [nid, f] of facts) {
+    const ops = [...f.operators].sort(byText).join(', ');
+    let label = ops === '' ? f.name : t('find.option', { name: f.name, operators: ops });
+    if ((nameCount.get(f.name) ?? 0) > 1) {
+      const parts: string[] = [];
+      if (f.mpMin !== null && f.mpMax !== null) {
+        parts.push(t('find.optionMp', { from: fmt(f.mpMin, 2), to: fmt(f.mpMax, 2) }));
+      }
+      if (f.count > 0) {
+        parts.push(
+          t('find.optionNear', {
+            lat: fmt(f.latSum / f.count, 1),
+            lon: fmt(f.lonSum / f.count, 1),
+          }),
+        );
+      }
+      if (parts.length > 0) {
+        label = `${label}, ${parts.join(', ')}`;
+      }
+    }
+    labels.set(nid, label);
+  }
+  const labelCount = new Map<string, number>();
+  for (const label of labels.values()) {
+    labelCount.set(label, (labelCount.get(label) ?? 0) + 1);
+  }
+  for (const [nid, label] of labels) {
+    if ((labelCount.get(label) ?? 0) > 1) {
+      labels.set(nid, `${label}, ${t('find.optionId', { nid })}`);
+    }
+  }
+  return labels;
+}
+
+const optionsCache = new WeakMap<NetworkView, readonly SubdivisionOption[]>();
+
+/**
+ * The subdivisions in the loaded network, each once (by NID), sorted by name and then NID, with a
+ * unique label each (see {@link labelsOf}). Built once per network. Proper names stay as
+ * published (spec §7). The label text follows the language active when it is first built.
+ */
+export function subdivisionsOf(net: NetworkView): readonly SubdivisionOption[] {
+  const cached = optionsCache.get(net);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const facts = factsOf(net);
+  const labels = labelsOf(facts);
+  const options = [...facts]
+    .map(([nid, f]) => ({ nid, name: f.name, label: labels.get(nid) ?? f.name }))
+    .sort((a, b) => byText(a.name, b.name) || byText(a.nid, b.nid));
+  optionsCache.set(net, options);
+  return options;
+}
+
+/** One place a typed milepost lies: the core lookup result plus the subdivision's name and label. */
 export type Pin = LocatedMilepost & {
   readonly subdivisionNid: string;
   readonly subdivisionName: string;
+  /** The unique picker label, so the result names exactly the subdivision that was chosen. */
+  readonly subdivisionLabel: string;
 };
 
 export type FindResult =
@@ -63,11 +186,17 @@ export function findBySubdivision(
   if (found.length === 0) {
     return { kind: 'none', messageKey: 'find.noInterval' };
   }
-  const name =
-    net.chains.find((c) => c.subdivisionNid === subdivisionNid)?.subdivisionName ?? subdivisionNid;
+  const option = subdivisionsOf(net).find((o) => o.nid === subdivisionNid);
+  const name = option?.name ?? subdivisionNid;
+  const label = option?.label ?? name;
   return {
     kind: 'pins',
-    pins: found.map((f) => ({ ...f, subdivisionNid, subdivisionName: name })),
+    pins: found.map((f) => ({
+      ...f,
+      subdivisionNid,
+      subdivisionName: name,
+      subdivisionLabel: label,
+    })),
   };
 }
 
@@ -93,7 +222,7 @@ const LATLON_DIGITS = 5;
  */
 export function pinText(pin: Pin, mp: number): string {
   return t('find.pin', {
-    subdivision: pin.subdivisionName,
+    subdivision: pin.subdivisionLabel,
     mp: t('card.mp', { value: fmt(mp, 2) }),
     lat: fmt(pin.at.lat, LATLON_DIGITS),
     lon: fmt(pin.at.lon, LATLON_DIGITS),

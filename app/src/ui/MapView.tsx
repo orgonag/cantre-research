@@ -24,6 +24,8 @@ type SourceData = Parameters<GeoJSONSource['setData']>[0];
 /** Opening view when there is no fix: all of Canada, degrees [lon, lat] and zoom level. */
 const CANADA_CENTER: [number, number] = [-96, 56];
 const CANADA_ZOOM = 3;
+/** How long the basemap style may take before the map falls back to the plain background. */
+const BASEMAP_TIMEOUT_MS = 10_000;
 /** Zoom for a fix or a found location (about a 5 km view). */
 const CLOSE_ZOOM = 12;
 
@@ -53,6 +55,39 @@ export function MapView(props: {
   const mapRef = useRef<MapLibreMap | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [tap, setTap] = useState<TapModel | null>(null);
+  const [basemapFailed, setBasemapFailed] = useState(false);
+
+  // Basemap watch. The app's own layers are added to the remote style only after it loads, so a
+  // failed or slow style fetch would leave the map empty. While a basemap style is loading, an
+  // error or a timeout switches to the offline style, so tracks always draw, and says so.
+  const watch = useRef<{
+    basemap: boolean;
+    ready: boolean;
+    timer: ReturnType<typeof setTimeout> | null;
+  }>({ basemap: false, ready: false, timer: null });
+  const stopTimer = (): void => {
+    if (watch.current.timer !== null) {
+      clearTimeout(watch.current.timer);
+      watch.current.timer = null;
+    }
+  };
+  const fallBack = (map: MapLibreMap): void => {
+    if (!watch.current.basemap || watch.current.ready) {
+      return;
+    }
+    watch.current.basemap = false;
+    stopTimer();
+    map.setStyle(offlineStyle(prefersDark()));
+    setBasemapFailed(true);
+  };
+  const watchBasemap = (map: MapLibreMap): void => {
+    stopTimer();
+    watch.current.basemap = true;
+    watch.current.ready = false;
+    watch.current.timer = setTimeout(() => {
+      fallBack(map);
+    }, BASEMAP_TIMEOUT_MS);
+  };
 
   // What the map should show now. The map reads this on every (re)load of its style.
   const latest = useRef({ net, fix, pins, basemap });
@@ -114,8 +149,18 @@ export function MapView(props: {
         });
         map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
         mapRef.current = map;
+        if (first.basemap) {
+          watchBasemap(map);
+        }
         map.on('style.load', () => {
+          watch.current.ready = true;
+          stopTimer();
           pushAll(map);
+        });
+        // An error before the basemap style has loaded is a failed basemap. Later errors (one
+        // tile that did not load) leave the map as it is.
+        map.on('error', () => {
+          fallBack(map);
         });
         map.on('click', (event) => {
           setTap(presentTap(latest.current.net, { lat: event.lngLat.lat, lon: event.lngLat.lng }));
@@ -129,6 +174,7 @@ export function MapView(props: {
     })();
     return () => {
       life.cancelled = true;
+      stopTimer();
       mapRef.current?.remove();
       mapRef.current = null;
     };
@@ -146,7 +192,9 @@ export function MapView(props: {
     }
     applied.current = basemap;
     const dark = prefersDark();
+    setBasemapFailed(false);
     if (basemap) {
+      watchBasemap(map);
       map.setStyle(BASEMAP_STYLE_URL, {
         transformStyle: (_previous, next) => ({
           ...next,
@@ -155,6 +203,8 @@ export function MapView(props: {
         }),
       });
     } else {
+      watch.current.basemap = false;
+      stopTimer();
       map.setStyle(offlineStyle(dark));
     }
   }, [basemap, state]);
@@ -201,7 +251,7 @@ export function MapView(props: {
         {state === 'loading' && <p class="map__status">{t('map.loading')}</p>}
         {state === 'failed' && <p class="map__status">{t('map.loadFailed')}</p>}
         <p class="map__attribution">
-          {attributionOf(basemap).map((line, i) => (
+          {attributionOf(basemap && !basemapFailed).map((line, i) => (
             <span key={line}>
               {i > 0 && ' | '}
               {line}
@@ -209,7 +259,13 @@ export function MapView(props: {
           ))}
         </p>
       </div>
+      {basemapFailed && (
+        <p class="notice" role="status">
+          {t('map.basemapFailed')}
+        </p>
+      )}
       <p class="muted">{t('map.note')}</p>
+      <p class="muted">{t('map.keyboardAlternative')}</p>
       {fix !== null && <p class="muted">{t('map.you')}</p>}
       {tap !== null && (
         <div class="map__tap" role="status">

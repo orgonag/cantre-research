@@ -68,7 +68,7 @@ export function FindLocation(props: {
               <option value="">{t('find.choose')}</option>
               {subdivisions.map((s) => (
                 <option key={s.nid} value={s.nid}>
-                  {s.name}
+                  {s.label}
                 </option>
               ))}
             </select>
