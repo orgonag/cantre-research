@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { interpolateMilepost, validateInterval } from '../src/index.js';
 import type { Anchor, IntervalIssueCode, MilepostResult } from '../src/index.js';
 
-const a = (id: string, s: number, mp: number): Anchor => ({ id, s, mp, source: 'crossing' });
+const a = (id: string, s: number, mp: number): Anchor => ({
+  id,
+  s,
+  mp,
+  source: 'crossing',
+  tier: 'posted',
+});
 
 /** Narrows a result to the calibrated branch, failing the test with the reason otherwise. */
 function expectCalibrated(r: MilepostResult): Extract<MilepostResult, { kind: 'calibrated' }> {

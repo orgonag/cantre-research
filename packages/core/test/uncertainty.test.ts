@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { gpsMilepostBandMi } from '../src/index.js';
 import type { Anchor } from '../src/index.js';
 
-const a = (id: string, s: number, mp: number): Anchor => ({ id, s, mp, source: 'crossing' });
+const a = (id: string, s: number, mp: number): Anchor => ({
+  id,
+  s,
+  mp,
+  source: 'crossing',
+  tier: 'posted',
+});
 
 describe('gpsMilepostBandMi', () => {
   it('propagates GPS accuracy along the interval slope', () => {

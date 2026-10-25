@@ -53,6 +53,34 @@ no deployment, no public release and no new bulk data acquisition.
 | M2 canonical output direction | Found by the determinism test: segment and line-asset vertices are written in the lexicographically smaller direction, so reversing a record cannot change a byte. A line asset's `sStartMm <= sEndMm` (direction not preserved). Tile `sMm` of chain pieces is delta-encoded like `latE6` and `lonE6`. |
 | M2 derived mileposts use stored millimetres | Found by the contract test: interpolating from unrounded `s` differed from core (which reads `sMm / 1000`) by up to 0.5 mm of track, about 3e-7 mi. The deriver now rounds anchor and asset `s` to the millimetre first. |
 | Residual check is not evidence of position accuracy | In the Saskatchewan data every crossing, marker post and station that reaches the residual check sits exactly on the track: residual 0.0 m for all 7,553 qualified anchors (5,017 crossings, 2,288 marker posts, 248 stations) and for every positioned crossing, station, bridge, culvert, tunnel and diamond. NRWN points were evidently snapped to the geometry, so `anchor_max_residual_m` only catches wrong-track and wrong-subdivision records (the 17 `RESIDUAL_TOO_LARGE` cases are 396.48 m to 13,938.97 m). It cannot show how close a point is to the true feature. Position accuracy needs independent ground truth (M5). Evidence: `CANTRE_RAW_DIR=C:/cv-raw-v python pipeline/scripts/measure_residuals.py sk` printed `crossing: qualified=5017 max_residual_m=0.0 residual_above_zero=0`, `markerpost: qualified=2288 max_residual_m=0.0 residual_above_zero=0`, `station: qualified=248 max_residual_m=0.0 residual_above_zero=0`, `all: qualified=7553 max_residual_m=0.0`, `RESIDUAL_TOO_LARGE: n=17 min_m=396.48 max_m=13938.97`. The same script, extended to assets, printed `asset bridge: positions=399 max_residual_m=0.0 residual_above_zero=0 residualMm_above_zero=0`, `asset crossing: positions=6436 max_residual_m=0.0 residual_above_zero=0 residualMm_above_zero=0`, `asset culvert: positions=4 ...=0`, `asset diamond: positions=34 ...=0`, `asset station: positions=248 ...=0`, `asset tunnel: positions=1 ...=0` (all with max_residual_m=0.0) and `assets: positions=7122 max_residual_m=0.0 residual_above_zero=0 residualMm_above_zero=0`. |
+| M3 Decision 1: tile decoding lives in core | `networkFromTiles` decodes `cantre.tile/1` objects as a pure function with no fetching; M4's `@cantre/data-client` will fetch, cache and version-pin tiles, then call it. The roadmap line "mirrored as TypeScript types in `@cantre/data-client`" now reads "defined in `@cantre/core` and reused by `@cantre/data-client`". |
+| M3 Decision 2: heading filter | Applies only when speed is above `headingMinSpeedMps` (3 m/s) and a heading is present; drops a candidate whose track bearing differs from the heading by more than `headingToleranceDeg` (30), axially (modulo 180, "direction-agnostic"). If it would drop every candidate it is not applied (`HEADING_INCONSISTENT`). Thresholds experimental and unevaluated. Amended by R22: it acts only within the position-based set and not under a lock. |
+| M3 Decision 3: continuity | The previous chain resolves an ambiguity only when it is in the indistinguishable set (`CONTINUITY`); when it is in the radius but outside the set it is held for under `continuityMaxMs` (5000 ms) from the first contradicting fix (`CONTINUITY_HOLD`), then the evidence wins; never across a stale gap, a non-matched result or the radius. 5000 ms is experimental and unevaluated. Amended by R23 (no hold against a different railway) and R24 (never seeded by a lock). |
+| M3 Decision 4: candidates | One candidate per chain (best projection onto its whole geometry) plus one per unchained segment; a segment candidate has no `s` and never a milepost. Ambiguity groups are keyed by (subdivision NID, operator set). Amended by R26 (point candidates) and R27 (one candidate per pass). |
+| M3 Decision 5: partial coverage | The search disk counts as covered when its bounding box, inflated by the radius, lies inside the union of unbuffered tile bounds. Not covered with one route: `AMBIGUOUS_ROUTE` (`PARTIAL_COVERAGE`); outside every tile: `NO_COVERAGE`. |
+| M3 Decision 6: diamond rule | A diamond within the search radius, along-track, of a candidate blocks automatic selection (`AMBIGUOUS_ROUTE`, `DIAMOND_NEARBY`) even when one line is closer, unless a user lock resolves it. |
+| M3 Decision 7: locks | Only candidates inside a chain or subdivision lock are eligible. A lock whose best candidate is missing or outside the set gives `LOCK_CONFLICT` with the lock kept and no milepost; only `unlock` clears a lock; a lock never changes the reported accuracy. |
+| M3 Decision 8: milepost for a chain candidate | Inside an interval: M1 interpolation with its GPS band and the lower anchor tier; before the first or after the last interval: uncalibrated; between two intervals: null with `DISCONTINUITY_GAP`; no intervals: null with `CHAIN_UNCALIBRATED`. Nothing is bridged or extrapolated. |
+| M3 Decision 9: `MATCHED_SUBDIVISION` range | `mpRange` only when every parallel track is a calibrated chain candidate and the mileposts differ by no more than the widest GPS band; otherwise null with `TRACK_MP_DISAGREE` or `TRACK_UNCALIBRATED` (an unchained siding counts as uncalibrated). |
+| M3 Decision 10: time | `currentResult(state, nowMs)` returns `STALE` (reason `FIX_STALE`, last result kept only as `historical`) when the last fix is older than `staleAfterMs` (15000 ms, experimental). The reducer never reads a clock. |
+| M3 ruling R7: diamond rule over any candidate | The diamond is tested against every candidate within the search radius, before the heading filter, not only the indistinguishable set: the golden diamond is registered on one chain only, so a set-only test would miss it from the crossing line. Costs extra ambiguity near diamonds (safe side). |
+| M3 ruling R9: no continuity hold at a partial tile edge | `CONTINUITY_HOLD` is not applied when coverage is partial (spec: a sole candidate in a partly loaded tile blocks automatic selection). Costs a shorter hold at tile edges. |
+| M3 ruling R10: `Result.candidates` | Superseded by R25: it is the full position-based indistinguishable set, never narrowed after `CONTINUITY`, a lock or the heading; empty for `NO_COVERAGE`, `OFF_NETWORK`, `NO_FIX`, `NO_PERMISSION` and `STALE`; for `LOCK_CONFLICT` it holds the alternatives. (Before the final review it was narrowed to the kept route, which hid a nearer railway.) A field with every candidate in the radius can be added later. |
+| M3 ruling R11: range result fields | With an `mpRange`, `mpBandMi` is the widest band in the group, `tier` the lowest tier and `anchorIds` the sorted union; without a range they are null or empty (no band without a value). |
+| M3 ruling R12: gap ends continuity | The reducer drops continuity when an accepted fix is more than `staleAfterMs` after the last accepted one (the pure reducer has no `nowMs`; this is the same stale boundary). |
+| M3 ruling R13: permission and device errors | A fix while permission is denied is ignored (`FIX_IGNORED_INVALID`, counted); a grant after a denial returns to `NO_FIX`, dropping the last result and continuity but keeping the last timestamp for ordering; a `locationError` after a fix leaves the stored result unchanged (staleness follows by time). Costs one extra fix before a match after a re-grant. |
+| M3 ruling R18: `HEADING_USED` meaning | Emitted only when the heading filter actually removed a candidate, so it means "the heading changed the outcome". |
+| M3 ruling R19: lock and result wiring | Lock and unlock re-evaluate the last accepted fix without the out-of-order check; `Result.lock` shows in every status; a `STALE` view has no current position and keeps the stored result as `historical`. Amended by R24: continuity is carried only from an automatic `MATCHED` result, never from a lock-decided one. |
+| M3 ruling R20: future-stamped fix | `currentResult` returns `STALE` with `FIX_STALE` and `FIX_FROM_FUTURE` when the last fix is stamped more than `futureFixToleranceMs` (1000 ms, experimental) ahead of `nowMs`, so a bad device clock cannot pin a current match. The reducer cannot see `nowMs`, so later real fixes stay ignored as out of order until the clock passes the bad stamp; the caller may start a new state. Costs liveness after a clock jump. |
+| M3 ruling R22: heading only within the set | The heading filter may only remove members of the position-based indistinguishable set; it never changes d_min or promotes a candidate position rejected; if it would remove every member it is not applied (`HEADING_INCONSISTENT`); it is not applied under a lock. Final-review probe: a fix 2 m from a north-south CN line and 40 m from an east-west CPKC line, heading 90 at 4 m/s, was MATCHED on CPKC; it is now MATCHED on CN with `HEADING_INCONSISTENT`. Costs heading help outside the set. |
+| M3 ruling R23: hold only on the same railway | `CONTINUITY_HOLD` applies only when every member of the set shares the held chain's subdivision and operator; a different railway in the set ends the hold at once. Final-review case: the held CN milepost was shown for up to 5 s while the set held only CPKC. Costs some flicker between `AMBIGUOUS_ROUTE` and `MATCHED` near parallel railways. |
+| M3 ruling R24: a lock never seeds continuity | Amends R19. Continuity is never set from a lock-decided result, and lock and unlock re-evaluate the last fix with no continuity. Final-review Critical: after lock A and unlock, a fix 6 m from each of two railways stayed MATCHED on A by `CONTINUITY` on every later fix; it is now `AMBIGUOUS_ROUTE`. Costs one fix of continuity after an unlock. |
+| M3 ruling R25: full set in `Result.candidates` | Amends R10. `Result.candidates` is the full position-based set before any narrowing by `CONTINUITY`, a lock or the heading; the narrowed choice or range set stays internal. On `CONTINUITY_HOLD` the chosen track is not in it. Final-review probe: 1 m from CPKC and 11 m from CN after a CN match gave candidates [CN]; it now gives [CPKC, CN]. |
+| M3 ruling R26: point candidates | A zero-length or single-vertex chain or segment is a point candidate (residual = distance to the point; `s` = stored `sM` for a chain, null for a segment; `bearingDeg` null and exempt from the heading filter), per spec section 6. Before, it was skipped: a zero-length siding at the fix left a CN line 30 m away as a sole match. Costs a nullable bearing field. |
+| M3 ruling R27: one candidate per pass | A chain yields one candidate per distinct pass: every local minimum of the cross-track residual within the radius whose `s` is more than the radius from every better pass (closed cycles wrap); candidates sort with `s` as a final tie-break; two passes in the set are one route, so `MATCHED_SUBDIVISION` with `mpRange` null (`TRACK_MP_DISAGREE`, or the range rule if their mileposts agree). Final-review probe: hairpin legs 8 m apart, fix 3 m and 5 m from them, was MATCHED at MP 10.937 although MP 10.31 on the other leg was as well supported. Costs more candidates per chain. |
+| M3 ruling R28: decoder rejects what the matcher cannot use | `networkFromTiles` throws `INVALID_TILE` with the path for an interval that fails `validateInterval`, a chain `sMm` that decreases and a vertex outside the Canada envelope, so `reduce` never throws on a decoded network (spec section 8: corrupt tiles are rejected loudly). Costs rejecting a whole load for one bad record. |
+| M3 ruling R29: lock by piece or base id | A chain lock matches a candidate whose `chainId` or `chainBaseId` equals the lock's `chainId`, so a UI that passes back `chosen.chainId` (for example `id#2`) never gets a permanent `LOCK_CONFLICT`. |
+| M3 ruling R30: no win by heading elimination | The heading filter applies only if at least one member of I that has a bearing agrees with the heading; otherwise it is not applied (`HEADING_INCONSISTENT`). A point candidate (no bearing) stays beside an agreeing track. Before, a CN line 2 m away (bearing 0) and a CPKC point siding 6 m away with heading 90 at 10 m/s gave `MATCHED` on the point; now `AMBIGUOUS_ROUTE`. Owner approved 2026-10-25. Costs a little heading help where only point candidates remain. |
 
 ## Hypothesis discipline
 
@@ -186,3 +214,68 @@ included allowance, $0 owed), which had stopped CI from starting on `main`. Befo
 change, a scan of tracked files found no passwords, keys or tokens. The six branches
 already merged into `main` were deleted. Deployment, GitHub Pages and the NRC submission
 remain owner-gated.
+
+## 2026-10-25 — M3 matching state machine built
+
+Built the matching state machine in `@cantre/core` (milestone M3) on branch `feat/m3-matching`:
+`networkFromTiles` (a pure decoder of the M2 tiles), candidate search, coverage and diamond
+checks, a selection policy for routes, tracks, diamonds and user locks, milepost lookup with tier
+and band, and a pure reducer with nine statuses and 24 reason codes. See
+[the package README](../packages/core/README.md). The PR is pending the owner's review. Every
+threshold is in `MATCH_CONFIG` and is **experimental and unevaluated**: no field trace has been
+replayed, and nothing here measures how often the matcher is right on a real railway.
+
+The acceptance replays in `packages/core/test/scenarios/` are **synthetic**: networks built from
+metre offsets, plus the committed golden tiles (themselves synthetic M2 output). They show that
+the rules behave as written, step by step; they are not field traces and support no accuracy
+claim. 22 scenarios assert the full status sequence of each step: diamond approach, standstill and
+departure, with and without a lock; parallel Class I lines 12 m apart that diverge, with
+continuity, and with a lock then an unlock; double track with a range, an uncalibrated track and
+disagreeing mileposts; a junction (five variants, one of them the bounded same-railway hold); the
+session life cycle and a future-stamped fix; coverage edges; and four on the golden tiles (a walk
+along a tile-edge chain within one tile, the golden diamond (the scenario whose fixes cross the shared tile edge), a parallel pair, a milepost gap and an
+unchained siding). A final test replays all of them and asserts that the union of statuses
+reached is all nine of spec section 6, the spec section 13 done-when, and that every one of the 24
+reason codes is produced by some replay (in `Result.reasons` or as `reduce`'s `ignored`). Commands run and results
+(Windows 11, Node via npm, from the worktree):
+
+- `npm run lint`, `npm run format:check`, `npm run typecheck`: each exit 0.
+- `npm run coverage`: 28 test files, 374 tests passed (the scenario folder holds 8 files and 58
+  of them: 22 scenario replays and 36 in the status-coverage file, 24 of those the reason-code
+  guard). Coverage of `packages/core/src`: statements 99.62 % (793/796), branches 94.10 %
+  (495/526), functions 100 % (167/167), lines 99.59 % (744/747), against the gate of lines 95,
+  branches 90, functions 100. The gate held. (Figures after the final-review fix wave and the
+  R30 heading fix below.)
+- Mutation check of the scenarios, rerun after the fix wave: with the diamond rule disabled
+  (`diamonds.length > 99`) two scenarios failed (the diamond approach and the golden diamond); with
+  `continuityMaxMs` set to 6000 one failed (the same-railway junction hold); with the R23
+  same-railway condition removed two failed (the parallel continuity scenario and the
+  different-subdivision junction). Each edit was reverted. That shows those scenarios depend on
+  those rules, not that the rules are right.
+- `pytest pipeline` was run once with `CANTRE_RAW_DIR=<raw dir>`: 294 passed, 7 failed. All 7
+  are in `pipeline/tests/test_determinism.py` and stop at `FileNotFoundError` opening
+  `pipeline\tests\golden\synthetic\tiles\208_-212.json` under this worktree's very long path
+  (Windows path-length limit); the pipeline is untouched by M3 and CI runs it from a short path.
+  Not rerun elsewhere.
+
+Not done or not claimed: no field validation of any threshold; no datum transform; the heading
+filter, the 10 m margin and the 5 s hold are starting points; a future-stamped fix blocks later real
+fixes until the clock passes it (documented limit); the scenarios assert every one of the 24
+reason codes (checked by replaying all scenarios and collecting `Result.reasons` plus the `ignored`
+reason of `reduce`: none missing), but only on synthetic data. Fetching and caching tiles, the network-wide
+candidate index and EN/FR message text are M4; the HMM research matcher and real-trace evaluation
+are M5. Ten decisions beyond the spec and the behaviour-changing controller rulings are in the
+decision register above.
+
+Final-review fix wave (same branch). A whole-branch review found one Critical and six Important
+issues; the controller ruled on each (R22 to R29 in the register). Fixed, each with a reproducing
+test first: a user lock no longer turns into an automatic match after unlock (R24); the heading
+can no longer match a different railway that position rejected (R22); `Result.candidates` keeps
+every plausible route (R25); zero-length and single-vertex tracks are point candidates (R26); a
+chain passing the fix twice gives two candidates and no single milepost (R27); the decoder rejects
+intervals, positions and vertices that would make the matcher throw (R28); a continuity hold never
+shows another railway's milepost (R23); a chain lock accepts a piece id (R29). Scenario
+expectations changed under these rulings: the parallel-class1 and different-subdivision junction
+replays no longer hold (R23); the CONTINUITY steps now list both routes (R25); the diamond
+leave-on-B step with `HEADING_USED` moved to 8 m past the crossing, where both lines are in the set
+(R22). Still synthetic only; no threshold is validated.

@@ -5,6 +5,14 @@
 export type AnchorSource = 'crossing' | 'station' | 'structure' | 'markerpost';
 
 /**
+ * Quality tier of an anchor's milepost, best first: `posted` (a milepost posted by the
+ * railway), `tc` (a Transport Canada inventory value), `unverified` (a derived or unchecked
+ * value). Source: CANTRE v1 spec §6 and the pipeline tile schema (cantre.tile/1).
+ * Limits: a rank, not an accuracy; it carries no distance or probability.
+ */
+export type AnchorTier = 'posted' | 'tc' | 'unverified';
+
+/**
  * A surveyed or published milepost at a known position along one track chain.
  *
  * Units: `s` is metres along the chain from its origin; `mp` is the milepost in miles.
@@ -18,6 +26,8 @@ export type Anchor = {
   /** Milepost, miles. Zero is a valid milepost. */
   readonly mp: number;
   readonly source: AnchorSource;
+  /** Quality tier of the milepost value; a milepost between two anchors takes the lower tier. */
+  readonly tier: AnchorTier;
 };
 
 /**

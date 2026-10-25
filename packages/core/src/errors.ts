@@ -13,7 +13,10 @@ export type CoreInputCode =
   | 'ZERO_LENGTH_POLYLINE'
   | 'CUMULATIVE_LENGTH_MISMATCH'
   | 'INVALID_INTERVAL'
-  | 'NEGATIVE_ACCURACY';
+  | 'NEGATIVE_ACCURACY'
+  | 'INVALID_TILE'
+  | 'MIXED_DATASET_VERSION'
+  | 'TILE_MISMATCH';
 
 /**
  * Error thrown when an input violates a precondition of the calculation core.
