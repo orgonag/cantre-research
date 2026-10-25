@@ -54,6 +54,7 @@ const cand = (over: Partial<Candidate> = {}): Candidate => ({
 const blank: Result = {
   status: 'NO_FIX',
   candidates: [],
+  rangeGroup: [],
   chosen: null,
   s: null,
   milepost: null,
@@ -240,10 +241,12 @@ describe('route chooser button name (WCAG 2.5.3)', () => {
 });
 
 describe('present: MATCHED_SUBDIVISION', () => {
+  const pair = [cand({ chainId: 'C1' }), cand({ chainId: 'C2', chainBaseId: 'C2' })];
   const sub = (over: Partial<Result> = {}): Result => ({
     ...blank,
     status: 'MATCHED_SUBDIVISION',
-    candidates: [cand({ chainId: 'C1' }), cand({ chainId: 'C2', chainBaseId: 'C2' })],
+    candidates: pair,
+    rangeGroup: pair,
     mpRange: { lowerMp: 112.4, upperMp: 112.46 },
     mpBandMi: 0.05,
     tier: 'tc',
@@ -279,10 +282,45 @@ describe('present: MATCHED_SUBDIVISION', () => {
   });
 
   it('leaves the subdivision empty when the parallel tracks are in different subdivisions', () => {
-    const r = sub({
-      candidates: [cand(), cand({ chainId: 'C2', subdivisionNid: 'sub-2', subdivisionName: 'B' })],
-    });
+    const tracks = [cand(), cand({ chainId: 'C2', subdivisionNid: 'sub-2', subdivisionName: 'B' })];
+    const r = sub({ candidates: tracks, rangeGroup: tracks });
     expect(present(r, net(), MI).subdivision).toBeNull();
+  });
+
+  it('labels the range from its own railway and reports a different railway as another route', () => {
+    // Core kept CN's double track by CONTINUITY; a CPKC line also fits by position alone.
+    const cpkc = cand({
+      chainId: 'P1',
+      chainBaseId: 'P1',
+      subdivisionNid: 'sub-cp',
+      subdivisionName: 'Belleville Sub',
+      operator: 'CPKC',
+      residualM: 6.4,
+    });
+    const r = sub({ candidates: [...pair, cpkc], rangeGroup: pair, reasons: ['CONTINUITY'] });
+    for (const lang of ['en', 'fr'] as const) {
+      setLang(lang);
+      const m = present(r, net(), MI, META);
+      expect(m.operator).toBe('CN'); // never "CN, CPKC"
+      expect(m.subdivision).toBe('Kingston Sub');
+      expect(m.trackClass).toBe('Main');
+      expect(m.rangeText).toBe(
+        lang === 'en'
+          ? 'MP 112.40 to 112.46'
+          : t('card.range', { lower: '112,40', upper: '112,46' }),
+      );
+      expect(m.alsoFitText).toBe(t('card.alsoFit', { count: 1 }));
+    }
+  });
+
+  it('shows no other-routes notice when every candidate is in the range group', () => {
+    expect(present(sub(), net(), MI, META).alsoFitText).toBeNull();
+  });
+
+  it('falls back to the candidates for a result that carries no range group', () => {
+    const m = present(sub({ rangeGroup: [] }), net(), MI, META);
+    expect(m.subdivision).toBe('Kingston Sub');
+    expect(m.alsoFitText).toBeNull();
   });
 });
 

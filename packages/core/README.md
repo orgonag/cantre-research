@@ -149,7 +149,7 @@ const result = currentResult(state, nowMs); // result.status, result.milepost, r
 | `NO_COVERAGE` | The fix is outside every loaded tile. | no candidates |
 | `OFF_NETWORK` | Covered, but no track within the search radius. | no candidates |
 | `AMBIGUOUS_ROUTE` | More than one route is plausible, a diamond is near, or the search disk is only partly covered. No route is chosen. | the choices in `candidates` |
-| `MATCHED_SUBDIVISION` | One subdivision is certain, the parallel track is not. | `candidates`, and `mpRange` when the tracks agree |
+| `MATCHED_SUBDIVISION` | One subdivision is certain, the parallel track is not. | `rangeGroup` (the tracks the range is about; label from it), `candidates` (may also hold another railway set aside by CONTINUITY), and `mpRange` when the tracks agree |
 | `MATCHED` | One track is selected, by evidence or by the user's lock. | `chosen`, `s`, `milepost` (null when the chain is uncalibrated, the position is in a gap, or the track is unchained), and every other plausible track in `candidates` |
 | `LOCK_CONFLICT` | The user's lock does not fit the fix. The lock is kept; no milepost is shown. | the alternatives in `candidates` |
 

@@ -18,6 +18,9 @@ import type { Settings } from './settings.js';
  * - No probability or confidence anywhere. The band is `Result.mpBandMi`, labelled "from GPS
  *   accuracy only"; it leaves out the cross-track residual and the survey accuracy of the anchors.
  * - A current milepost appears only for `MATCHED`; a range only for `MATCHED_SUBDIVISION`.
+ * - A `MATCHED_SUBDIVISION` card is labelled from `Result.rangeGroup`, the tracks the range is
+ *   about, never from `Result.candidates`: a different railway that fits is another route and is
+ *   reported as one ("Other routes also fit here"), never merged into the range's labels.
  * - `STALE` shows the last milepost only from `Result.historical`, prefixed "Last known" and
  *   suffixed "(historical)". The current `Result.milepost` is null on STALE and is never faked.
  * - A calibrated milepost of 0 is "MP 0.00". A null milepost is never rendered as 0.
@@ -285,11 +288,20 @@ function tierOf(
     : { tierBadge: null, tierText: null };
 }
 
-/** Distinct routes among the candidates, other than the matched one. */
-function alsoFitCount(result: Result): number {
-  const own = result.chosen === null ? null : routeKey(result.chosen);
-  const others = new Set(result.candidates.map(routeKey).filter((key) => key !== own));
+/**
+ * Distinct routes among the candidates, other than the ones the card is about (`own`: the matched
+ * track's route, or every route of a MATCHED_SUBDIVISION group).
+ */
+function alsoFitCount(result: Result, own: readonly Candidate[]): number {
+  const mine = new Set(own.map(routeKey));
+  const others = new Set(result.candidates.map(routeKey).filter((key) => !mine.has(key)));
   return others.size;
+}
+
+/** The "Other routes also fit here: N." notice, or null when no other route fits. */
+function alsoFitTextOf(result: Result, own: readonly Candidate[]): string | null {
+  const others = alsoFitCount(result, own);
+  return others > 0 ? t('card.alsoFit', { count: others }) : null;
 }
 
 /**
@@ -338,7 +350,6 @@ export function present(
     case 'MATCHED': {
       const chosen = result.chosen;
       const mpText = mpTextOf(result);
-      const others = alsoFitCount(result);
       return {
         ...base,
         ...none,
@@ -352,12 +363,15 @@ export function present(
             : bandTextOf(result.mpBandMi, settings.units),
         residualText: chosen === null ? null : residualTextOf(chosen.residualM),
         anchorsText: anchorsTextOf(result),
-        alsoFitText: others > 0 ? t('card.alsoFit', { count: others }) : null,
+        alsoFitText: alsoFitTextOf(result, chosen === null ? [] : [chosen]),
         ...tierOf(result.tier, mpText !== null),
       };
     }
     case 'MATCHED_SUBDIVISION': {
-      const cs = result.candidates;
+      // The tracks the range is about (core's narrowed group). `candidates` may also hold a
+      // different railway that CONTINUITY set aside; it is another route, reported below.
+      // The fallback to `candidates` only covers a result built without the field.
+      const cs = result.rangeGroup.length > 0 ? result.rangeGroup : result.candidates;
       const subs = new Set(cs.map((c) => c.subdivisionNid));
       const ranged = rangeTextOf(result.mpRange);
       return {
@@ -372,6 +386,7 @@ export function present(
             ? null
             : bandTextOf(result.mpBandMi, settings.units),
         anchorsText: anchorsTextOf(result),
+        alsoFitText: alsoFitTextOf(result, cs),
         ...tierOf(result.tier, ranged !== null),
       };
     }

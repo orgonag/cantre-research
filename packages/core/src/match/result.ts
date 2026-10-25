@@ -21,11 +21,17 @@ import type { Lock, Selection } from './select.js';
  * - `chosen` and `s` are non-null only for `MATCHED`.
  * - `candidates` is the full position-based indistinguishable set I (ruling R25, amends R10),
  *   sorted, BEFORE any narrowing by CONTINUITY, a lock or the heading: the choices the route
- *   chooser shows for AMBIGUOUS_ROUTE and LOCK_CONFLICT, the parallel tracks for
- *   MATCHED_SUBDIVISION, and every other plausible route beside a MATCHED one ("keep ambiguity
- *   visible", spec §2). Empty for NO_COVERAGE, OFF_NETWORK, NO_FIX, NO_PERMISSION and STALE.
- *   On CONTINUITY_HOLD `chosen` (the held track) is outside I, so it is NOT in `candidates`.
- *   A MATCHED_SUBDIVISION range uses the narrowed set, which may be smaller than `candidates`.
+ *   chooser shows for AMBIGUOUS_ROUTE and LOCK_CONFLICT, every track that fits beside a
+ *   MATCHED_SUBDIVISION group, and every other plausible route beside a MATCHED one ("keep
+ *   ambiguity visible", spec §2). Empty for NO_COVERAGE, OFF_NETWORK, NO_FIX, NO_PERMISSION and
+ *   STALE. On CONTINUITY_HOLD `chosen` (the held track) is outside I, so it is NOT in
+ *   `candidates`.
+ * - `rangeGroup` is non-empty only for `MATCHED_SUBDIVISION`: the narrowed set (I after the
+ *   heading, CONTINUITY or a lock) whose tracks the subdivision match is about, sorted, with at
+ *   least two members, every one of them also in `candidates`. The `mpRange` (or its absence,
+ *   TRACK_MP_DISAGREE / TRACK_UNCALIBRATED) is computed over exactly this set, so a caller must
+ *   label the range from `rangeGroup`, never from `candidates`: `candidates` can hold a different
+ *   railway that CONTINUITY set aside, and that railway is another route, not part of the range.
  * - `mpBandMi` is the GPS-propagated band only (ruling R11 for ranges: max band; `tier` the lowest
  *   tier; `anchorIds` the sorted union). It is not a confidence interval and omits the cross-track
  *   residual and the survey accuracy of the anchors.
@@ -35,6 +41,7 @@ import type { Lock, Selection } from './select.js';
 export type Result = {
   readonly status: MatchStatus;
   readonly candidates: readonly Candidate[];
+  readonly rangeGroup: readonly Candidate[];
   readonly chosen: Candidate | null;
   readonly s: number | null;
   readonly milepost: MilepostResult | null;
@@ -66,6 +73,7 @@ function empty(
   return {
     status,
     candidates: Object.freeze([]),
+    rangeGroup: Object.freeze([]),
     chosen: null,
     s: null,
     milepost: null,
@@ -126,7 +134,8 @@ export function withLock(result: Result, lock: Lock | null): Result {
  *   averaged or guessed across tracks.
  * - Every other status carries no milepost data.
  * `candidates` is always the selection's full position-based I (ruling R25), possibly empty; the
- * MATCHED_SUBDIVISION range is taken over the narrowed `selection.group`.
+ * MATCHED_SUBDIVISION range is taken over the narrowed `selection.group`, which the result
+ * carries as `rangeGroup` (empty for every other status).
  * `accuracyM` is always the fix's own value. `fixAgeMs` is 0 at evaluation; `currentResult`
  * recomputes it from `nowMs`. Limits: `mpBandMi` excludes cross-track residual and survey accuracy.
  */
@@ -160,7 +169,11 @@ export function resultFromSelection(
   }
 
   if (selection.status === 'MATCHED_SUBDIVISION') {
-    return Object.freeze({ ...base, ...subdivisionRange(net, fix, selection) });
+    return Object.freeze({
+      ...base,
+      rangeGroup: Object.freeze([...selection.group]),
+      ...subdivisionRange(net, fix, selection),
+    });
   }
 
   return Object.freeze(base);
