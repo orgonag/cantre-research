@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MATCH_STATUSES } from '../../src/index.js';
 import type { MatchStatus } from '../../src/index.js';
@@ -38,6 +39,15 @@ describe('scenario replays cover every match status', () => {
         seen.add(status);
       }
     }
+  });
+
+  it('the hand-maintained ALL list covers every *.scenarios.ts file in this folder', () => {
+    const files = readdirSync(new URL('./', import.meta.url))
+      .filter((f) => f.endsWith('.scenarios.ts'))
+      .sort();
+    const imported = [coverage, diamond, doubleTrack, golden, junction, lifecycle, parallel];
+    expect(files).toHaveLength(imported.length);
+    expect(ALL).toHaveLength(imported.flat().length);
   });
 
   it('reaches all nine statuses of spec §6', () => {

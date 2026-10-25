@@ -135,7 +135,7 @@ export function pickWalkChain(net: NetworkView, edgeIds: readonly string[]): Net
 
 const EDGE_IDS = tileEdgeChainIds(goldenTiles());
 
-/** The walk chain, found from the data. */
+/** The walk chain, found from the data. Its fixes all lie inside one tile (see goldenWalk). */
 export const walkChain: NetworkChain = pickWalkChain(goldenNet, EDGE_IDS);
 
 /** Along-track positions (metres) walked, every 500 m inside the single calibrated interval. */
@@ -151,12 +151,14 @@ export const WALK_S: readonly number[] = (() => {
 })();
 
 /**
- * Walk the tile-edge chain end to end: every fix is MATCHED on the one chain id, `s` rises with the
+ * Walk a tile-edge chain end to end WITHIN ONE TILE. The chain is held by two tiles, but the west
+ * tile holds only its buffer overlap (the chain starts on the shared edge), so no fix here crosses
+ * the edge; the cross-boundary scenario is `goldenDiamond`. Every fix is MATCHED on the one chain id, `s` rises with the
  * walk (checked in `after`), and the milepost follows the decoded anchors piecewise-linearly with
  * no jump at the interior anchor or at the overlap between the two tiles' pieces.
  */
 export const goldenWalk: Scenario = {
-  name: 'golden tiles: walking a tile-edge chain keeps one chain id, rising s, continuous milepost',
+  name: 'golden tiles: a tile-edge chain walked within one tile keeps one chain id, rising s, continuous milepost',
   net: goldenNet,
   steps: WALK_S.map((s, i): Step => {
     const iv = onlyInterval(goldenNet, walkChain.chainBaseId);
@@ -201,7 +203,7 @@ export const goldenWalk: Scenario = {
       expect(Math.abs(d), `mp step ${String(i)}`).toBeLessThanOrEqual(maxStepMi);
       expect(Math.sign(d) * sign, `mp direction ${String(i)}`).toBeGreaterThanOrEqual(0);
     }
-    // The chain the walk matched on really was assembled from two tiles.
+    // The chain the walk matched on is held by two tiles (but the fixes stay in one: see above).
     expect(EDGE_IDS).toContain(walkChain.id);
     // A sanity bound on the units: the whole walk spans the interval, in miles.
     expect(metresToMiles((WALK_S.at(-1) ?? 0) - (WALK_S[0] ?? 0))).toBeGreaterThan(2);
@@ -219,6 +221,32 @@ const diamond = (() => {
 const diamondChain = chainById(goldenNet, diamond.chainId);
 const diamondIv = onlyInterval(goldenNet, diamond.chainId);
 const RADIUS_M = 50; // max(50 m, 3 x 5 m accuracy)
+const DIAMOND_OFFSETS_M: readonly (readonly number[])[] = [
+  [-1200, -600, -(RADIUS_M + 50)],
+  [-RADIUS_M + 10, -10, 0, 10, RADIUS_M - 10],
+  [RADIUS_M + 50, 600, 1200],
+];
+
+/**
+ * The longitude (degrees) of a vertical tile edge shared by two loaded tiles that both contain the
+ * latitude `lat`: some tile's `east` equals another's `west`. Derived from the decoded bounds.
+ */
+function sharedEdgeLon(net: NetworkView, lat: number): number {
+  for (const a of net.coverage) {
+    for (const b of net.coverage) {
+      if (
+        a.east === b.west &&
+        a.south <= lat &&
+        lat <= a.north &&
+        b.south <= lat &&
+        lat <= b.north
+      ) {
+        return a.east;
+      }
+    }
+  }
+  throw new Error('no shared tile edge at the diamond latitude');
+}
 
 /**
  * The golden diamond sits on the tile edge (the chain's pieces overlap there). Fixes 100 m short
@@ -229,11 +257,7 @@ const RADIUS_M = 50; // max(50 m, 3 x 5 m accuracy)
 export const goldenDiamond: Scenario = {
   name: 'golden tiles: the golden diamond blocks automatic selection within its radius only',
   net: goldenNet,
-  steps: [
-    [-1200, -600, -(RADIUS_M + 50)],
-    [-RADIUS_M + 10, -10, 0, 10, RADIUS_M - 10],
-    [RADIUS_M + 50, 600, 1200],
-  ].flatMap((offsets, group) =>
+  steps: DIAMOND_OFFSETS_M.flatMap((offsets, group) =>
     offsets.map((off, k): Step => {
       const s = diamond.sM + off;
       const t = (group * 10 + k + 1) * 1000;
@@ -265,6 +289,17 @@ export const goldenDiamond: Scenario = {
     }
     // The diamond must be a genuine tile-edge feature of a chain split across two tiles.
     expect(EDGE_IDS).toContain(diamond.chainId);
+    // And the walk crosses the shared tile edge: fixes on both sides of it (edge longitude from the
+    // decoded tile bounds, not hard-coded), with the matched fixes on both sides too.
+    const edge = sharedEdgeLon(goldenNet, pointAtS(diamondChain, diamond.sM).lat);
+    const lons = DIAMOND_OFFSETS_M.flat().map(
+      (off) => pointAtS(diamondChain, diamond.sM + off).lon,
+    );
+    expect(lons.some((lon) => lon < edge)).toBe(true);
+    expect(lons.some((lon) => lon > edge)).toBe(true);
+    const matchedLons = lons.filter((_, i) => results[i]?.status === 'MATCHED');
+    expect(matchedLons.some((lon) => lon < edge)).toBe(true);
+    expect(matchedLons.some((lon) => lon > edge)).toBe(true);
   },
 };
 
@@ -320,7 +355,7 @@ export const goldenParallel: Scenario = {
         mpApprox: null,
         candidatesAnyOrder: [twinA.id, twinB.id],
         mpRange: { lowerMp: mpOnInterval(twinIv, TWIN_S), upperMp: mpOnInterval(twinIv, TWIN_S) },
-        mpTolMi: 0.01,
+        mpTolMi: 0.001,
       },
     ),
   ],

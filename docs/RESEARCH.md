@@ -222,14 +222,14 @@ claim. 20 scenarios assert the full status sequence of each step: diamond approa
 departure, with and without a lock; parallel Class I lines 12 m apart that diverge; double track
 with a range, an uncalibrated track and disagreeing mileposts; a junction (four variants); the
 session life cycle and a future-stamped fix; coverage edges; and four on the golden tiles (a walk
-along a chain split across two tiles, the golden diamond, a parallel pair, a milepost gap and an
+along a tile-edge chain within one tile, the golden diamond (the scenario whose fixes cross the shared tile edge), a parallel pair, a milepost gap and an
 unchained siding). A final test replays all of them and asserts that the union of statuses
 reached is all nine of spec section 6, the spec section 13 done-when. Commands run and results
 (Windows 11, Node via npm, from the worktree):
 
 - `npm run lint`, `npm run format:check`, `npm run typecheck`: each exit 0.
-- `npm run coverage`: 28 test files, 321 tests passed (the scenario folder holds 8 files and 31
-  of them: 20 scenario replays and 11 in the status-coverage file). Coverage of
+- `npm run coverage`: 28 test files, 322 tests passed (the scenario folder holds 8 files and 32
+  of them: 20 scenario replays and 12 in the status-coverage file). Coverage of
   `packages/core/src`: statements 99.05 % (734/741), branches 94.83 % (441/465), functions 100 %
   (156/156), lines 98.99 % (692/699), against the gate of lines 95, branches 90, functions 100. The
   gate held.
@@ -246,8 +246,9 @@ reached is all nine of spec section 6, the spec section 13 done-when. Commands r
 Not done or not claimed: no field validation of any threshold; no datum transform; the heading
 filter, the 10 m margin and the 5 s hold are starting points; a chain or segment with fewer than
 two vertices is skipped without a flag (known, deferred); a future-stamped fix blocks later real
-fixes until the clock passes it (documented limit); the scenarios do not exercise every reason
-code at result level (a unit test covers each). Fetching and caching tiles, the network-wide
+fixes until the clock passes it (documented limit); the scenarios assert every one of the 24
+reason codes (checked by replaying all scenarios and collecting `Result.reasons` plus the `ignored`
+reason of `reduce`: none missing), but only on synthetic data. Fetching and caching tiles, the network-wide
 candidate index and EN/FR message text are M4; the HMM research matcher and real-trace evaluation
 are M5. Ten decisions beyond the spec and the behaviour-changing controller rulings are in the
 decision register above.
