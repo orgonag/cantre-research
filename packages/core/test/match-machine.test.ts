@@ -839,7 +839,9 @@ describe('result invariants (property)', () => {
     }
     if (r.status === 'MATCHED_SUBDIVISION') {
       expect(r.rangeGroup.length).toBeGreaterThan(1);
-      r.rangeGroup.forEach((c) => expect(r.candidates).toContain(c));
+      for (const c of r.rangeGroup) {
+        expect(r.candidates).toContain(c);
+      }
     } else {
       expect(r.rangeGroup).toEqual([]);
     }
