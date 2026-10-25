@@ -1,5 +1,6 @@
 """Tests for cantre_pipeline.tiles: keys, buffers, membership and exact reassembly (Task 8)."""
 
+import itertools
 from pathlib import Path
 from typing import Any
 
@@ -210,3 +211,44 @@ def test_interval_naming_unknown_anchor_is_rejected(r: Run) -> None:
     bad = [Interval("x.i0", r.intervals[0].chain_id, ("nope", "nada"))]
     with pytest.raises(ValueError, match="unknown anchor"):
         build_tiles("sk", r.chains, r.net.segments, r.anchors, bad, r.assets, CFG, DATASET_VERSION)
+
+
+def test_segment_and_line_asset_vertices_are_written_in_canonical_direction(
+    tmp_path: Path,
+) -> None:
+    """Reversing a stored line must not change a tile byte (Review Focus 1)."""
+    tiles = []
+    for reverse in (False, True):
+        fx = NrwnFixture(tmp_path / str(reverse))
+        line = [pt(i) for i in range(-3, 4)]
+        bridge = [pt(1, 52.1004), pt(2, 52.1004), pt(3, 52.1004)]
+        fx.track("T1", line[::-1] if reverse else line)
+        fx.bridge("BR", bridge[::-1] if reverse else bridge, "T1")
+        tiles.append(run(fx).tiles)
+    assert tiles[0] == tiles[1]
+    seg = tiles[0]["208_-213"]["segments"][0]
+    assert delta_decode(seg["lonE6"]) == sorted(delta_decode(seg["lonE6"]))
+
+
+def test_derived_mp_is_interpolated_from_the_millimetres_a_tile_stores(tmp_path: Path) -> None:
+    """Core reads sMm / 1000, so a tile's derived MP must come from those same values."""
+    fx = straddling_fixture(tmp_path)
+    fx.culvert("CU", pt(-4.37, 52.1002), "T1")  # between anchors, not on a whole millimetre
+    fx.culvert("CV", pt(-2.93, 52.1002), "T1")
+    tile = run(fx).tiles[WEST]
+    anchors = {a["id"]: a for a in tile["anchors"]}
+    ends = [(anchors[i]["sMm"] / 1000, anchors[i]["mp"]) for i in tile["intervals"][0]["anchorIds"]]
+    checked = 0
+    for asset in tile["assets"]:
+        for pos in asset["positions"]:
+            if pos["derivedMpStart"] is None:
+                continue
+            s = pos["sStartMm"] / 1000
+            (s0, m0), (s1, m1) = next(
+                p for p in itertools.pairwise(ends) if p[0][0] <= s <= p[1][0]
+            )
+            assert pos["derivedMpStart"] == pytest.approx(
+                m0 + (s - s0) / (s1 - s0) * (m1 - m0), abs=1e-12
+            )
+            checked += 1
+    assert checked >= 2

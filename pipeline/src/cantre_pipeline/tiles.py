@@ -18,6 +18,11 @@ Membership (Decision 5: bounding boxes, never a miss, a few extras):
   ``s``;
 * an asset goes into every tile whose buffered bounds contain any of its points.
 
+A segment's or line asset's vertices are written in a canonical direction: whichever of the
+stored order and its reverse is lexicographically smaller as ``(lat, lon)`` pairs. The direction a
+record was stored in is not part of the data model (an asset's ``sStartMm <= sEndMm`` whatever its
+vertex order), so reversing a record must not change a byte (Review Focus 1).
+
 Only tiles that receive something are emitted. Every list is sorted (see :func:`build_tiles`), so
 the output depends only on the input *sets*. Coordinates and ``s`` are the quantised values the
 earlier stages computed from, converted to integers with :func:`~cantre_pipeline.encode.to_e6`
@@ -218,8 +223,15 @@ def _piece_json(piece: _Piece, cfg: PipelineConfig) -> TileObj:
     }
 
 
+def _canonical_direction(pts: Sequence[LatLon]) -> Sequence[LatLon]:
+    """``pts`` or its reverse, whichever is lexicographically smaller as ``(lat, lon)`` pairs."""
+    forward = [(p.lat, p.lon) for p in pts]
+    backward = [(p.lat, p.lon) for p in reversed(pts)]
+    return pts if forward <= backward else list(reversed(pts))
+
+
 def _segment_json(seg: Segment, chain_id: str | None, cfg: PipelineConfig) -> TileObj:
-    lat, lon = _e6(seg.pts, cfg)
+    lat, lon = _e6(_canonical_direction(seg.pts), cfg)
     return {
         "key": seg.key,
         "nid": seg.nid,
@@ -250,7 +262,7 @@ def _anchor_json(a: QualifiedAnchor, cfg: PipelineConfig) -> TileObj:
 
 
 def _asset_json(a: Asset, cfg: PipelineConfig) -> TileObj:
-    lat, lon = _e6(a.pts, cfg)
+    lat, lon = _e6(_canonical_direction(a.pts), cfg)
     sc = cfg.s_scale
     return {
         "id": a.id,

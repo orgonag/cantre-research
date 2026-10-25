@@ -39,7 +39,7 @@ mileage.
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Literal
 
@@ -55,6 +55,7 @@ from cantre_pipeline.anchors import (
 from cantre_pipeline.audit import AuditRecord
 from cantre_pipeline.chains import Chain, ChainSet
 from cantre_pipeline.config import PipelineConfig
+from cantre_pipeline.encode import to_e6
 from cantre_pipeline.geodesy import LatLon
 from cantre_pipeline.intervals import Interval, interpolate_mp
 from cantre_pipeline.model import Network, NodeKey, PointFeature, Segment
@@ -142,21 +143,38 @@ def _attrs(f: Mapping[str, str], keys: Sequence[str]) -> dict[str, str]:
 
 
 class _Deriver:
-    """Derived milepost lookup: the interval of a chain that contains ``s``."""
+    """Derived milepost lookup: the interval of a chain that contains ``s``.
 
-    def __init__(self, intervals: Sequence[Interval], anchors: Sequence[QualifiedAnchor]) -> None:
+    Every ``s`` it uses, the anchors' and the asset's, is first rounded to the integer millimetre
+    the tile stores (``round(s * s_scale) / s_scale``). Core reads those millimetres, so
+    interpolating from them makes the derived mileposts in a tile equal core's own to float
+    precision; with unrounded ``s`` they would differ by up to 0.5 mm of track (about 3e-7 mi).
+    """
+
+    def __init__(
+        self, intervals: Sequence[Interval], anchors: Sequence[QualifiedAnchor], s_scale: int
+    ) -> None:
+        self._scale = s_scale
         by_id = {(a.chain_id, a.id): a for a in anchors}
         self._by_chain: dict[str, list[tuple[QualifiedAnchor, ...]]] = defaultdict(list)
         for iv in intervals:
             self._by_chain[iv.chain_id].append(
-                tuple(by_id[(iv.chain_id, i)] for i in iv.anchor_ids)
+                tuple(
+                    replace(a, s_m=self._quantise(a.s_m))
+                    for a in (by_id[(iv.chain_id, i)] for i in iv.anchor_ids)
+                )
             )
+
+    def _quantise(self, s_m: float) -> float:
+        """``s_m`` rounded to the tile's integer millimetres, as metres again."""
+        return to_e6(s_m, self._scale) / self._scale
 
     def mp(self, chain_id: str, s_m: float) -> float | None:
         """Interpolated milepost (miles) at ``s_m`` on ``chain_id``, None outside every interval."""
+        s_q = self._quantise(s_m)
         for anchors in self._by_chain.get(chain_id, []):
-            if anchors[0].s_m <= s_m <= anchors[-1].s_m:
-                return interpolate_mp(anchors, s_m)
+            if anchors[0].s_m <= s_q <= anchors[-1].s_m:
+                return interpolate_mp(anchors, s_q)
         return None
 
     def position(self, chain_id: str, s0: float, s1: float, residual: float) -> ChainPosition:
@@ -265,7 +283,7 @@ def extract_assets(
     """
     by_nid, chain_of = index_tracks(net, chains)
     nodes = _NodeIndex(chains, {s.key: s for s in net.segments})
-    deriver = _Deriver(intervals, anchors)
+    deriver = _Deriver(intervals, anchors, cfg.s_scale)
     raw: list[Asset] = []
     audit: list[AuditRecord] = []
 
