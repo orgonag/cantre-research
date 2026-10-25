@@ -581,3 +581,34 @@ describe('networkFromTiles validation', () => {
     }, 'tiles[0].chains[0].latE6');
   });
 });
+
+describe('networkFromTiles asset validation', () => {
+  const bad = (change: (a: Json) => void, where: string): void => {
+    const tile = clone(goldenTiles().find((t) => t.assets.length > 0)!);
+    change(tile.assets[0]);
+    const r = codeOf(() => networkFromTiles([tile]));
+    expect(r.code).toBe('INVALID_TILE');
+    expect(r.message).toContain(where);
+  };
+
+  it('rejects an asset with a bad position, name, posted value or vertices', () => {
+    bad((a) => (a.latE6 = []), 'assets[0].latE6');
+    bad((a) => (a.lonE6 = [1, 2]), 'assets[0].lonE6');
+    bad((a) => (a.latE6 = [91_000_000]), 'assets[0].latE6');
+    bad((a) => (a.lonE6 = [181_000_000]), 'assets[0].lonE6');
+    bad((a) => (a.positions[0].residualMm = -1), 'residualMm');
+    bad((a) => (a.positions[0].derivedMpStart = 'x'), 'derivedMpStart');
+    bad((a) => (a.name = 5), 'assets[0].name');
+    bad((a) => (a.kind = 'tower'), 'assets[0].kind');
+    bad((a) => (a.posted = { mp: 1, subdivisionNid: 'S', tier: 'gold' }), 'posted.tier');
+    bad((a) => (a.posted = 4), 'assets[0].posted');
+  });
+
+  it('keeps asset vertices outside the Canada envelope (the matcher never projects onto one)', () => {
+    const tile = clone(goldenTiles().find((t) => t.assets.length > 0)!);
+    tile.assets[0].latE6 = [1];
+    tile.assets[0].lonE6 = [1];
+    const a = networkFromTiles([tile]).assets.find((x) => x.at.lat === 0.000001);
+    expect(a?.at).toEqual({ lat: 0.000001, lon: 0.000001 });
+  });
+});

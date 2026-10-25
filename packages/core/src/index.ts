@@ -32,14 +32,23 @@ export type { MatchConfig } from './match/config.js';
 export { MATCH_REASONS, MATCH_STATUSES } from './match/reasons.js';
 export type { MatchReason, MatchStatus } from './match/reasons.js';
 export { networkFromTiles } from './network/decode.js';
+export { networkFromSnapshot } from './network/snapshot.js';
 export type {
+  AssetKind,
+  AssetPosition,
+  AssetPosted,
   DiamondPosition,
+  NetworkAsset,
   NetworkChain,
   NetworkInterval,
   NetworkSegment,
   NetworkView,
   TileBounds,
 } from './network/types.js';
+export { assetsAlong } from './lookup/assets.js';
+export type { AssetAlong } from './lookup/assets.js';
+export { locateMilepost, milepostAtPoint } from './lookup/locate.js';
+export type { LocatedMilepost, PointMilepost } from './lookup/locate.js';
 export { coverageOf, diamondsNear, findCandidates, searchRadiusM } from './match/candidates.js';
 export type { Candidate, Fix } from './match/candidates.js';
 export { lowerTier, milepostFor } from './match/milepost.js';

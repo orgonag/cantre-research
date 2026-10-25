@@ -57,6 +57,9 @@ After gunzip, the bytes are, in order:
 
 There is no length for the geometry: it runs to the end of the decompressed data. A decoder must
 check that it reads exactly the vertices the records announce and that **no bytes are left over**.
+Every check in this page that says "must" or "reject" is an error for the decoder, never a
+warning: it refuses the whole snapshot and names the byte offset (in the decompressed data) where
+the problem lies. A problem inside a JSON section is reported at that section's first byte.
 Offsets are `meta` at 9, `records` at `9 + M + 4`, `geometry` at `9 + M + 4 + R`.
 
 Sizes must fit a `u32` (under 4 GiB); the pipeline refuses to write a larger section.
@@ -84,8 +87,9 @@ Sizes must fit a `u32` (under 4 GiB); the pipeline refuses to write a larger sec
 * `coverage`: the tile cells the build covers, each `[south, west, north, east]` in integer
   microdegrees. A cell is **unbuffered** (the tile grid's own rectangle: 250 000 microdegrees of
   latitude by 500 000 of longitude). The list is sorted by `(south, west, north, east)` with no
-  duplicates. A fix outside every cell is outside the data's coverage. A cell exists when its
-  tile holds any chain piece, segment or asset (a tile also exists where only a 2 km margin of a
+  duplicates; a decoder must reject a list that is not strictly increasing in that order, and a
+  cell with `south >= north` or `west >= east`. A fix outside every cell is outside the data's
+  coverage. A cell exists when its tile holds any chain piece, segment or asset (a tile also exists where only a 2 km margin of a
   neighbouring feature reaches it), so coverage says "data may be here", not "rail is here".
 
 ## 5. Records
@@ -103,6 +107,8 @@ position of each field is fixed, and a decoder maps them by position.
 
 Field types:
 
+* **Ids.** Chain ids, segment keys, interval ids and asset ids must each be unique in the
+  snapshot, and an anchor id unique within its chain. A decoder must reject a repeat.
 * `chains`
   * `id` string; `subdivisionNid`, `subdivisionName` strings;
   * `operators` array of strings (sorted);
@@ -115,20 +121,27 @@ Field types:
 * `anchors`
   * `chainId` is the **chain id** the anchor lies on; `id` is unique **within a chain** only,
     so the key of an anchor is the pair `(chainId, id)`;
-  * `sMm` integer millimetres along the chain; `mp` miles;
+  * `chainId` must name a chain of this snapshot;
+  * `sMm` integer millimetres along the chain, `0 <= sMm <=` the chain's last position (the
+    anchor lies on its chain); `mp` miles;
   * `source` one of `crossing`, `station`, `structure`, `markerpost`;
   * `tier` one of `posted`, `tc`, `unverified` (where the value comes from).
 * `intervals`
+  * `chainId` must name a chain of this snapshot.
   * `anchorIds` is an array of anchor ids on `chainId`, in the pipeline's order, at least two.
-    Resolve each against `(chainId, anchorId)`. Mileposts run along the interval monotonically.
+    Resolve each against `(chainId, anchorId)`; an id that does not resolve is an error (the
+    snapshot is whole, so nothing is "not loaded"). Mileposts run along the interval
+    monotonically: after ordering the anchors by `sMm`, positions are distinct and the milepost
+    strictly rises or strictly falls, and a decoder must reject an interval that is not.
 * `assets`
   * `kind` one of `crossing`, `bridge`, `moveableBridge`, `tunnel`, `culvert`, `station`,
     `diamond`; `name` a string or `null`;
   * `posted` is `null` or `[mp, subdivisionNid, tier]` (`mp` miles, `tier` as for anchors; an
     asset's value may be `unverified`);
   * `positions` is an array of `[chainId, sStartMm, sEndMm, residualMm, derivedMpStart,
-    derivedMpEnd]`: where the asset lies along each chain it was placed on. `sStartMm <= sEndMm`
-    (a point asset has them equal); `residualMm >= 0` is the distance from the asset to the
+    derivedMpEnd]`: where the asset lies along each chain it was placed on. `chainId` must name
+    a chain of this snapshot; `0 <= sStartMm <= sEndMm` (a point asset has them equal);
+    `residualMm >= 0` is the distance from the asset to the
     chain, in millimetres (a residual, not an accuracy); `derivedMpStart` and `derivedMpEnd` are
     miles or `null` when the position is not inside a calibrated interval. A line asset's
     direction is not preserved;
@@ -136,7 +149,10 @@ Field types:
     like the tiles**: the first value is absolute, every later value is the difference from the
     previous one. A point asset has one vertex. They are in the pipeline's canonical direction.
     This is the one place where the snapshot keeps the tile's delta form (the arrays are short);
-    the chain and segment geometry use section 6 instead.
+    the chain and segment geometry use section 6 instead. Both arrays must have the same length,
+    at least one vertex, and every decoded vertex must satisfy |latitude| <= 90 and
+    |longitude| <= 180 degrees. (The Canada-envelope rule of section 6 is not applied to assets:
+    the matcher never projects onto one.)
 
 The asset's layer and its source attributes are **not** here: they are in the asset-details file
 (section 8), fetched together with the snapshot.
@@ -171,12 +187,19 @@ sMm[i] = sMm[i-1] + dS[i]        (sMm[-1] = 0)      millimetres
 `dLat` and `dLon` may be negative. `dS` is never negative (a chain only moves forward; an equal
 value is a repeated vertex and is kept). `sMm[0]` of a chain is 0.
 
+A decoder must reject: `n < 1`; an `n` that cannot fit in the bytes left (a chain vertex takes at
+least 3 bytes and a segment vertex at least 2, so `n` larger than the remaining bytes divided by 3
+or 2 is an error, checked before anything is allocated); a first `dS` of a chain other than 0; a
+negative `dS`; a running `sMm` above 2^53 - 1; a `cycle` chain whose last vertex is not equal to its
+first.
+
 Chains are **whole**: the pipeline merges the tiles' overlapping pieces before writing, so there
 is no `vertexStart` and no split chain. A chain is never joined to a chain of another province:
 NRWN clips each province at its border, and a train crossing a border changes chain.
 
-A decoder should reject a snapshot whose decoded vertex is outside |latitude| 90 or |longitude|
-180 degrees, whose `sMm` decreases, or whose count `n` runs past the end of the data.
+A decoder must reject a chain or segment vertex outside |latitude| 90 or |longitude| 180 degrees,
+and also one outside the Canada envelope the matcher uses (latitude 41.5 to 83.5 degrees,
+longitude -141.5 to -52 degrees, inclusive), because the matcher's projection would throw on it.
 
 ## 7. Varints
 
@@ -193,8 +216,11 @@ To decode: read bytes until one has bit 7 clear, put each byte's low 7 bits at p
 **Limits.** A value must satisfy `-2^52 <= v <= 2^52 - 1`; then `z < 2^53` and the varint is at most
 8 bytes. That is the range a JavaScript `Number` holds exactly, so a decoder written with `Number`
 arithmetic is exact. **Do not use 32-bit bit operators** (`<<`, `|`, `>>`); they truncate. Use
-multiplication and addition (`z += (b & 0x7f) * 2 ** shift`) and `Math.floor`. A varint longer than
-8 bytes, or one that is cut off by the end of the data, is an error. Real values are far inside
+multiplication and addition (`z += (b & 0x7f) * 2 ** shift`) and `Math.floor`. A decoder must reject
+a varint whose zigzag value is 2^53 or more (so v outside that range), one longer than 8 bytes, one
+cut off by the end of the data, and one that is not in minimal form (its last byte is `00` after at
+least one continuation byte, such as `82 00` for 1; the writer never produces one, and refusing it
+keeps one value to one byte string). Real values are far inside
 the range: a microdegree delta is under 2^28 and a millimetre delta along a chain is under 2^34.
 
 Worked values:

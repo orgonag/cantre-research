@@ -82,6 +82,14 @@ def test_varint_rejects_truncated_and_overlong() -> None:
         read_varint(b"\x80" * 9 + b"\x00", 0)
 
 
+def test_varint_rejects_padded_and_out_of_range_values() -> None:
+    with pytest.raises(ValueError, match="minimal form"):
+        read_varint(b"\x82\x00", 0)  # 1 written with a redundant last group
+    with pytest.raises(ValueError, match="outside"):
+        read_varint(b"\x80" * 7 + b"\x10", 0)  # zigzag value 2**53, one past the exact range
+    assert read_varint(b"\xfe\xff\xff\xff\xff\xff\xff\x0f", 0) == (2**52 - 1, 8)
+
+
 # --- gzip -------------------------------------------------------------------------------------
 
 

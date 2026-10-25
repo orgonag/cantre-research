@@ -104,6 +104,10 @@ def read_varint(data: bytes | memoryview, pos: int) -> tuple[int, int]:
         b = data[pos + i]
         z |= (b & 0x7F) << shift
         if b < 0x80:
+            if b == 0 and i > 0:
+                raise ValueError("varint is not in minimal form")
+            if z >= 1 << 53:
+                raise ValueError("varint value outside -2**52..2**52-1")
             return (z >> 1 if z % 2 == 0 else -((z + 1) >> 1)), pos + i + 1
         shift += 7
     raise ValueError("varint longer than 8 bytes")
