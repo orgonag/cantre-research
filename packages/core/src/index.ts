@@ -40,3 +40,5 @@ export type {
   NetworkView,
   TileBounds,
 } from './network/types.js';
+export { coverageOf, diamondsNear, findCandidates, searchRadiusM } from './match/candidates.js';
+export type { Candidate, Fix } from './match/candidates.js';
