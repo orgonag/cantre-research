@@ -316,6 +316,42 @@ describe('with the real data client (golden national bundle)', () => {
     expect(again.urls).toEqual([]);
   });
 
+  it('an update that hashes right but does not decode fails and the installed version stays', async () => {
+    const g = goldenBundle();
+    const caches = memoryCaches();
+    await drive(
+      dataClientDeps(envOf(served(g, g.manifest).fetch, caches), BASE),
+      parseManifest(g.manifest),
+    );
+
+    // The files hash as the manifest says, but the snapshot inside is another build's, so it
+    // cannot be this one: the data client decodes before storing and refuses it.
+    const next = { ...g.manifest, datasetVersion: 'newer', snapshotDate: '2027-01-01' };
+    const deps = dataClientDeps(envOf(served(g, next).fetch, caches), BASE);
+    const second = await drive(deps, parseManifest(next));
+    expect(second.last).toEqual({ kind: 'error', code: 'INVALID_SNAPSHOT' });
+    expect(second.loaded).toBeNull();
+    expect((await deps.installedSnapshot())?.datasetVersion).toBe(g.manifest.datasetVersion);
+    expect((await deps.loadNetwork()).datasetVersion).toBe(g.manifest.datasetVersion);
+  });
+
+  it('an update in a snapshot format this app cannot read downloads nothing', async () => {
+    const g = goldenBundle();
+    const caches = memoryCaches();
+    await drive(
+      dataClientDeps(envOf(served(g, g.manifest).fetch, caches), BASE),
+      parseManifest(g.manifest),
+    );
+    const next = { ...g.manifest, datasetVersion: 'newer', snapshotFormat: 2 };
+    const server = served(g, next);
+    const deps = dataClientDeps(envOf(server.fetch, caches), BASE);
+    const second = await drive(deps, parseManifest(next));
+    expect(second.last).toEqual({ kind: 'error', code: 'UNSUPPORTED_FORMAT' });
+    expect(errorMessageKey('UNSUPPORTED_FORMAT')).toBe('error.UNSUPPORTED_FORMAT');
+    expect(server.urls).toEqual([]);
+    expect((await deps.loadNetwork()).datasetVersion).toBe(g.manifest.datasetVersion);
+  });
+
   it('removeSnapshot returns to nothing installed', async () => {
     const g = goldenBundle();
     const deps = dataClientDeps(envOf(served(g, g.manifest).fetch, memoryCaches()), BASE);

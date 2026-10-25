@@ -32,7 +32,7 @@ export type { MatchConfig } from './match/config.js';
 export { MATCH_REASONS, MATCH_STATUSES } from './match/reasons.js';
 export type { MatchReason, MatchStatus } from './match/reasons.js';
 export { networkFromTiles } from './network/decode.js';
-export { networkFromSnapshot } from './network/snapshot.js';
+export { SNAPSHOT_FORMAT_VERSION, networkFromSnapshot } from './network/snapshot.js';
 export type {
   AssetKind,
   AssetPosition,

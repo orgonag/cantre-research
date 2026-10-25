@@ -14,6 +14,7 @@ import {
   removeSnapshot,
 } from '../src/index.js';
 import type { ClientEnv, DownloadProgress, Manifest } from '../src/index.js';
+import { install as storeInstall } from '../src/store.js';
 import { BASE, FakeCacheStorage, bundleA, bundleB, fakeFetch, flipByte, serve } from './helpers.js';
 import type { Bundle } from './helpers.js';
 
@@ -92,11 +93,19 @@ describe('parseManifest and fetchManifest', () => {
     bad({ snapshot: { ...good.snapshot, path: 'a/./x.gz' } });
     bad({ provinces: { ab: {} } });
     bad({ provinces: 4 });
+    bad({ snapshotFormat: '1' });
+    bad({ snapshotFormat: 0 });
+    bad({ snapshotFormat: 1.5 });
+    bad({ snapshotFormat: null });
     expect(() => parseManifest(null)).toThrow(
       expect.objectContaining({ code: 'MANIFEST_INVALID' }),
     );
     expect(() => parseManifest([])).toThrow(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
     expect(parseManifest({ ...good, provinces: undefined }).packageVersions).toEqual({});
+    expect(parseManifest(good).snapshotFormat).toBe(1);
+    // a manifest from before the field existed is layout 1, the only layout there was
+    expect(parseManifest({ ...good, snapshotFormat: undefined }).snapshotFormat).toBe(1);
+    expect(parseManifest({ ...good, snapshotFormat: 2 }).snapshotFormat).toBe(2);
     expect(
       parseManifest({ ...good, snapshot: { ...good.snapshot, path: 'v1/s.bin.gz' } }).snapshot.path,
     ).toBe('v1/s.bin.gz');
@@ -377,6 +386,77 @@ describe('downloadSnapshot', () => {
     expect((await failure(loadNetwork({ caches }))).code).toBe('NOT_INSTALLED');
   });
 
+  it('refuses a snapshot that hashes right but does not decode, and keeps the old install (Review Focus 4)', async () => {
+    const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex');
+    const caches = new FakeCacheStorage();
+    const a = await installBundle(bundleA(), caches);
+    const b = bundleB();
+    const cases: [string, Uint8Array, Uint8Array, string][] = [
+      [
+        'not a snapshot',
+        new Uint8Array(gzipSync(new TextEncoder().encode('hello'))),
+        b.assetDetails,
+        b.manifest.datasetVersion,
+      ],
+      [
+        'not gzip',
+        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]),
+        b.assetDetails,
+        b.manifest.datasetVersion,
+      ],
+      ['another build', b.snapshot, b.assetDetails, 'some-other-build'],
+      [
+        'details not JSON',
+        b.snapshot,
+        new Uint8Array(gzipSync(new TextEncoder().encode('{'))),
+        b.manifest.datasetVersion,
+      ],
+    ];
+    for (const [what, snapshot, details, datasetVersion] of cases) {
+      const manifest = {
+        ...b.manifest,
+        datasetVersion,
+        snapshot: { ...b.manifest.snapshot, sha256: sha(snapshot), gzipBytes: snapshot.length },
+        assetDetails: {
+          ...b.manifest.assetDetails,
+          sha256: sha(details),
+          gzipBytes: details.length,
+        },
+      };
+      const putsBefore = caches.puts;
+      const env: Partial<ClientEnv> = {
+        fetch: fakeFetch(serve({ manifest, snapshot, assetDetails: details })),
+        caches,
+      };
+      const err = await failure(downloadSnapshot(BASE, parseManifest(manifest), undefined, env));
+      expect(err.code, what).toBe('INVALID_SNAPSHOT');
+      expect(caches.puts, what).toBe(putsBefore); // nothing was stored
+      expect([...caches.stores.keys()], what).toEqual([cacheName(a.datasetVersion)]);
+      expect((await installedSnapshot({ caches }))?.datasetVersion, what).toBe(a.datasetVersion);
+      expect((await loadNetwork({ caches })).datasetVersion, what).toBe(a.datasetVersion);
+    }
+  });
+
+  it('refuses a snapshot format it cannot decode before requesting anything', async () => {
+    const caches = new FakeCacheStorage();
+    const a = await installBundle(bundleA(), caches);
+    const b = bundleB();
+    const f = fakeFetch(serve(b));
+    const putsBefore = caches.puts;
+    const next = parseManifest({ ...b.manifest, snapshotFormat: 2 });
+    const err = await failure(downloadSnapshot(BASE, next, undefined, { fetch: f, caches }));
+    expect(err.code).toBe('UNSUPPORTED_FORMAT');
+    expect(err.message).toContain('2');
+    expect(f.requests).toEqual([]);
+    expect(caches.puts).toBe(putsBefore);
+    expect((await installedSnapshot({ caches }))?.datasetVersion).toBe(a.datasetVersion);
+    // even with no Cache Storage the format error is the one reported
+    expect(
+      (await failure(downloadSnapshot(BASE, next, undefined, { fetch: f, caches: undefined })))
+        .code,
+    ).toBe('UNSUPPORTED_FORMAT');
+  });
+
   it('needs Cache Storage and says so', async () => {
     const a = bundleA();
     const env: Partial<ClientEnv> = { fetch: fakeFetch(serve(a)), caches: undefined };
@@ -430,13 +510,13 @@ describe('installedSnapshot and removeSnapshot', () => {
     caches.adopt(stash);
     expect(caches.stores.size).toBe(2);
     expect((await installedSnapshot({ caches }))?.datasetVersion).toBe(b.manifest.datasetVersion);
-    // same date, later version string wins
+    // same date, later version string wins (stored directly: the files are A's, so they would
+    // not decode under these made-up versions, and only the store's choice is under test here)
     const sameDay = new FakeCacheStorage();
-    const m1 = { ...a.manifest, datasetVersion: 'v-1' };
-    const m2 = { ...a.manifest, datasetVersion: 'v-2' };
-    await installBundle({ ...a, manifest: m1 }, sameDay);
+    const files = { snapshotGz: a.snapshot, assetDetailsGz: a.assetDetails };
+    await storeInstall(sameDay, parseManifest({ ...a.manifest, datasetVersion: 'v-1' }), files);
     const other = new FakeCacheStorage();
-    await installBundle({ ...a, manifest: m2 }, other);
+    await storeInstall(other, parseManifest({ ...a.manifest, datasetVersion: 'v-2' }), files);
     sameDay.adopt(other);
     expect((await installedSnapshot({ caches: sameDay }))?.datasetVersion).toBe('v-2');
   });
@@ -538,8 +618,12 @@ describe('loadNetwork', () => {
           gzipBytes: details.length,
         },
       };
-      const bundle: Bundle = { manifest, snapshot, assetDetails: details };
-      await installBundle(bundle, caches);
+      // Stored directly, as an older app would have stored them: downloadSnapshot itself now
+      // refuses files that do not decode, so this is the only way such files reach the cache.
+      await storeInstall(caches, parseManifest(manifest), {
+        snapshotGz: snapshot,
+        assetDetailsGz: details,
+      });
       return caches;
     };
     const text = (s: string): Uint8Array => new Uint8Array(gzipSync(new TextEncoder().encode(s)));
@@ -635,7 +719,10 @@ describe('error reporting', () => {
       assetDetails: { ...a.manifest.assetDetails, sha256: sha(details), gzipBytes: details.length },
     };
     const caches = new FakeCacheStorage();
-    await installBundle({ ...a, manifest, assetDetails: details }, caches);
+    await storeInstall(caches, parseManifest(manifest), {
+      snapshotGz: a.snapshot,
+      assetDetailsGz: details,
+    });
     expect((await failure(loadNetwork({ caches }))).code).toBe('INVALID_SNAPSHOT');
   });
 });

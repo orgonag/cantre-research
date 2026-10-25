@@ -40,7 +40,13 @@ import type {
  */
 
 const MAGIC = [0x43, 0x4e, 0x54, 0x53]; // "CNTS"
-const FORMAT_VERSION = 1;
+/**
+ * The one snapshot byte-layout version this decoder reads (the byte after the magic,
+ * pipeline/schema/snapshot.md). The national manifest repeats it as `snapshotFormat`, so the data
+ * client can refuse a build it cannot decode before downloading it.
+ */
+export const SNAPSHOT_FORMAT_VERSION = 1;
+const FORMAT_VERSION = SNAPSHOT_FORMAT_VERSION;
 /** A zigzag value below 2^53 needs at most ceil(53 / 7) = 8 LEB128 bytes. */
 const MAX_VARINT_BYTES = 8;
 /** 2^53: the first integer a double cannot hold exactly; a zigzag value must be below it. */

@@ -245,6 +245,7 @@
     "error.FETCH_FAILED": "Les données n'ont pas pu être téléchargées. Vérifiez la connexion et réessayez.",
     "error.HASH_MISMATCH": "Les données n'ont pas réussi la vérification d'intégrité et n'ont pas été utilisées.",
     "error.NOT_INSTALLED": "Aucune donnée ferroviaire n'est encore installée sur cet appareil.",
+    "error.UNSUPPORTED_FORMAT": "Ces données demandent une version plus récente de l'application. Rien n'a été téléchargé et les données déjà présentes sur cet appareil sont conservées. Mettez l'application à jour, puis réessayez.",
     "error.INVALID_SNAPSHOT": "Les données ont été téléchargées mais n'ont pas pu être lues. Elles n'ont pas été utilisées.",
     "error.UNEXPECTED": "Un problème inattendu a interrompu le téléchargement. Réessayez."
   }

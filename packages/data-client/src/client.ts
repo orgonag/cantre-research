@@ -1,10 +1,10 @@
-import { CoreInputError, networkFromSnapshot } from '@cantre/core';
+import { CoreInputError, SNAPSHOT_FORMAT_VERSION, networkFromSnapshot } from '@cantre/core';
 import type { NetworkView } from '@cantre/core';
 import { DataClientError, errorText } from './errors.js';
 import { parseManifest } from './manifest.js';
 import type { FileRef, Manifest } from './manifest.js';
 import { findInstalled, install, readFiles, removeAll } from './store.js';
-import type { CacheStorageLike } from './store.js';
+import type { CacheStorageLike, InstalledFiles } from './store.js';
 
 /**
  * Downloads, verifies, caches and loads the national snapshot (M4 decision D1).
@@ -16,7 +16,10 @@ import type { CacheStorageLike } from './store.js';
  *
  * Integrity: a file is checked against the manifest's size and SHA-256 BEFORE it is stored and
  * before it is decoded. A short, long, interrupted or tampered download is rejected and the
- * previously installed version stays in use.
+ * previously installed version stays in use. A download that hashes correctly is then decoded
+ * in full, still before it is stored, so a build this app cannot decode never replaces a
+ * working install (Review Focus 4). Order: format check, download, hash, decode, store (manifest
+ * last), delete the older versions.
  */
 
 /** The browser (or test) services the client uses. Defaults to the globals at call time. */
@@ -233,14 +236,24 @@ async function alreadyInstalled(storage: CacheStorageLike, manifest: Manifest): 
 }
 
 /**
- * Downloads the snapshot and the asset-details file named by `manifest`, verifies both, and only
- * then stores them in Cache Storage (`cantre-data-<datasetVersion>`). Older versions are deleted
- * after the new one is fully stored, so a failure at any point leaves the previous install in
- * use. The snapshot is fetched and checked first, so a bad snapshot costs no second download.
+ * Downloads the snapshot and the asset-details file named by `manifest`, verifies both, decodes
+ * both, and only then stores them in Cache Storage (`cantre-data-<datasetVersion>`). Older
+ * versions are deleted after the new one is fully stored, so a failure at any point, including
+ * a snapshot that hashes correctly but does not decode, leaves the previous install in use. The
+ * snapshot is fetched and checked first, so a bad snapshot costs no second download.
+ *
+ * Before anything else, `manifest.snapshotFormat` must be the layout this app decodes
+ * ({@link SNAPSHOT_FORMAT_VERSION}); otherwise `UNSUPPORTED_FORMAT` is thrown and nothing is
+ * requested, stored or deleted.
  *
  * `onProgress` gets the running total of gzip bytes received over both files.
- * Errors: `FETCH_FAILED` (request failure, non-2xx status, interrupted, short or long body, no
- * Cache Storage or SHA-256, or the browser refused to store), `HASH_MISMATCH`.
+ * Errors: `UNSUPPORTED_FORMAT`; `FETCH_FAILED` (request failure, non-2xx status, interrupted,
+ * short or long body, no Cache Storage or SHA-256, or the browser refused to store);
+ * `HASH_MISMATCH`; `CoreInputError('INVALID_SNAPSHOT')` for files that hash correctly but do not
+ * decode (nothing is stored then).
+ *
+ * Cost: the decode here is the same work `loadNetwork` does afterwards, so a download decodes
+ * the snapshot twice (once to check, once to load). It is paid once per new build, not per start.
  *
  * Re-installing: when the installed manifest is the same build (same dataset version, snapshot
  * date and file hashes) and its stored files still hash correctly, nothing is requested or
@@ -254,6 +267,12 @@ export async function downloadSnapshot(
   onProgress?: (p: DownloadProgress) => void,
   env?: Partial<ClientEnv>,
 ): Promise<void> {
+  if (manifest.snapshotFormat !== SNAPSHOT_FORMAT_VERSION) {
+    throw new DataClientError(
+      'UNSUPPORTED_FORMAT',
+      `snapshot format ${String(manifest.snapshotFormat)} is not supported (this app reads ${String(SNAPSHOT_FORMAT_VERSION)})`,
+    );
+  }
   const e = envOf(env);
   const storage = storageOf(e);
   if (await alreadyInstalled(storage, manifest)) {
@@ -271,9 +290,12 @@ export async function downloadSnapshot(
     await verify(bytes, ref);
     return bytes;
   };
-  const snapshotGz = await fetchOne('snapshot');
-  const assetDetailsGz = await fetchOne('assetDetails');
-  await install(storage, manifest, { snapshotGz, assetDetailsGz });
+  const files: InstalledFiles = {
+    snapshotGz: await fetchOne('snapshot'),
+    assetDetailsGz: await fetchOne('assetDetails'),
+  };
+  await decodeFiles(manifest, files); // throws INVALID_SNAPSHOT before anything is stored
+  await install(storage, manifest, files);
 }
 
 /** What is installed (dataset version, date, stored size), or null. Reads no data file. */
@@ -347,28 +369,12 @@ function parseDetails(json: unknown): AssetDetails {
 }
 
 /**
- * Loads the installed snapshot: re-checks both stored files against the manifest's SHA-256
- * (a damaged cache entry is `HASH_MISMATCH` and is never decoded), gunzips the snapshot with
- * `DecompressionStream('gzip')`, calls `networkFromSnapshot`, and parses the asset details.
- * `decodeMs` is the time inside `networkFromSnapshot`; `gunzipMs` the unzip. Nothing is
- * downloaded.
- *
- * Errors: `NOT_INSTALLED`; `HASH_MISMATCH`; `CoreInputError('INVALID_SNAPSHOT')` for bytes that
- * hash correctly but do not decode, or a snapshot whose `datasetVersion` differs from the
- * manifest's (the manifest says which build the files belong to, so a difference is corruption).
+ * Decodes a verified pair of files: gunzips the snapshot with `DecompressionStream('gzip')`,
+ * calls `networkFromSnapshot`, checks that the snapshot's `datasetVersion` is the manifest's,
+ * and parses the asset details. `decodeMs` is the time inside `networkFromSnapshot`; `gunzipMs`
+ * the unzip. Errors: `CoreInputError('INVALID_SNAPSHOT')`.
  */
-export async function loadNetwork(env?: Partial<ClientEnv>): Promise<LoadedNetwork> {
-  const e = envOf(env);
-  const storage = storageOf(e);
-  const installed = await findInstalled(storage);
-  if (installed === null) {
-    throw new DataClientError('NOT_INSTALLED', 'no snapshot is installed');
-  }
-  const { manifest } = installed;
-  const files = await readFiles(installed);
-  await verify(files.snapshotGz, manifest.snapshot);
-  await verify(files.assetDetailsGz, manifest.assetDetails);
-
+async function decodeFiles(manifest: Manifest, files: InstalledFiles): Promise<LoadedNetwork> {
   const g0 = performance.now();
   const bytes = await gunzip(files.snapshotGz);
   const gunzipMs = performance.now() - g0;
@@ -401,6 +407,31 @@ export async function loadNetwork(env?: Partial<ClientEnv>): Promise<LoadedNetwo
     gunzipMs,
     decodeMs,
   };
+}
+
+/**
+ * Loads the installed snapshot: re-checks both stored files against the manifest's SHA-256
+ * (a damaged cache entry is `HASH_MISMATCH` and is never decoded), then decodes them as
+ * `decodeFiles` does. Nothing is downloaded.
+ *
+ * Errors: `NOT_INSTALLED`; `HASH_MISMATCH`; `CoreInputError('INVALID_SNAPSHOT')` for bytes that
+ * hash correctly but do not decode (possible only when the app's decoder changed after the
+ * install, because `downloadSnapshot` decodes before storing), or a snapshot whose
+ * `datasetVersion` differs from the manifest's (the manifest says which build the files belong
+ * to, so a difference is corruption).
+ */
+export async function loadNetwork(env?: Partial<ClientEnv>): Promise<LoadedNetwork> {
+  const e = envOf(env);
+  const storage = storageOf(e);
+  const installed = await findInstalled(storage);
+  if (installed === null) {
+    throw new DataClientError('NOT_INSTALLED', 'no snapshot is installed');
+  }
+  const { manifest } = installed;
+  const files = await readFiles(installed);
+  await verify(files.snapshotGz, manifest.snapshot);
+  await verify(files.assetDetailsGz, manifest.assetDetails);
+  return decodeFiles(manifest, files);
 }
 
 /** The one `SubtleCrypto` method used (the DOM `SubtleCrypto` type is not in this package's libs). */

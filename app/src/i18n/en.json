@@ -245,6 +245,7 @@
     "error.FETCH_FAILED": "The data could not be downloaded. Check the connection and try again.",
     "error.HASH_MISMATCH": "The data did not pass its integrity check and was not used.",
     "error.NOT_INSTALLED": "No rail data is installed on this device yet.",
+    "error.UNSUPPORTED_FORMAT": "This data needs a newer version of the app. Nothing was downloaded, and the data already on this device is kept. Update the app, then try again.",
     "error.INVALID_SNAPSHOT": "The data was downloaded but could not be read. It was not used.",
     "error.UNEXPECTED": "Something unexpected stopped the download. Try again."
   }

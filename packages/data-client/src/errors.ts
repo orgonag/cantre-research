@@ -8,12 +8,15 @@
  * - `HASH_MISMATCH`: a file's SHA-256 is not the manifest's. The file is neither stored nor
  *   decoded.
  * - `NOT_INSTALLED`: `loadNetwork` was called with nothing installed.
+ * - `UNSUPPORTED_FORMAT`: the manifest's `snapshotFormat` is not the one this decoder reads (a
+ *   newer build needs a newer app). Nothing is downloaded, stored or deleted.
  *
  * A snapshot that downloads and hashes correctly but cannot be decoded is a core error
- * (`CoreInputError`, code `INVALID_SNAPSHOT`), not one of these.
+ * (`CoreInputError`, code `INVALID_SNAPSHOT`), not one of these. `downloadSnapshot` decodes
+ * before it stores, so such a snapshot is never installed and the previous install stays.
  */
 export type DataClientCode =
-  'MANIFEST_INVALID' | 'FETCH_FAILED' | 'HASH_MISMATCH' | 'NOT_INSTALLED';
+  'MANIFEST_INVALID' | 'FETCH_FAILED' | 'HASH_MISMATCH' | 'NOT_INSTALLED' | 'UNSUPPORTED_FORMAT';
 
 /** A short text for a caught value of unknown type (an `Error`'s message, or the value as text). */
 export function errorText(e: unknown): string {

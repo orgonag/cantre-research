@@ -19,6 +19,7 @@ export const DATA_CLIENT_CODES = [
   'FETCH_FAILED',
   'HASH_MISMATCH',
   'NOT_INSTALLED',
+  'UNSUPPORTED_FORMAT',
 ] as const satisfies readonly DataClientCode[];
 
 // Compile-time exhaustiveness: if `DataClientCode` gains a code that the list above lacks, this

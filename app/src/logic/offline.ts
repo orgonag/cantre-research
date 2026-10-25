@@ -86,6 +86,7 @@ const SHOWN_CODES = [
   'FETCH_FAILED',
   'HASH_MISMATCH',
   'NOT_INSTALLED',
+  'UNSUPPORTED_FORMAT',
   'INVALID_SNAPSHOT',
 ] as const;
 
@@ -214,13 +215,14 @@ export async function readManifest(deps: OfflineDeps): Promise<ManifestResult> {
  * an event for {@link offlineReducer}. Returns the loaded network, or null after reporting
  * `fail`.
  *
- * Safety (Review Focus 4): the data client checks each file's size and SHA-256 BEFORE storing,
- * and deletes the previous version only after the new one is fully stored. So `HASH_MISMATCH`,
- * a short or interrupted download, or a full disk leaves the old version installed, and this
- * function returns null, so the caller keeps the network it already has. A tampered file is
- * never decoded. The same intact version is not downloaded again (data client). Limit: if the
- * files hash correctly but cannot be decoded (`INVALID_SNAPSHOT`), they are already installed;
- * the network in memory is unchanged but the next start-up will report the problem.
+ * Safety (Review Focus 4): the data client refuses a snapshot format it cannot decode before
+ * downloading anything (`UNSUPPORTED_FORMAT`), checks each file's size and SHA-256, then decodes
+ * the files, all BEFORE storing, and deletes the previous version only after the new one is
+ * fully stored. So `UNSUPPORTED_FORMAT`, `HASH_MISMATCH`, a snapshot that hashes correctly but
+ * does not decode (`INVALID_SNAPSHOT`), a short or interrupted download, or a full disk leaves
+ * the old version installed, and this function returns null, so the caller keeps the network it
+ * already has. A tampered file is never decoded. The same intact version is not downloaded
+ * again (data client).
  */
 export async function runDownload(
   deps: OfflineDeps,

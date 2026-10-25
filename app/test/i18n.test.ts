@@ -33,6 +33,7 @@ describe('message catalogue', () => {
       'HASH_MISMATCH',
       'MANIFEST_INVALID',
       'NOT_INSTALLED',
+      'UNSUPPORTED_FORMAT',
     ]);
   });
 

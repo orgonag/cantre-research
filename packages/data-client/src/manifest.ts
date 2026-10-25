@@ -25,6 +25,11 @@ export type Manifest = {
   readonly attribution: string;
   /** `YYYY-MM-DD`, the vintage label shown to the user. */
   readonly snapshotDate: string;
+  /**
+   * The snapshot's byte-layout version (pipeline/schema/snapshot.md). A manifest written before
+   * the field existed reads as 1, the only layout there was then.
+   */
+  readonly snapshotFormat: number;
   readonly snapshot: FileRef;
   readonly assetDetails: FileRef;
   /** NRWN package version of each province, by lower-case province code (may be empty). */
@@ -82,7 +87,10 @@ function fileRef(raw: unknown, what: string): FileRef {
  * Validates a parsed manifest. It must be a national manifest: `schema` is `cantre.manifest/1`
  * and `snapshot`, `assetDetails` and `snapshotDate` are present (a manifest must not name files
  * the site does not serve). The file paths must be plain relative paths, so a hostile manifest
- * cannot point the client at another host. Throws `DataClientError('MANIFEST_INVALID')`.
+ * cannot point the client at another host. `snapshotFormat` must be a positive integer when
+ * present; whether this app supports it is checked by `downloadSnapshot`, so an unsupported
+ * format is its own error (`UNSUPPORTED_FORMAT`), not a broken manifest. Throws
+ * `DataClientError('MANIFEST_INVALID')`.
  */
 export function parseManifest(json: unknown): Manifest {
   const o = obj(json, 'manifest');
@@ -92,6 +100,15 @@ export function parseManifest(json: unknown): Manifest {
   const snapshotDate = text(o, 'snapshotDate', 'manifest');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(snapshotDate)) {
     invalid('snapshotDate is not YYYY-MM-DD');
+  }
+  // Absent means a manifest from before the field existed; every such build is layout 1.
+  const snapshotFormat = o.snapshotFormat === undefined ? 1 : o.snapshotFormat;
+  if (
+    typeof snapshotFormat !== 'number' ||
+    !Number.isSafeInteger(snapshotFormat) ||
+    snapshotFormat < 1
+  ) {
+    return invalid('snapshotFormat is not a positive integer');
   }
   const packageVersions: Record<string, string> = {};
   if (o.provinces !== undefined) {
@@ -108,6 +125,7 @@ export function parseManifest(json: unknown): Manifest {
     datasetVersion: text(o, 'datasetVersion', 'manifest'),
     attribution: text(o, 'attribution', 'manifest'),
     snapshotDate,
+    snapshotFormat,
     snapshot: fileRef(o.snapshot, 'snapshot'),
     assetDetails: fileRef(o.assetDetails, 'assetDetails'),
     packageVersions,
