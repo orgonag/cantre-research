@@ -80,6 +80,7 @@ no deployment, no public release and no new bulk data acquisition.
 | M3 ruling R27: one candidate per pass | A chain yields one candidate per distinct pass: every local minimum of the cross-track residual within the radius whose `s` is more than the radius from every better pass (closed cycles wrap); candidates sort with `s` as a final tie-break; two passes in the set are one route, so `MATCHED_SUBDIVISION` with `mpRange` null (`TRACK_MP_DISAGREE`, or the range rule if their mileposts agree). Final-review probe: hairpin legs 8 m apart, fix 3 m and 5 m from them, was MATCHED at MP 10.937 although MP 10.31 on the other leg was as well supported. Costs more candidates per chain. |
 | M3 ruling R28: decoder rejects what the matcher cannot use | `networkFromTiles` throws `INVALID_TILE` with the path for an interval that fails `validateInterval`, a chain `sMm` that decreases and a vertex outside the Canada envelope, so `reduce` never throws on a decoded network (spec section 8: corrupt tiles are rejected loudly). Costs rejecting a whole load for one bad record. |
 | M3 ruling R29: lock by piece or base id | A chain lock matches a candidate whose `chainId` or `chainBaseId` equals the lock's `chainId`, so a UI that passes back `chosen.chainId` (for example `id#2`) never gets a permanent `LOCK_CONFLICT`. |
+| M3 ruling R30: no win by heading elimination | The heading filter applies only if at least one member of I that has a bearing agrees with the heading; otherwise it is not applied (`HEADING_INCONSISTENT`). A point candidate (no bearing) stays beside an agreeing track. Before, a CN line 2 m away (bearing 0) and a CPKC point siding 6 m away with heading 90 at 10 m/s gave `MATCHED` on the point; now `AMBIGUOUS_ROUTE`. Owner approved 2026-10-25. Costs a little heading help where only point candidates remain. |
 
 ## Hypothesis discipline
 
@@ -239,11 +240,12 @@ reason codes is produced by some replay (in `Result.reasons` or as `reduce`'s `i
 (Windows 11, Node via npm, from the worktree):
 
 - `npm run lint`, `npm run format:check`, `npm run typecheck`: each exit 0.
-- `npm run coverage`: 28 test files, 372 tests passed (the scenario folder holds 8 files and 58
+- `npm run coverage`: 28 test files, 374 tests passed (the scenario folder holds 8 files and 58
   of them: 22 scenario replays and 36 in the status-coverage file, 24 of those the reason-code
-  guard). Coverage of `packages/core/src`: statements 99.62 % (791/794), branches 94.08 %
-  (493/524), functions 100 % (166/166), lines 99.59 % (743/746), against the gate of lines 95,
-  branches 90, functions 100. The gate held. (Figures after the final-review fix wave below.)
+  guard). Coverage of `packages/core/src`: statements 99.62 % (793/796), branches 94.10 %
+  (495/526), functions 100 % (167/167), lines 99.59 % (744/747), against the gate of lines 95,
+  branches 90, functions 100. The gate held. (Figures after the final-review fix wave and the
+  R30 heading fix below.)
 - Mutation check of the scenarios, rerun after the fix wave: with the diamond rule disabled
   (`diamonds.length > 99`) two scenarios failed (the diamond approach and the golden diamond); with
   `continuityMaxMs` set to 6000 one failed (the same-railway junction hold); with the R23

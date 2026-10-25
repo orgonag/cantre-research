@@ -106,9 +106,11 @@ function unmatched(
  * `headingMinSpeedMps` and a heading is given (a slow or stationary GPS heading is noise). It is
  * given ONLY the position-based indistinguishable set I and keeps the members whose track bearing
  * is within `headingToleranceDeg` of the heading on the AXIS (a train may run either way, so a
- * bearing and its reverse agree). If that would keep nothing the filter is NOT applied (the
- * heading contradicts every indistinguishable track, so it is distrusted, not obeyed).
- * A point candidate (bearing null, ruling R26) is exempt and always kept.
+ * bearing and its reverse agree). If no member WITH a bearing agrees, the filter is NOT applied
+ * and the reason is HEADING_INCONSISTENT (the heading contradicts every directional track, so it
+ * is distrusted, not obeyed; ruling R30). A point candidate (bearing null, ruling R26) is kept
+ * only beside an agreeing track: a heading cannot support a track with no direction, so a point
+ * never wins by elimination.
  * Units: degrees, metres per second. Limits: removes only members of I; it never changes d_min,
  * never adds a candidate and never promotes one that position rejected (R22: validated evidence
  * for automatic choice).
@@ -123,14 +125,19 @@ function applyHeading(
   if (heading === undefined || speed === undefined || !(speed > cfg.headingMinSpeedMps)) {
     return { kept: sorted, reasons: [] };
   }
-  // A point candidate (bearing null, ruling R26) has no direction and is exempt: always kept.
-  const kept = sorted.filter(
+  // Members with a bearing that agrees with the heading on the axis.
+  const agreeing = sorted.filter(
     (c) =>
-      c.bearingDeg === null || axialDifferenceDeg(c.bearingDeg, heading) <= cfg.headingToleranceDeg,
+      c.bearingDeg !== null && axialDifferenceDeg(c.bearingDeg, heading) <= cfg.headingToleranceDeg,
   );
-  if (kept.length === 0) {
+  // Ruling R30: the heading is evidence only if it agrees with at least one track that has a
+  // bearing. A point candidate (bearing null, R26) cannot be supported by a heading, so it must
+  // never win by elimination; with no agreeing bearing the filter is not applied.
+  if (agreeing.length === 0) {
     return { kept: sorted, reasons: ['HEADING_INCONSISTENT'] };
   }
+  // Point candidates stay alongside the agreeing tracks: the heading says nothing against them.
+  const kept = sorted.filter((c) => c.bearingDeg === null || agreeing.includes(c));
   return { kept, reasons: kept.length < sorted.length ? ['HEADING_USED'] : [] };
 }
 

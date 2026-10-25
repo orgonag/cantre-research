@@ -173,8 +173,9 @@ status wins. Every number is a `MATCH_CONFIG` value and is experimental.
 5. Heading filter, within I only. Only when speed is above 3 m/s and a heading is given, a member
    of I whose track bearing differs from the heading by more than 30 degrees (axially, so a train
    may run either way) is dropped from the choice. It never changes d_min and never promotes a
-   candidate that position rejected. If it would drop every member of I it is not applied
-   (`HEADING_INCONSISTENT`). A point candidate has no bearing and is kept. A stale heading at a
+   candidate that position rejected. If no member of I that has a bearing agrees with the heading,
+   it is not applied (`HEADING_INCONSISTENT`). A point candidate has no bearing: it is kept beside
+   an agreeing track, but a heading can never make it win by elimination. A stale heading at a
    standstill is never used.
 6. A diamond within the search radius, along-track, of any candidate blocks automatic selection:
    `AMBIGUOUS_ROUTE` (`DIAMOND_NEARBY`), even if one line is nearer and even with a heading.

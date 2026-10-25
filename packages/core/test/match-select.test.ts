@@ -501,6 +501,39 @@ describe('selectCandidate scenarios on real geometry', () => {
     expect(s.reasons).toEqual(['HEADING_INCONSISTENT']);
   });
 
+  describe('R30: a point candidate never wins by heading elimination', () => {
+    // CN runs north-south 2 m east of the fix; a CPKC point siding (one vertex, bearing null,
+    // R26) lies 6 m north of it. Both are in I (cut 2 + max(5, 10) = 12 m), on different railways.
+    function probeNet(): NetworkView {
+      const ns = straightChain('cn', ORIGIN, -1000, 1000, {
+        bearingDeg: 0,
+        lateralM: 502,
+        sub: 'sub-cn',
+        op: 'CN',
+      });
+      const point = {
+        ...siding('p', ORIGIN, 0, 100, { sub: 'sub-cp', op: 'CPKC' }),
+        pts: [fromLocalM(ORIGIN, { x: 500, y: 6 }, ORIGIN.lat)],
+      };
+      return network({ coverage: [coverageAround(ORIGIN, 5000)], chains: [ns], segments: [point] });
+    }
+
+    it('a heading that contradicts the only directional track is not applied', () => {
+      // Before R30 the heading (90) dropped CN and kept the bearing-less point: MATCHED p.
+      const s = run({ net: probeNet(), fix: fixAt(500, 0, 5, { headingDeg: 90, speedMps: 10 }) });
+      expect(s.status).toBe('AMBIGUOUS_ROUTE');
+      expect(s.chosen).toBeNull();
+      expect(s.reasons).toEqual(['HEADING_INCONSISTENT', 'MULTIPLE_ROUTES']);
+      expect(s.candidates.map((c) => c.chainId ?? c.segmentKey)).toEqual(['cn', 'p']);
+    });
+
+    it('a heading that agrees with a directional track keeps the point beside it', () => {
+      const s = run({ net: probeNet(), fix: fixAt(500, 0, 5, { headingDeg: 0, speedMps: 10 }) });
+      expect(s.status).toBe('AMBIGUOUS_ROUTE');
+      expect(s.reasons).toEqual(['MULTIPLE_ROUTES']);
+    });
+  });
+
   it('R22: a lock on a line the heading contradicts still matches it (no heading under a lock)', () => {
     const ns = straightChain('ns', ORIGIN, -1000, 1000, {
       bearingDeg: 0,
