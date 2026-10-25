@@ -59,6 +59,27 @@ export function updateAvailable(installed: InstalledSnapshot | null, remote: Man
   return installed !== null && installed.datasetVersion !== remote.datasetVersion;
 }
 
+/** What the device holds, for the Offline data screen. */
+export type StoredData =
+  | { readonly kind: 'none' }
+  | { readonly kind: 'installed' }
+  | { readonly kind: 'damaged'; readonly code: string };
+
+/**
+ * What to tell the user about the stored data. A failed start-up load (`damagedCode`) wins over
+ * everything: the copy is there but cannot be used, so the screen must say so, offer Remove and a
+ * fresh download, and never say "no data" or "latest". Otherwise installed or none.
+ */
+export function storedData(
+  installed: InstalledSnapshot | null,
+  damagedCode: string | null,
+): StoredData {
+  if (damagedCode !== null) {
+    return { kind: 'damaged', code: damagedCode };
+  }
+  return installed === null ? { kind: 'none' } : { kind: 'installed' };
+}
+
 /** Codes the app has a message for: the data client's, an undecodable snapshot, and a fallback. */
 const SHOWN_CODES = [
   'MANIFEST_INVALID',

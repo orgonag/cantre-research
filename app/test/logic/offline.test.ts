@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CoreInputError } from '@cantre/core';
 import { DataClientError, parseManifest } from '@cantre/data-client';
 import type { LoadedNetwork, Manifest } from '@cantre/data-client';
@@ -11,6 +11,7 @@ import {
   formatMegabytes,
   offlineReducer,
   readManifest,
+  storedData,
   runDownload,
   updateAvailable,
 } from '../../src/logic/offline.js';
@@ -114,6 +115,18 @@ describe('error messages', () => {
     expect(errorMessageKey('HASH_MISMATCH')).toBe('error.HASH_MISMATCH');
     expect(errorMessageKey('INVALID_SNAPSHOT')).toBe('error.INVALID_SNAPSHOT');
     expect(errorMessageKey('SOMETHING_ELSE')).toBe('error.UNEXPECTED');
+  });
+});
+
+describe('storedData', () => {
+  const installed = { datasetVersion: 'v1', snapshotDate: 'd', bytes: 1, packageVersions: {} };
+  it('says damaged when the start-up load failed, even though nothing was read', () => {
+    expect(storedData(null, 'HASH_MISMATCH')).toEqual({ kind: 'damaged', code: 'HASH_MISMATCH' });
+    expect(storedData(installed, 'INVALID_SNAPSHOT').kind).toBe('damaged');
+  });
+  it('says installed or none otherwise', () => {
+    expect(storedData(installed, null)).toEqual({ kind: 'installed' });
+    expect(storedData(null, null)).toEqual({ kind: 'none' });
   });
 });
 
@@ -244,11 +257,15 @@ describe('with the real data client (golden national bundle)', () => {
       [g.manifest.assetDetails.path]: g.assetDetails,
     });
 
-  it('first run: manifest at data/manifest.json, one download, then loaded', async () => {
+  it('first run: the real DATA_BASE_URL reaches the fetched URLs, one download, then loaded', async () => {
     expect(DATA_BASE_URL).toBe('data/');
     const g = goldenBundle();
     const server = served(g, g.manifest);
-    const deps = dataClientDeps(envOf(server.fetch, memoryCaches()), BASE);
+    // No base override: the default constant must be what the data client resolves, against the
+    // page address, into the fetched URLs.
+    vi.stubGlobal('location', { href: 'https://app.example.test/index.html' });
+    const deps = dataClientDeps(envOf(server.fetch, memoryCaches()));
+    expect(deps.baseUrl).toBe(DATA_BASE_URL);
     const read = await readManifest(deps);
     expect(read.kind).toBe('manifest');
     if (read.kind !== 'manifest') {
@@ -257,6 +274,7 @@ describe('with the real data client (golden national bundle)', () => {
     const { loaded, last } = await drive(deps, read.manifest);
     expect(last.kind).toBe('ready');
     expect(loaded?.datasetVersion).toBe(g.manifest.datasetVersion);
+    vi.unstubAllGlobals();
     expect(server.urls).toEqual([
       `${BASE}manifest.json`,
       `${BASE}${g.manifest.snapshot.path}`,

@@ -175,7 +175,7 @@
     "nav.about": "About",
     "nav.back": "Back to position",
     "firstRun.heading": "Get the rail data",
-    "firstRun.privacy": "CANTRE needs one download: the rail data for all of Canada. Everyone gets the same files, so the server cannot learn where you are. Your GPS position stays on this device and is never sent or stored. The map background is off unless you turn it on; then tiles are requested for the area shown. After this the app works offline.",
+    "firstRun.privacy": "CANTRE needs one download: the rail data for all of Canada. Everyone downloads the same files, so the download does not reveal where you are on the network. The host still sees your internet address, as with any website. Your GPS position stays on this device. The map background is off unless you turn it on; then tiles are requested for the area shown.",
     "firstRun.download": "Download data for Canada ({size} MB)",
     "firstRun.checking": "Checking the data list",
     "firstRun.retry": "Try again",
@@ -232,9 +232,11 @@
     "about.code.link": "CANTRE on GitHub (opens in a new tab)",
     "about.licence": "The code is under the MIT licence. Data stays under each source's own licence.",
 
+    "offline.damaged": "The data stored on this device is damaged or unreadable, so it cannot be used.",
+    "offline.redownload": "Download the data again ({size} MB)",
     "error.MANIFEST_INVALID": "The data list from the server is not valid. Try again later.",
     "error.FETCH_FAILED": "The data could not be downloaded. Check the connection and try again.",
-    "error.HASH_MISMATCH": "The downloaded data did not pass its integrity check and was not used.",
+    "error.HASH_MISMATCH": "The data did not pass its integrity check and was not used.",
     "error.NOT_INSTALLED": "No rail data is installed on this device yet.",
     "error.INVALID_SNAPSHOT": "The data was downloaded but could not be read. It was not used.",
     "error.UNEXPECTED": "Something unexpected stopped the download. Try again."

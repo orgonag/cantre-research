@@ -439,6 +439,7 @@ export function App(props: {
         {screen === 'offline' && (
           <OfflineData
             installed={installed}
+            damagedCode={phase.kind === 'unavailable' ? phase.code : null}
             remote={manifest}
             state={offline}
             onUpdate={download}

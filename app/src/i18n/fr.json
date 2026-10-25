@@ -175,7 +175,7 @@
     "nav.about": "À propos",
     "nav.back": "Retour à la position",
     "firstRun.heading": "Obtenir les données ferroviaires",
-    "firstRun.privacy": "CANTRE a besoin d'un seul téléchargement : les données ferroviaires de tout le Canada. Tout le monde reçoit les mêmes fichiers, donc le serveur ne sait pas où vous êtes. Votre position GPS reste sur cet appareil et n'est ni envoyée ni conservée. Le fond de carte est désactivé sauf si vous l'activez; des tuiles sont alors demandées pour la zone affichée. Ensuite, l'application fonctionne hors ligne.",
+    "firstRun.privacy": "CANTRE a besoin d'un seul téléchargement : les données ferroviaires de tout le Canada. Tout le monde télécharge les mêmes fichiers, donc le téléchargement ne révèle pas où vous êtes sur le réseau. L'hébergeur voit tout de même votre adresse Internet. Votre position GPS reste sur cet appareil. Le fond de carte est désactivé sauf si vous l'activez; des tuiles sont alors demandées pour la zone affichée.",
     "firstRun.download": "Télécharger les données du Canada ({size} Mo)",
     "firstRun.checking": "Vérification de la liste des données",
     "firstRun.retry": "Réessayer",
@@ -232,9 +232,11 @@
     "about.code.link": "CANTRE sur GitHub (s'ouvre dans un nouvel onglet)",
     "about.licence": "Le code est sous licence MIT. Les données restent sous la licence propre à chaque source.",
 
+    "offline.damaged": "Les données enregistrées sur cet appareil sont endommagées ou illisibles et ne peuvent pas être utilisées.",
+    "offline.redownload": "Télécharger de nouveau les données ({size} Mo)",
     "error.MANIFEST_INVALID": "La liste de données reçue du serveur n'est pas valide. Réessayez plus tard.",
     "error.FETCH_FAILED": "Les données n'ont pas pu être téléchargées. Vérifiez la connexion et réessayez.",
-    "error.HASH_MISMATCH": "Les données téléchargées n'ont pas réussi la vérification d'intégrité et n'ont pas été utilisées.",
+    "error.HASH_MISMATCH": "Les données n'ont pas réussi la vérification d'intégrité et n'ont pas été utilisées.",
     "error.NOT_INSTALLED": "Aucune donnée ferroviaire n'est encore installée sur cet appareil.",
     "error.INVALID_SNAPSHOT": "Les données ont été téléchargées mais n'ont pas pu être lues. Elles n'ont pas été utilisées.",
     "error.UNEXPECTED": "Un problème inattendu a interrompu le téléchargement. Réessayez."
