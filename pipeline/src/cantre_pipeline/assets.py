@@ -210,6 +210,24 @@ def _feature_positions(
     return (pos,), ""
 
 
+def _gap(a: LatLon, b: LatLon) -> float:
+    """Coordinate distance between two vertices in degrees (only used to compare candidates)."""
+    return abs(a.lat - b.lat) + abs(a.lon - b.lon)
+
+
+def _runs_along_chain(first: LatLon, last: LatLon, seg_pts: Sequence[LatLon]) -> bool:
+    """True when a segment's vertices run in the chain's direction.
+
+    ``first`` and ``last`` are the chain vertices at the segment's start and end of its range.
+    Both ends are compared, so that the join vertex the chain kept from the neighbouring segment
+    (it can differ from the segment's own end by the 1 microdegree join tolerance) cannot flip
+    the answer; ties (a closed segment) count as forward.
+    """
+    same = _gap(first, seg_pts[0]) + _gap(last, seg_pts[-1])
+    flipped = _gap(first, seg_pts[-1]) + _gap(last, seg_pts[0])
+    return same <= flipped
+
+
 class _NodeIndex:
     """Where a junction node sits on the chains: by vertex coordinate and by segment end.
 
@@ -228,7 +246,7 @@ class _NodeIndex:
             for key in chain.segment_keys:
                 seg = seg_by_key[key]
                 i0, i1 = chain.segment_ranges[key]
-                forward = chain.pts[i0] == seg.pts[0]  # runs along the chain, or against it
+                forward = _runs_along_chain(chain.pts[i0], chain.pts[i1], seg.pts)
                 start_i, end_i = (i0, i1) if forward else (i1, i0)
                 self.by_node[seg.start_node].append((chain, start_i))
                 self.by_node[seg.end_node].append((chain, end_i))

@@ -333,3 +333,27 @@ def test_real_sk_asset_invariants() -> None:  # pragma: no cover - env-gated
             for s, mp in ((p.s_start_m, p.derived_mp_start), (p.s_end_m, p.derived_mp_end)):
                 inside = any(lo <= s <= hi for lo, hi in spans.get(p.chain_id, []))
                 assert (mp is not None) == inside
+
+
+def test_diamond_at_a_join_that_differs_by_one_microdegree_is_found_once(tmp_path: Path) -> None:
+    """The chain keeps segment a's join vertex; segment b's own end differs by 1 microdegree."""
+    fx = NrwnFixture(tmp_path)
+    fx.track("a", [P(0), LatLon(52.00000049, -105.99)])
+    fx.track("b", [LatLon(52.00000051, -105.99), P(2)])
+    fx.junction("D", LatLon(52.00000049, -105.99), "Diamond")
+    (diamond,) = run(fx).values()
+    (chain,) = {p.chain_id for p in diamond.positions}
+    assert len(diamond.positions) == 1 and chain  # one vertex, not one per segment end
+    assert 0 < diamond.positions[0].s_start_m < 1000
+
+
+def test_run_direction_compares_both_ends_of_the_segment() -> None:
+    from cantre_pipeline.assets import _runs_along_chain
+
+    a, b = LatLon(52.0, -106.0), LatLon(52.0, -105.99)
+    assert _runs_along_chain(a, b, (a, b))
+    assert not _runs_along_chain(a, b, (b, a))
+    nudged = LatLon(52.000001, -106.0)  # the chain's join vertex, 1 microdegree off the segment's
+    assert _runs_along_chain(nudged, b, (a, b))
+    assert not _runs_along_chain(nudged, b, (b, a))
+    assert _runs_along_chain(a, a, (a, a))  # a closed segment counts as forward
