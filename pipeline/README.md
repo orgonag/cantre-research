@@ -87,6 +87,15 @@ A package may leave a layer out when NRCan has no features for it (`MARKERPOST` 
 `STRUCTURE_0` in MB). Such a layer reads as empty and the build writes one `LAYER_ABSENT` audit
 line; any other missing layer, or a layer with only some of its files, is still `SCHEMA_DRIFT`.
 
+### Site layout
+
+`python pipeline/scripts/lay_out_site_data.py NATIONAL_DIR SITE_DIR` writes the site's `data/` folder
+from a national output: `SITE_DIR/data/manifest.json` (at a fixed path) and
+`SITE_DIR/data/<datasetVersion with + as ->/` holding the snapshot and the asset-details file. Only
+the two `path` values of the manifest change; the data files are copied byte for byte. The layout
+code (`cantre_pipeline.site_layout`) is shared with the browser-test fixture generator, and the
+deploy workflow uses it before the size gate (`scripts/check-budget.mjs`).
+
 ### Pipeline stages
 
 `acquire` -> `reader` -> `validate` -> `chains` -> `anchors` -> `intervals` -> `assets` ->

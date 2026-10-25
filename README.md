@@ -5,10 +5,38 @@
 An open-source research tool that works out where a GPS position is on the Canadian
 railway network, and what railway assets are near it, from public data. The repository
 is public (since 2026-10-25). Code is MIT-licensed; data stays under each source's own
-licence. Built so far: the calculation core (`packages/core`, milestone M1) and the data
-pipeline for Saskatchewan (`pipeline/`, milestone M2). The phone app is not built yet
-(M4). No source app, private railway data, credentials, photographs or database is
-included.
+licence. Built so far: the calculation core and matching state machine (`packages/core`,
+milestones M1 and M3), the data pipeline (`pipeline/`, M2, now run for every NRWN province
+with a published package) and the phone web app with its data client (`app/`,
+`packages/data-client`, M4, pull request pending). No source app, private railway data,
+credentials, photographs or database is included.
+
+## The app (research software)
+
+CANTRE is a phone web app that shows a calculated railway milepost for the device's GPS fix,
+using public National Railway Network (NRWN) geometry and Transport Canada crossing data for
+all provinces and territories that have a published NRWN package (not Nunavut or Prince Edward
+Island). It is **research software**: mileposts are calculated, not surveyed, every threshold in
+the matcher is experimental and unevaluated, and there has been **no field validation yet**. It
+is not for safety, operations or track access.
+
+- One download of the national data (about 14 MB), then it works offline.
+- Your GPS position stays on the device: no request carries a coordinate, and no fix or trace
+  is stored. The only storage is your settings, the downloaded data and a one-bit "lock was set"
+  flag. There is no analytics or telemetry.
+- Ambiguous places (diamonds, nearby routes, edges of the data) show a route chooser instead of
+  a guess; a chosen route stays visible until you unlock it or reload.
+- English and French (the French text is a draft that needs native review).
+
+**Live link:** <https://orgonag.github.io/cantre-research/>. This address is **not live yet**. It
+becomes active only after the owner enables GitHub Pages for the repository and runs the
+[deploy workflow](.github/workflows/deploy.yml) by hand. Until then, build and run it locally
+(`npm ci`, `npm run -w app build`, then serve `app/dist`; the data comes from the pipeline's
+`national` command).
+
+Data sources, versions and the required attribution are in
+[docs/DATA-LICENSES.md](docs/DATA-LICENSES.md); measured sizes, test counts and the open items
+are in the M4 entry of [docs/RESEARCH.md](docs/RESEARCH.md).
 
 ## How we work — approved method
 
@@ -17,8 +45,8 @@ branch with a reviewed PR that the owner approves, following the
 [v1 spec](docs/superpowers/specs/2026-10-23-cantre-v1-design.md) and the
 [plan roadmap](docs/superpowers/plans/2026-10-23-cantre-roadmap.md). Every formula is
 commented with its units, source and limits. The earlier teach-and-build-together
-method is kept in the [learning roadmap](docs/LEARNING.md). Deployment and hosting
-still need the owner's go-ahead.
+method is kept in the [learning roadmap](docs/LEARNING.md). Enabling Pages and
+running the deploy still need the owner's go-ahead.
 
 ## Goal and intended experience
 
@@ -38,7 +66,8 @@ movement authority, protection limit or substitute for railway rules.
 - [Illustrated learning journal — October 20](docs/lessons/2026-10-20-projection/README.md): projection math, anchors and track choice.
 - [v1 design spec](docs/superpowers/specs/2026-10-23-cantre-v1-design.md): what CANTRE v1 will be and how it is built.
 - [Calculation core](packages/core/README.md): the built `@cantre/core` package: its API, method and limits, and the matching state machine (statuses, rules, experimental thresholds, reason codes), tested by synthetic scenario replays.
-- [Data pipeline](pipeline/README.md): the built `cantre-pipeline` (NRWN and Transport Canada to chains, anchors, intervals, tiles, manifest, audit and coverage report), its output formats and determinism guarantee.
+- [Data pipeline](pipeline/README.md): the built `cantre-pipeline` (NRWN and Transport Canada to chains, anchors, intervals, tiles, manifest, audit and coverage report, and the national snapshot), its output formats and determinism guarantee.
+- [Data sources and licences](docs/DATA-LICENSES.md): the sources, versions, the required attribution and the optional basemap.
 - [Learning roadmap](docs/LEARNING.md): the earlier teach-and-build-together method (superseded 2026-10-23).
 - [Controlled source comparison](docs/SOURCE-COMPARISON.md): verified aggregate findings.
 - [Prior-art study](docs/PRIOR-ART.md): TrackPilot lessons and limits, without copying.
@@ -175,9 +204,16 @@ Evaluate current versions, licences, browser support, bundle size and alternativ
 at implementation time. SQLite/DuckDB are optional preparation tools, not required
 browser dependencies. No stack decision is settled by this document.
 
-## Hosting and storage — proposal, not deployment
+## Hosting and storage
 
-Proposed: Cloudflare Pages for the frontend and R2 for regional public-data bundles.
+**M4 decision (2026-10-25):** the app and one national data download are hosted on GitHub Pages
+at the address above, with Cloudflare R2 as the fallback if a size limit fails. The deploy
+workflow exists but has not been run, and the repository's Pages setting is off. The older
+proposal below (Cloudflare Pages, R2 and regional bundles requested by position) is superseded
+for v1: a request by region would reveal approximate location to the host, which is why the app
+downloads the whole national snapshot instead.
+
+Earlier proposal, kept for the record: Cloudflare Pages for the frontend and R2 for regional public-data bundles.
 The website supplies a small versioned manifest/index; phone-local GPS identifies
 relevant regions and boundary buffers, then requests those bundles. Raw shapefiles
 or other originals need not be served from the Mac mini. Keep immutable source
@@ -204,8 +240,10 @@ Contains information licensed under the Open Government Licence – Canada.
 The Saskatchewan raw archive was preserved locally, separate from processed JSON:
 3,693,881 bytes compressed, 75,761,891 bytes across its GML/XSD/XML members. The
 October 16 size-only inventory of eleven English provincial/territorial SHP ZIPs
-was 29,643,408 bytes; PEI and Nunavut were absent from that listing. No national
-bulk download occurred. These historical counts are not promises of current availability.
+was 29,643,408 bytes; PEI and Nunavut were absent from that listing. At that time no
+national bulk download had occurred; the M4 national build later acquired all eleven
+packages on 2026-10-24 and 2026-10-25 (see [docs/DATA-LICENSES.md](docs/DATA-LICENSES.md)).
+These historical counts are not promises of current availability.
 
 The owner made the repository public on 2026-10-25. Public visibility is not a licence
 to import employer material or any other unlicensed data. See the data plan for replay

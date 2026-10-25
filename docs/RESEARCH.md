@@ -291,3 +291,112 @@ section 13 table and section 12 note are updated. Deploying is approved; enablin
 repository setting the owner turns on, or approves explicitly. Nothing is measured here: the
 national data size is unknown until the M4 build (on 2026-10-25 the NRCan server answered size
 requests for AB 3,818,082 bytes, NB 947,884 and NL 130,539, and timed out for the rest).
+
+## 2026-10-25 — M4 national app built (not deployed)
+
+Built milestone M4 on branch `feat/m4-national-app`: the pipeline's `national` command (every NRWN
+province with a published package, plus the Transport Canada inventory, merged into one snapshot),
+`@cantre/core` snapshot decoding and lookups, `@cantre/data-client` (fetch, hash-check, cache),
+the phone web app in `app/`, Playwright, privacy and accessibility tests, a GitHub Pages deploy
+workflow and a size gate. The pull request is pending the owner's review. Nothing is deployed:
+the deploy workflow has not been run and Pages is not enabled. Every matcher threshold is still
+**experimental and unevaluated**, and there is **no field validation yet** of anything the app
+shows. The numbers below are sizes, counts and test results, not accuracy.
+
+### What the national build holds (measured)
+
+Dataset version `nrwn-national-6d2ca5d6+cantre.0.1.0`, snapshot date 2026-10-25, from 11 NRWN
+packages retrieved 2026-10-24 and 2026-10-25 and the Transport Canada 2023-update inventory
+retrieved 2026-10-24 (versions and hashes in [DATA-LICENSES.md](DATA-LICENSES.md)). Nunavut and
+Prince Edward Island have no NRWN package: the conventional package address answered HTTP 404 on
+2026-10-25 (it is not proof that there is no track there). Newfoundland and Labrador, the
+Northwest Territories and Yukon are NRWN 1.0; the other eight are 2.0.
+
+| What | Value |
+| --- | --- |
+| Chains / vertices / unchained segments | 1,252 / 489,913 / 53,110 |
+| Anchors (posted / tc / unverified) | 42,917 (28,657 / 463 / 13,797) |
+| Calibrated intervals / assets / coverage cells | 1,385 / 64,061 / 1,657 |
+| Total chain length | 47,766.5 km (longest chain 473.5 km) |
+| `snapshot.bin.gz` | 12,366,619 bytes served; 28,766,587 bytes unzipped |
+| `asset-details.json.gz` | 1,871,505 bytes served; 11,837,310 bytes unzipped |
+| `manifest.json` | 85,396 bytes |
+| One first-run download (snapshot plus asset details) | 14,238,124 bytes |
+| Pipeline tiles (built and checked, not deployed) | 1,725; largest 433,499 bytes gzip (Quebec), limit 500,000 |
+| `national` wall time | 241.5 s, and 258.1 s with a different hash seed; both outputs byte-identical |
+
+Per-province counts are in the `national` command output and the Task 2 report; the province
+columns sum exactly to the national row, so no id was shared between provinces and the
+merge-conflict check never fired. YT calibrates 0 km (one anchor, no interval) and NL 307 of
+393 km; NL, NT and YT have 25, 40 and 1 anchors. These are data facts, not errors.
+
+**The plan's estimate was wrong.** The M4 plan projected the snapshot at about 4 to 6 MB from the
+Saskatchewan trial. The measured national snapshot is 12.37 MB (12,366,619 bytes), roughly twice
+that, and the first-run download with asset details is 14.24 MB. It is inside the 15 MB target,
+the 100 MB per-file limit and the 1 GB site limit, so no hosting change was needed, but the
+projection method (scaling from one province) should not be reused.
+
+### Size gate (`scripts/check-budget.mjs`)
+
+Run on 2026-10-25 against the national output and the app built for the `/cantre-research/`
+sub-path with the data laid out as the site:
+
+| Limit | Measured | Limit |
+| --- | --- | --- |
+| App shell, gzip (10 files, excluding maplibre-gl) | 51,769 bytes | 300,000 |
+| maplibre-gl chunk, CSS and worker, gzip (4 files, loaded only when the map opens) | 440,785 bytes | not in the shell |
+| Largest file (the snapshot) | 12,366,619 bytes | 100,000,000 |
+| Site total (17 files) | 16,145,481 bytes | 1,000,000,000 |
+| Largest tile, gzip | 433,499 bytes | 500,000 |
+
+The shell figure gzips each file separately with Node's zlib at level 9 and adds them. The tile
+figure is the pipeline's own recorded size (Python zlib), because Node's zlib compresses the same
+tile to a different size. The gate also failed, as intended, when each limit was lowered below its
+measured value, on an unlisted tile and on a tile whose size differs from the manifest.
+
+### Decoding cost (measured on one desktop)
+
+AMD Ryzen 9 5900X, 15.9 GiB RAM, Windows 11, Node 22.12.0: unzip 79 ms and decode 409 ms (median
+of 5 runs) for the national snapshot, with about 127 MiB more heap; parsing the asset-details JSON
+adds about 27 MiB. **No phone has been measured.** A low-end phone will be slower, and the roughly
+130 to 150 MiB of heap needs a check on real devices before anyone relies on it.
+
+### Tests
+
+- `npm run coverage`: 42 test files, 644 tests passed. Statements 99.73 %, branches 95.28 %,
+  functions 100 %, lines 99.72 % overall; `app/src/logic` 99.58 / 92.94 / 100 / 99.57 against the
+  gate of 90 / 85 / 95; core and data-client hold their 95 / 90 / 100 gate.
+- Playwright (`CI=1 npm run -w app e2e`, against the built app, desktop Chromium, Pixel 7 and an
+  iPhone 13 viewport, all on Chromium): 183 passed, 0 failed, 0 skipped (61 per project: 20 flow, 9
+  privacy and 32 accessibility tests). Every request is checked against an allowlist of the app's
+  own files and the three data files, none carries a coordinate, and storage (localStorage,
+  sessionStorage, cookies, IndexedDB, Cache Storage) is inspected afterwards. axe (WCAG 2.2 AA) found
+  no violations in 15 states in light and dark themes. These are synthetic-data tests with mocked
+  GPS in headless Chromium; they are not field tests and say nothing about Safari.
+- `pytest pipeline`: 394 passed, 7 failed on this Windows machine. All 7 are in
+  `test_determinism.py` and stop on a file-not-found for a golden file under a very long checkout
+  path (Windows path length), not on a comparison; CI runs them from a short path. Pipeline line
+  coverage 99.54 % (gate 95 %). `ruff check`, `ruff format --check` and `mypy --strict` pass.
+- Browser check of the deploy shape (2026-10-25, a local static server, not GitHub Pages): the app
+  built with base `/cantre-research/` loads under that sub-path, downloads the real national
+  snapshot and lists its subdivisions.
+
+### Not done, not verified, or deferred
+
+- **No field validation.** The matcher's thresholds are unevaluated. Accuracy, the datum offset
+  study and leave-one-anchor-out evaluation are M5.
+- **Deploy is untested.** `.github/workflows/deploy.yml` has never run. GitHub Pages' behaviour for
+  `.gz` files is not verified: the data client rejects a body that a host has re-encoded, so after
+  the first deploy check that `curl -sI` of `data/manifest.json` and of the snapshot shows no
+  `content-encoding` header. The workflow's last step does this and fails if one appears.
+- The CI `app` job (Playwright on Linux with `--with-deps`) has not run on a CI runner yet.
+- WebKit is not run: the "iPhone" project uses Chromium.
+- The synthetic diamond has one route, so a two-route diamond chooser is not tested in a browser;
+  the two-route chooser, lock and unlock are tested at the border.
+- Asset type filters (for example only bridges) are not built.
+- The French text is a draft and needs native review.
+- The service worker's clean-up of its library cache is unproven across two real releases (it
+  needs two builds).
+- Memory and speed on real phones are unmeasured (above). Licence notices for the bundled
+  libraries are not shipped with the site yet.
+- Nunavut and Prince Edward Island are not covered (no NRWN package).

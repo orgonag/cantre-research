@@ -24,13 +24,11 @@ Usage, from the repository root: ``python pipeline/scripts/make_e2e_fixture.py [
 Without ``OUT_DIR`` the committed ``app/e2e/fixtures`` directory is replaced.
 """
 
-import json
 import shutil
 import sys
 import tempfile
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 PIPELINE = Path(__file__).absolute().parents[1]
 sys.path[:0] = [str(PIPELINE / "src"), str(PIPELINE / "tests")]
@@ -38,8 +36,8 @@ sys.path[:0] = [str(PIPELINE / "src"), str(PIPELINE / "tests")]
 from cantre_pipeline.config import PipelineConfig  # noqa: E402
 from cantre_pipeline.encode import canonical_json  # noqa: E402
 from cantre_pipeline.national import ProvinceInput, build_national  # noqa: E402
+from cantre_pipeline.site_layout import place  # noqa: E402
 from fixtures.synthetic import (  # noqa: E402
-    NATIONAL_FILES,
     NATIONAL_SOURCES,
     SYNTHETIC_SOURCES,
     national_fixtures,
@@ -47,29 +45,6 @@ from fixtures.synthetic import (  # noqa: E402
 
 GOLDEN_NATIONAL = PIPELINE / "tests" / "golden" / "synthetic" / "national"
 DEFAULT_OUT = PIPELINE.parent / "app" / "e2e" / "fixtures"
-
-
-def directory_name(dataset_version: str) -> str:
-    """Return the folder name for a build: the dataset version made safe for a manifest path."""
-    return dataset_version.replace("+", "-")
-
-
-def relocated(manifest_bytes: bytes) -> tuple[dict[str, Any], str]:
-    """Return the manifest with its file paths moved under ``<dir>/``, and that ``<dir>``."""
-    manifest: dict[str, Any] = json.loads(manifest_bytes)
-    folder = directory_name(manifest["datasetVersion"])
-    for key in ("snapshot", "assetDetails"):
-        manifest[key]["path"] = f"{folder}/{Path(manifest[key]['path']).name}"
-    return manifest, folder
-
-
-def place(source: Path, manifest_bytes: bytes, data_dir: Path) -> dict[str, Any]:
-    """Copy a build's two data files into ``data_dir/<dir>/``; return its manifest."""
-    manifest, folder = relocated(manifest_bytes)
-    (data_dir / folder).mkdir(parents=True, exist_ok=True)
-    for name in NATIONAL_FILES[1:]:
-        shutil.copyfile(source / name, data_dir / folder / name)
-    return manifest
 
 
 def build_next(root: Path) -> tuple[Path, bytes]:

@@ -12,8 +12,8 @@ the contracts that cross milestone boundaries, so the plans agree with each othe
 | M1 | [Calculation core](2026-10-23-m1-calculation-core.md) | Monorepo, CI, `@cantre/core` geodesy, projection, polyline and interpolation | Merged (PR #4) |
 | M2 | [Pipeline: one province (SK)](2026-10-24-m2-pipeline-sk.md) | `pipeline/` ingest, audit, chains, anchors, tiles, manifest, coverage report | Merged (PR #6) |
 | M3 | [Matching state machine](2026-10-25-m3-matching.md) | `@cantre/core` `network/` and `match/`, synthetic scenario replays | Merged (PR #9) |
-| M4 | [National app and public site](2026-10-25-m4-national-app.md) | All NRWN provinces in one national snapshot, `@cantre/data-client`, `app/`, Playwright, privacy and axe tests, GitHub Pages deploy | Planned |
-| M5 | Evaluation | `eval/`, EVALUATION.md, datum study, cross-border chains, threshold tuning | Plan after M4 |
+| M4 | [National app and public site](2026-10-25-m4-national-app.md) | All NRWN provinces in one national snapshot, `@cantre/data-client`, `app/`, Playwright, privacy and axe tests, GitHub Pages deploy workflow (not run; Pages not enabled) | Built (PR pending) |
+| M5 | Evaluation and datum study | `eval/`, EVALUATION.md, leave-one-anchor-out evaluation, the datum offset study, cross-border chains, threshold tuning | Plan after M4 merges |
 | M6 | Methods and release kit | METHODS.md, release files | Plan after M5 |
 
 ## Cross-milestone contracts
@@ -40,3 +40,20 @@ These names and shapes are fixed here. A later plan may extend them but must not
   [`pipeline/schema/`](../../../pipeline/schema/) (`cantre.tile/1`, `cantre.manifest/1`), decoded in M3 by
   `@cantre/core` (`src/network/`: `networkFromTiles`, a pure decoder, with its TypeScript types) and
   reused by `@cantre/data-client` (M4), which fetches, caches and version-pins tiles (M3 Decision 1).
+
+## Deferred from M4
+
+Not built or not verified when M4 was written; each needs an owner or a later milestone.
+
+- Enable GitHub Pages, run the deploy workflow once, then check that the host sends the `.gz` data
+  files without a `content-encoding` header (the workflow's last step does this) and open the live
+  address on a phone-sized screen. Both the setting and the first run are the owner's go-ahead.
+- Optional: a push-to-main trigger for the deploy workflow (a one-line change, after the first
+  successful manual run).
+- Asset type filters (for example only bridges).
+- WebKit and real-phone runs. The "iPhone" Playwright project runs on Chromium.
+- A browser test of a two-route diamond chooser (the synthetic diamond has one route).
+- Native review of the French text.
+- A check that the service worker's library-cache clean-up works across two real releases.
+- Memory and speed on a low-end phone; licence notices for the bundled libraries.
+- All evaluation, threshold tuning and the datum study (M5).

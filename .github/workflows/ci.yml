@@ -79,6 +79,12 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run -w app build
+      - name: Size gate on the built app with the browser-test data (the deploy runs it on the national build)
+        run: |
+          mkdir -p build/site
+          cp -r app/dist/. build/site/
+          cp -r app/e2e/fixtures/data build/site/data
+          node scripts/check-budget.mjs --dir build/site
       - name: Playwright flows, privacy (requests and storage) and axe accessibility tests
         run: npm run -w app e2e
       - name: Keep the Playwright traces of a failed run
