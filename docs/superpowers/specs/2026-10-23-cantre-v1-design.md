@@ -348,7 +348,7 @@ no independent truth), and references. Figures are generated from synthetic exam
 ## 12. Owner-gated steps
 
 These are prepared but never done without Orgo's explicit go-ahead: making the repo public
-(done by the owner on 2026-10-25); enabling GitHub Pages (which needs a public repo on the free plan) and running deploy;
+(done by the owner on 2026-10-25); enabling GitHub Pages (which needs a public repo on the free plan) and running deploy (the owner chose a public launch on 2026-10-25, deployed in M4; enabling Pages is still done by the owner or on an explicit yes);
 announcing or submitting to NRC; adopting any non-NRWN data source. The owner adopted the
 TC Grade Crossings Inventory on 2026-10-24; any further source, RAC included, still needs a
 go-ahead.
@@ -360,9 +360,9 @@ go-ahead.
 | M1 | Core geodesy, projection and interpolation | ACCEPTANCE geometry/anchor cases, property tests and GeographicLib goldens pass. |
 | M2 | Pipeline for one province (SK, the pilot) end to end | Deterministic tiles, manifest, audit and coverage report; `GEOACCURA` meaning verified from the spec. |
 | M3 | Matching state machine and scenarios | Every status in §6 is reachable and asserted by scenario replays. |
-| M4 | App MVP on SK data | Status card, assets, chooser and lock, find-a-location, EN/FR; Playwright, privacy and axe pass. |
-| M5 | National pipeline, offline downloads, evaluation | All NRWN provinces built; EVALUATION.md generated; datum offset quantified. |
-| M6 | Methods write-up and release kit | METHODS.md, licences, CITATION, CI green, deploy workflow ready but not run. |
+| M4 | National app and public site (changed 2026-10-25 by the owner) | All NRWN provinces built into province bundles; status card, assets, chooser and lock, find-a-location, offline province downloads, EN/FR; Playwright, privacy and axe pass; deployed to GitHub Pages. |
+| M5 | Evaluation | EVALUATION.md generated; datum offset quantified. |
+| M6 | Methods write-up and release kit | METHODS.md, licences, CITATION, CI green. |
 
 ## 14. Risks and open questions
 
