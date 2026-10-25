@@ -3,6 +3,7 @@ import type { Anchor, AnchorSource, AnchorTier } from '../anchors.js';
 import { CANADA_ENVELOPE } from '../coords.js';
 import type { LatLon } from '../coords.js';
 import { CoreInputError } from '../errors.js';
+import { interpolateMilepost } from '../interpolate.js';
 import type {
   AssetKind,
   AssetPosition,
@@ -80,7 +81,8 @@ type ParsedTile = {
   }[];
   readonly assets: readonly {
     readonly raw: Rec;
-    readonly asset: NetworkAsset;
+    /** The asset's validated parts; built into a NetworkAsset once the intervals are known. */
+    readonly parts: AssetParts;
   }[];
 };
 
@@ -345,26 +347,79 @@ export type AssetParts = {
   readonly lonE6: readonly number[];
 };
 
+/** The calibrated intervals of each chain, by chain id (an interval's `chainId`, the base id). */
+export type IntervalsByChain = ReadonlyMap<string, readonly NetworkInterval[]>;
+
+/** Groups intervals by their chain id, for {@link buildAsset}. */
+export function intervalsByChain(intervals: readonly NetworkInterval[]): IntervalsByChain {
+  const out = new Map<string, NetworkInterval[]>();
+  for (const iv of intervals) {
+    const list = out.get(iv.chainId) ?? [];
+    list.push(iv);
+    out.set(iv.chainId, list);
+  }
+  return out;
+}
+
+/**
+ * The derived milepost of one asset position, miles, or null.
+ *
+ * - Either stored end has no milepost: null (the pipeline found no calibrated interval there).
+ * - A point asset (`sStartMm === sEndMm`): the pipeline's own value at that point.
+ * - A line asset (bridge, tunnel): the milepost at its midpoint `sM` (metres), interpolated
+ *   linearly between the anchors of the ONE calibrated interval of the chain that contains both
+ *   ends (`interpolateMilepost`, the M1 rule). When no single interval contains both ends, for
+ *   example across a milepost equation or a gap between intervals, it is null: averaging the two
+ *   ends would interpolate across a discontinuity and give a milepost that is posted nowhere.
+ * Limits: the interval list is the decoded network's; an interval dropped for missing anchors
+ * makes the line asset's milepost null rather than guessed.
+ */
+function derivedMpOf(
+  p: AssetParts['positions'][number],
+  sM: number,
+  intervals: IntervalsByChain,
+): number | null {
+  if (p.derivedMpStart === null || p.derivedMpEnd === null) {
+    return null;
+  }
+  if (p.sStartMm === p.sEndMm) {
+    return p.derivedMpStart; // a point: start and end are the same place
+  }
+  const startM = p.sStartMm / 1000; // millimetres -> metres
+  const endM = p.sEndMm / 1000;
+  const holder = (intervals.get(p.chainId) ?? []).find((iv) => {
+    const first = iv.anchors[0];
+    const last = iv.anchors[iv.anchors.length - 1];
+    return first !== undefined && last !== undefined && first.s <= startM && endM <= last.s;
+  });
+  if (holder === undefined) {
+    return null;
+  }
+  const mp = interpolateMilepost(sM, holder.anchors);
+  return mp.kind === 'calibrated' ? mp.mp : null; // miles
+}
+
 /**
  * Builds the app-facing {@link NetworkAsset} from stored integers. Shared by the tile and
  * snapshot decoders so the two views are deep-equal.
  *
  * Formulas (units): `sM = (sStartMm + sEndMm) / 2 / 1000` metres (midpoint of the stored start
- * and end, as for diamonds); `residualM = residualMm / 1000` metres; `derivedMp` = the mean of
- * `derivedMpStart` and `derivedMpEnd` in miles when both are present, else null (see
- * {@link AssetPosition} for its limit); `at` = vertex floor((n - 1) / 2) in degrees (E6 / 1e6).
+ * and end, as for diamonds); `residualM = residualMm / 1000` metres; `derivedMp` in miles by
+ * {@link derivedMpOf} (a line asset's milepost is interpolated at its midpoint inside one
+ * interval, or null across an interval boundary); `at` = vertex floor((n - 1) / 2) in degrees
+ * (E6 / 1e6). `intervals` are the decoded network's calibrated intervals.
  */
-export function buildAsset(a: AssetParts): NetworkAsset {
+export function buildAsset(a: AssetParts, intervals: IntervalsByChain): NetworkAsset {
   const mid = Math.floor((a.latE6.length - 1) / 2); // index of the representative vertex
-  const positions: AssetPosition[] = a.positions.map((p) => ({
-    chainId: p.chainId,
-    sM: (p.sStartMm + p.sEndMm) / 2 / 1000, // millimetres -> metres
-    residualM: p.residualMm / 1000, // millimetres -> metres
-    derivedMp:
-      p.derivedMpStart === null || p.derivedMpEnd === null
-        ? null
-        : (p.derivedMpStart + p.derivedMpEnd) / 2, // miles
-  }));
+  const positions: AssetPosition[] = a.positions.map((p) => {
+    const sM = (p.sStartMm + p.sEndMm) / 2 / 1000; // millimetres -> metres
+    return {
+      chainId: p.chainId,
+      sM,
+      residualM: p.residualMm / 1000, // millimetres -> metres
+      derivedMp: derivedMpOf(p, sM, intervals),
+    };
+  });
   return {
     id: a.id,
     kind: a.kind,
@@ -462,7 +517,7 @@ function parseAsset(raw: unknown, path: string): ParsedTile['assets'][number] {
   const { latE6, lonE6 } = decodeAssetVertices(o, path);
   return {
     raw: o,
-    asset: buildAsset({
+    parts: {
       id: strAt(o, 'id', path),
       kind: oneOf(o, 'kind', path, ASSET_KINDS) as AssetKind,
       name,
@@ -470,7 +525,7 @@ function parseAsset(raw: unknown, path: string): ParsedTile['assets'][number] {
       positions,
       latE6,
       lonE6,
-    }),
+    },
   };
 }
 
@@ -688,7 +743,7 @@ export function networkFromTiles(tiles: readonly unknown[]): NetworkView {
       addUnique(intervals, v.id, v, v.raw, 'interval');
     }
     for (const a of t.assets) {
-      addUnique(assets, a.asset.id, a, a.raw, 'asset');
+      addUnique(assets, a.parts.id, a, a.raw, 'asset');
     }
   }
 
@@ -725,7 +780,10 @@ export function networkFromTiles(tiles: readonly unknown[]): NetworkView {
   }
   outIntervals.sort((a, b) => byString(a.id, b.id));
 
-  const outAssets = [...assets.values()].map((a) => a.asset).sort((a, b) => byString(a.id, b.id));
+  const byChain = intervalsByChain(outIntervals);
+  const outAssets = [...assets.values()]
+    .map((a) => buildAsset(a.parts, byChain))
+    .sort((a, b) => byString(a.id, b.id));
 
   const coverage = parsed
     .map((t) => t.bounds)

@@ -431,16 +431,45 @@ describe('networkFromSnapshot assets', () => {
   const decode = (a: unknown[]): ReturnType<typeof networkFromSnapshot> =>
     networkFromSnapshot(buildSnapshot({ records: records({ assets: [a] }) }));
 
-  it('decodes a line asset: delta vertices, midpoint position, mean derived milepost', () => {
+  it('decodes a line asset: delta vertices, midpoint position, milepost at the midpoint', () => {
     const [a] = decode(asset()).assets;
     expect(a).toEqual({
       id: 'X1',
       kind: 'bridge',
       name: 'Big Bridge',
       posted: { mp: 10.5, subdivisionNid: 'S1', tier: 'tc' },
-      positions: [{ chainId: 'c1', sM: 30, residualM: 1.5, derivedMp: (10.2 + 10.4) / 2 }],
+      // Interval c1.i0: s 0 m -> MP 10, s 137.2 m -> MP 11. Midpoint s = (20 + 40) / 2 = 30 m,
+      // so MP = 10 + 30 / 137.2 (miles), interpolated in that one interval.
+      positions: [{ chainId: 'c1', sM: 30, residualM: 1.5, derivedMp: 10 + 30 / 137.2 }],
       at: { lat: 52.1003, lon: -105.89895 }, // the middle vertex (index 1 of 3)
     });
+  });
+
+  it('gives a line asset across a milepost equation no milepost, never the mean of its ends', () => {
+    // Two intervals meet at s 60 m with a milepost equation: MP 11 becomes MP 50.
+    const rec = records({
+      anchors: [
+        ['c1', 'a0', 0, 10, 'markerpost', 'posted'],
+        ['c1', 'a1', 60000, 11, 'markerpost', 'posted'],
+        ['c1', 'a2', 60000, 50, 'markerpost', 'posted'],
+        ['c1', 'a3', 137200, 51, 'markerpost', 'posted'],
+      ],
+      intervals: [
+        ['c1.i0', 'c1', ['a0', 'a1']],
+        ['c1.i1', 'c1', ['a2', 'a3']],
+      ],
+      assets: [
+        asset({ 0: 'inside', 4: [['c1', 20000, 40000, 0, 10.33, 10.67]] }),
+        asset({ 0: 'across', 4: [['c1', 50000, 70000, 0, 10.83, 50.13]] }),
+        asset({ 0: 'outside', 4: [['c1', 130000, 150000, 0, 50.9, 51.1]] }),
+      ],
+    });
+    const net = networkFromSnapshot(buildSnapshot({ records: rec }));
+    const mp = (id: string): number | null | undefined =>
+      net.assets.find((x) => x.id === id)?.positions[0]?.derivedMp;
+    expect(mp('inside')).toBeCloseTo(10 + 30 / 60, 12); // midpoint 30 m inside c1.i0
+    expect(mp('across')).toBeNull(); // the mean would be about MP 30.5, posted nowhere
+    expect(mp('outside')).toBeNull(); // its far end lies beyond the last anchor
   });
 
   it('decodes a point asset with no posted value and no name', () => {

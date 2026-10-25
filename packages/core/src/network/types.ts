@@ -100,9 +100,9 @@ export type AssetKind =
  * rule as {@link DiamondPosition}); `residualM` is the distance from the asset to the chain in
  * metres (a residual, not an accuracy). `derivedMp` is the milepost in miles that the pipeline
  * derived at this position, or null when the position is not inside a calibrated interval or the
- * start or end had none. For a line asset it is the mean of the start and end values, which is
- * the milepost at the midpoint only when both ends lie in one interval (limit: an asset that
- * straddles a milepost discontinuity would get a meaningless mean; none is known to).
+ * start or end had none. For a line asset it is the milepost at the midpoint `sM`, interpolated
+ * inside the one calibrated interval that holds both ends; when no single interval holds both
+ * (for example across a milepost equation) it is null, never an average across the gap.
  */
 export type AssetPosition = {
   /** The pipeline (base) chain id. */

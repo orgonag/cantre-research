@@ -10,8 +10,10 @@ import {
   buildAsset,
   byString,
   diamondsOf,
+  intervalsByChain,
   toPoints,
 } from './decode.js';
+import type { IntervalsByChain } from './decode.js';
 import type {
   AssetKind,
   NetworkAsset,
@@ -514,9 +516,10 @@ export function networkFromSnapshot(bytes: Uint8Array): NetworkView {
   });
 
   const assetIds = new Set<string>();
+  const byChain = intervalsByChain(intervals);
   const assets: NetworkAsset[] = c.arr(rec.assets, 'records.assets').map((x, i) => {
     const path = `records.assets[${String(i)}]`;
-    const asset = parseAsset(c, x, path, chainIds);
+    const asset = parseAsset(c, x, path, chainIds, byChain);
     c.unique(assetIds, asset.id, path);
     return asset;
   });
@@ -652,6 +655,7 @@ function parseAsset(
   x: unknown,
   path: string,
   chainIds: ReadonlySet<string>,
+  intervals: IntervalsByChain,
 ): NetworkAsset {
   const f = c.tuple(x, path, 7);
   const postedRaw = f[3];
@@ -686,13 +690,16 @@ function parseAsset(
     };
   });
   const { latE6, lonE6 } = assetVertices(c, f[5], f[6], path);
-  return buildAsset({
-    id: c.str(f[0], `${path}[0]`),
-    kind: c.oneOf(f[1], `${path}[1]`, ASSET_KINDS) as AssetKind,
-    name: c.nstr(f[2], `${path}[2]`),
-    posted,
-    positions,
-    latE6,
-    lonE6,
-  });
+  return buildAsset(
+    {
+      id: c.str(f[0], `${path}[0]`),
+      kind: c.oneOf(f[1], `${path}[1]`, ASSET_KINDS) as AssetKind,
+      name: c.nstr(f[2], `${path}[2]`),
+      posted,
+      positions,
+      latE6,
+      lonE6,
+    },
+    intervals,
+  );
 }
