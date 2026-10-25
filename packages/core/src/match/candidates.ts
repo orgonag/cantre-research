@@ -231,11 +231,19 @@ export function findCandidates(net: NetworkView, fix: Fix, cfg: MatchConfig): Ca
     });
   }
 
-  return out.sort(
-    (x, y) =>
-      x.residualM - y.residualM ||
-      byString(x.chainId ?? '', y.chainId ?? '') ||
-      byString(x.segmentKey ?? '', y.segmentKey ?? ''),
+  return out.sort(compareCandidates);
+}
+
+/**
+ * Total order on candidates: `(residualM, chainId ?? '', segmentKey ?? '')`, code-point string
+ * order. Shared by `findCandidates` and the selection policy so both are independent of input
+ * order. Units: residual in metres.
+ */
+export function compareCandidates(x: Candidate, y: Candidate): number {
+  return (
+    x.residualM - y.residualM ||
+    byString(x.chainId ?? '', y.chainId ?? '') ||
+    byString(x.segmentKey ?? '', y.segmentKey ?? '')
   );
 }
 
