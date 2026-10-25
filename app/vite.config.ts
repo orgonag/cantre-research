@@ -23,5 +23,7 @@ export default defineConfig({
   },
   // Preact's automatic JSX runtime (no React shim, no extra preset dependency).
   oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
-  build: { target: 'es2023', sourcemap: false },
+  // The maplibre-gl chunk (about 1 MB raw) is loaded only when the map is opened and is excluded
+  // from the 300 kB shell budget, so the default 500 kB chunk warning is raised above it.
+  build: { target: 'es2023', sourcemap: false, chunkSizeWarningLimit: 1200 },
 });

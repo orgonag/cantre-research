@@ -72,7 +72,7 @@ const DIGITS = 2;
  * A number with fixed decimals in the active language's separator, without thousands grouping.
  * "-0.00" is written "0.00": a value that rounds to zero is zero, not negative.
  */
-function fmt(value: number, digits: number): string {
+export function fmt(value: number, digits: number): string {
   const text = new Intl.NumberFormat(getLang() === 'fr' ? 'fr-CA' : 'en-CA', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

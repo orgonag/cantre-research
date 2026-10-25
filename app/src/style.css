@@ -293,3 +293,95 @@ ul.plain {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* Find a location and the map (Task 6). */
+.find,
+.map-panel {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.find h3,
+.map-panel h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.find h4,
+.map__tap h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 0.75rem;
+}
+
+.field select,
+.field input {
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  border: 2px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.find__result li {
+  margin: 0.25rem 0;
+}
+
+.basemap {
+  margin: 0.75rem 0;
+}
+
+.map__frame {
+  position: relative;
+  margin: 0.75rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.map__canvas {
+  width: 100%;
+  height: 60vh;
+  min-height: 18rem;
+}
+
+.map__status {
+  position: absolute;
+  inset: 0 0 auto 0;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: var(--bg);
+}
+
+.map__attribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  margin: 0;
+  padding: 0.125rem 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.75rem;
+}
+
+.map__tap {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.map__tap li {
+  margin: 0.25rem 0;
+}

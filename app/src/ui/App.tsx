@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Lock, NetworkView } from '@cantre/core';
+import type { Fix, Lock, NetworkView } from '@cantre/core';
 import { DataClientError, loadNetwork } from '@cantre/data-client';
 import type { AssetDetails } from '@cantre/data-client';
 import { DATA_CLIENT_CODES, t } from '../i18n/index.js';
@@ -11,10 +11,15 @@ import { directionTracker, present, presentAssets } from '../logic/present.js';
 import type { AssetRow, CardModel } from '../logic/present.js';
 import { createSession } from '../logic/session.js';
 import type { Session } from '../logic/session.js';
+import { saveSettings } from '../logic/settings.js';
 import type { Settings } from '../logic/settings.js';
 import { onResume } from '../logic/visibility.js';
+import type { Pin } from '../logic/find.js';
 import { AssetList } from './AssetList.js';
+import { FindLocation } from './FindLocation.js';
 import { LiveRegion } from './LiveRegion.js';
+import { MapPanel } from './MapView.js';
+import type { YouFix } from './MapView.js';
 import { RouteChooser } from './RouteChooser.js';
 import { StatusCard } from './StatusCard.js';
 
@@ -38,11 +43,23 @@ type View = {
   readonly rows: readonly AssetRow[];
   readonly conflict: boolean;
   readonly nowMs: number;
+  /** The last accepted fix for the "you" marker; null when none, or when it is historical. */
+  readonly fix: YouFix | null;
 };
 
 /** True when `code` is one of the data-client codes the catalogue has a message for. */
 function isDataClientCode(code: string): code is (typeof DATA_CLIENT_CODES)[number] {
   return (DATA_CLIENT_CODES as readonly string[]).includes(code);
+}
+
+/**
+ * The fix for the "you" marker: the session's last accepted fix, hidden once it is historical
+ * (STALE), so an old fix is never drawn as the current position.
+ */
+function youFixOf(fix: Fix | null, status: string): YouFix | null {
+  return fix === null || status === 'STALE'
+    ? null
+    : { lat: fix.lat, lon: fix.lon, accuracyM: fix.accuracyM };
 }
 
 /**
@@ -67,6 +84,9 @@ export function App(props: {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [view, setView] = useState<View | null>(null);
   const tracker = useRef(directionTracker());
+  const [mapOpen, setMapOpen] = useState(false);
+  const [basemap, setBasemap] = useState(settings.basemap);
+  const [pins, setPins] = useState<readonly Pin[]>([]);
 
   useEffect(() => {
     const onFailure = (event: ErrorEvent | PromiseRejectionEvent): void => {
@@ -133,6 +153,7 @@ export function App(props: {
         rows: presentAssets(result, net, settings, dir),
         conflict: result.status === 'LOCK_CONFLICT',
         nowMs,
+        fix: youFixOf(session.state.lastFix, result.status),
       });
     };
     const device = geo === undefined ? (navigator.geolocation as GeoLike | undefined) : geo;
@@ -167,6 +188,15 @@ export function App(props: {
   const unlock = (): void => {
     data?.session.unlock();
   };
+  const changeBasemap = (on: boolean): void => {
+    // Consent (D2) is stored as a setting; the notice was shown before this is called with true.
+    setBasemap(on);
+    saveSettings({ ...settings, basemap: on });
+  };
+  const showOnMap = (found: readonly Pin[]): void => {
+    setPins(found);
+    setMapOpen(true);
+  };
 
   return (
     <div class="layout">
@@ -193,6 +223,20 @@ export function App(props: {
             <RouteChooser choices={view.model.choices} conflict={view.conflict} onChoose={choose} />
             <AssetList rows={view.rows} details={phase.data.details} />
             <LiveRegion model={view.model} nowMs={view.nowMs} />
+          </>
+        )}
+        {phase.kind === 'ready' && (
+          <>
+            <FindLocation net={phase.data.net} onShowOnMap={showOnMap} />
+            <MapPanel
+              net={phase.data.net}
+              fix={view?.fix ?? null}
+              pins={pins}
+              basemap={basemap}
+              open={mapOpen}
+              onOpenChange={setMapOpen}
+              onBasemapChange={changeBasemap}
+            />
           </>
         )}
       </main>
