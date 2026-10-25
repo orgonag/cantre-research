@@ -1,4 +1,6 @@
+import { validateInterval } from '../anchors.js';
 import type { Anchor, AnchorSource, AnchorTier } from '../anchors.js';
+import { CANADA_ENVELOPE } from '../coords.js';
 import type { LatLon } from '../coords.js';
 import { CoreInputError } from '../errors.js';
 import type {
@@ -57,6 +59,8 @@ type ParsedTile = {
   }[];
   readonly intervals: readonly {
     readonly raw: Rec;
+    /** Where the interval was first read, for an INVALID_TILE message (e.g. tiles[2].intervals[0]). */
+    readonly path: string;
     readonly id: string;
     readonly chainId: string;
     readonly anchorIds: readonly string[];
@@ -158,7 +162,10 @@ function decodeDeltas(o: Rec, key: string, path: string): number[] {
 
 /**
  * Decodes a latE6/lonE6 pair into absolute microdegrees. Both arrays must be the same non-zero
- * length and the decoded values must be real coordinates (|lat| <= 90, |lon| <= 180 degrees).
+ * length and the decoded values must be real coordinates (|lat| <= 90, |lon| <= 180 degrees) that
+ * lie inside {@link CANADA_ENVELOPE} (degrees = E6 / 1e6, envelope inclusive). Ruling R28: a vertex
+ * outside the envelope would make the matcher's projection throw later, so the tile is rejected
+ * here, loudly, with the failing index in the path (spec §8: corrupt tiles are rejected).
  */
 function decodeLatLonE6(o: Rec, path: string): { latE6: number[]; lonE6: number[] } {
   const latE6 = decodeDeltas(o, 'latE6', path);
@@ -178,6 +185,25 @@ function decodeLatLonE6(o: Rec, path: string): { latE6: number[]; lonE6: number[
   if (lonE6.some((v) => Math.abs(v) > MAX_LON_E6)) {
     invalid(`${path}.lonE6`, 'decoded longitude outside +-180 degrees');
   }
+  const e = CANADA_ENVELOPE;
+  latE6.forEach((v, i) => {
+    const lat = v / 1e6; // degrees
+    if (lat < e.minLat || lat > e.maxLat) {
+      invalid(
+        `${path}.latE6[${String(i)}]`,
+        `decoded latitude ${String(lat)} outside the Canada envelope`,
+      );
+    }
+  });
+  lonE6.forEach((v, i) => {
+    const lon = v / 1e6; // degrees
+    if (lon < e.minLon || lon > e.maxLon) {
+      invalid(
+        `${path}.lonE6[${String(i)}]`,
+        `decoded longitude ${String(lon)} outside the Canada envelope`,
+      );
+    }
+  });
   return { latE6, lonE6 };
 }
 
@@ -205,6 +231,13 @@ function parsePiece(raw: unknown, path: string): Piece {
       `${path}.sMm`,
       `length ${String(sMm.length)} differs from latE6 length ${String(latE6.length)}`,
     );
+  }
+  // Ruling R28: chain position never runs backwards. A negative delta (millimetres) would give a
+  // wrong s and a reversed cumulative length; an equal value is a duplicate vertex and is kept.
+  for (let i = 1; i < sMm.length; i += 1) {
+    if ((sMm[i] as number) < (sMm[i - 1] as number)) {
+      invalid(`${path}.sMm[${String(i)}]`, 'decoded chain position decreases');
+    }
   }
   const vertexStart = intAt(o, 'vertexStart', path);
   if (vertexStart < 0) {
@@ -275,6 +308,7 @@ function parseInterval(raw: unknown, path: string): ParsedTile['intervals'][numb
   }
   return {
     raw: o,
+    path,
     id: strAt(o, 'id', path),
     chainId: strAt(o, 'chainId', path),
     anchorIds,
@@ -452,7 +486,12 @@ function mergePieces(
  *   (`TILE_MISMATCH`).
  * - An interval is kept only when every one of its anchor ids resolves on its chain among the
  *   loaded tiles; otherwise it is dropped whole (never interpolate on partial evidence). Kept
- *   intervals list their anchors in ascending `s`.
+ *   intervals list their anchors in ascending `s`, and must then pass M1 `validateInterval`
+ *   (distinct positions, finite values, strictly monotonic milepost); one that fails throws
+ *   `INVALID_TILE` naming the interval's path and the issue codes (ruling R28: the matcher must
+ *   never throw on a decoded network, so a bad interval is rejected here, loudly).
+ * - Every vertex lies inside `CANADA_ENVELOPE` and chain `sMm` never decreases, else
+ *   `INVALID_TILE` (ruling R28).
  * - A diamond position is emitted for each `positions` entry of each asset of kind `diamond`,
  *   at the midpoint of its stored start and end: sM = (sStartMm + sEndMm) / 2 / 1000 metres. The
  *   pipeline stores a point diamond with start = end, so the midpoint is that point; if a diamond
@@ -531,6 +570,11 @@ export function networkFromTiles(tiles: readonly unknown[]): NetworkView {
     }
     const list = resolved.map((r) => (r as { anchor: Anchor }).anchor);
     list.sort((a, b) => a.s - b.s || byString(a.id, b.id));
+    const issues = validateInterval(list);
+    if (issues.length > 0) {
+      const detail = issues.map((x) => `${x.code} [${x.anchorIds.join(', ')}]`).join('; ');
+      invalid(iv.path, `interval ${iv.id} fails validateInterval: ${detail}`);
+    }
     outIntervals.push({ id: iv.id, chainId: iv.chainId, anchors: list });
   }
   outIntervals.sort((a, b) => byString(a.id, b.id));

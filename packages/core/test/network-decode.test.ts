@@ -515,6 +515,64 @@ describe('networkFromTiles validation', () => {
     }, 'tiles[0].chains[0].lonE6');
   });
 
+  /** Like invalid(), but decodes the broken first tile alone (neighbours would TILE_MISMATCH). */
+  const invalidAlone = (fn: (t: Json) => void, path: string): void => {
+    const t = clone(goldenTiles()[0]!);
+    fn(t);
+    const r = codeOf(() => networkFromTiles([t]));
+    expect(r.code).toBe('INVALID_TILE');
+    expect(r.message).toContain(path);
+  };
+
+  it('R28: rejects an interval that fails validateInterval (flat or reversing milepost)', () => {
+    // Flat: every anchor of the first interval at one milepost (NON_MONOTONIC_MILEPOST).
+    invalidAlone((t) => {
+      for (const a of t.anchors) a.mp = 7;
+    }, 'tiles[0].intervals[0]');
+    // Two anchors at the same position (DUPLICATE_POSITION).
+    invalidAlone((t) => {
+      const ids: string[] = t.intervals[0].anchorIds;
+      const first = t.anchors.find((a: Json) => a.id === ids[0]);
+      const second = t.anchors.find((a: Json) => a.id === ids[1]);
+      second.sMm = first.sMm;
+    }, 'tiles[0].intervals[0]');
+    const r = codeOf(() => {
+      const t = clone(goldenTiles()[0]!);
+      for (const a of t.anchors) a.mp = 7;
+      networkFromTiles([t]);
+    });
+    expect(r.message).toContain('NON_MONOTONIC_MILEPOST');
+  });
+
+  it('R28: rejects a chain piece whose sMm decreases', () => {
+    invalidAlone((t) => {
+      t.chains[0].sMm[1] = -1; // delta -1 mm: the decoded position goes backwards
+    }, 'tiles[0].chains[0].sMm[1]');
+  });
+
+  it('R28: rejects vertices outside the Canada envelope (chains and segments)', () => {
+    invalidAlone((t) => {
+      t.chains[0].latE6 = [40_000_000];
+      t.chains[0].lonE6 = [-100_000_000];
+      t.chains[0].sMm = [0];
+    }, 'tiles[0].chains[0].latE6[0]');
+    invalidAlone((t) => {
+      t.chains[0].latE6 = [50_000_000];
+      t.chains[0].lonE6 = [100_000_000]; // positive-east longitude: outside the envelope
+      t.chains[0].sMm = [0];
+    }, 'tiles[0].chains[0].lonE6[0]');
+    invalidAlone((t) => {
+      t.segments[0].latE6 = [84_000_000];
+      t.segments[0].lonE6 = [-100_000_000];
+    }, 'tiles[0].segments[0].latE6[0]');
+  });
+
+  it('R28: a decoded golden network never makes the matcher throw', () => {
+    // Every golden vertex lies in the envelope and every interval validates, so reduce-level
+    // calls (findCandidates, milepost) cannot throw on it.
+    expect(() => networkFromTiles(goldenTiles())).not.toThrow();
+  });
+
   it('rejects an empty chain piece', () => {
     invalid((t) => {
       t.chains[0].latE6 = [];
