@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { milesToKilometres } from '@cantre/core';
 import type { Anchor, Candidate, NetworkAsset, NetworkView, Result } from '@cantre/core';
 import { setLang, t } from '../../src/i18n/index.js';
+import { chain } from './netfixture.js';
 import {
   ANNOUNCE_MIN_INTERVAL_MS,
   announce,
@@ -367,6 +368,22 @@ describe('present: AMBIGUOUS_ROUTE and LOCK_CONFLICT', () => {
     expect(present(r, net(), MI).lockText).toBe('Locked: sub-77');
     const c: Result = { ...r, lock: { kind: 'chain', chainId: 'ZZ' } };
     expect(present(c, net(), MI).lockText).toBe('Locked: ZZ');
+  });
+
+  it('names a conflicting lock from the loaded network, not by its id', () => {
+    const loaded: NetworkView = {
+      ...net(),
+      chains: [chain('ch-A', 'sub-9', 'Belleville Sub', 0, 1000)],
+    };
+    const r: Result = {
+      ...blank,
+      status: 'LOCK_CONFLICT',
+      lock: { kind: 'chain', chainId: 'ch-A' },
+      reasons: ['LOCK_NOT_SUPPORTED'],
+    };
+    expect(present(r, loaded, MI).lockText).toBe('Locked: Belleville Sub');
+    const sub: Result = { ...r, lock: { kind: 'subdivision', subdivisionNid: 'sub-9' } };
+    expect(present(sub, loaded, MI).lockText).toBe('Locked: Belleville Sub');
   });
 
   it('finds the subdivision name of a subdivision lock from the candidates', () => {

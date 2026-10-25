@@ -132,8 +132,12 @@ function inLock(c: Candidate, lock: Lock): boolean {
     : c.subdivisionNid === lock.subdivisionNid;
 }
 
-/** "Locked: <subdivision>". Falls back to the lock's own id when no candidate names it. */
-function lockTextOf(result: Result): string | null {
+/**
+ * "Locked: <subdivision>". The name comes from a candidate that fits the lock; when none does
+ * (LOCK_CONFLICT: the fix is somewhere else), from the loaded network's own chain or subdivision;
+ * only when the network does not know the lock either, the lock's own id.
+ */
+function lockTextOf(result: Result, net: NetworkView): string | null {
   const lock = result.lock;
   if (lock === null) {
     return null;
@@ -141,8 +145,14 @@ function lockTextOf(result: Result): string | null {
   const known = [...result.candidates, ...(result.chosen === null ? [] : [result.chosen])].find(
     (c) => inLock(c, lock),
   );
+  const loaded =
+    lock.kind === 'chain'
+      ? net.chains.find((c) => c.id === lock.chainId || c.chainBaseId === lock.chainId)
+      : [...net.chains, ...net.segments].find((c) => c.subdivisionNid === lock.subdivisionNid);
   const fallback = lock.kind === 'chain' ? lock.chainId : lock.subdivisionNid;
-  return t('lock.locked', { name: known?.subdivisionName ?? fallback });
+  return t('lock.locked', {
+    name: known?.subdivisionName ?? loaded?.subdivisionName ?? fallback,
+  });
 }
 
 /**
@@ -263,7 +273,7 @@ export function present(
     headline: t(`status.${status}`),
     vintageText: vintage === '' ? t('data.unknown') : t('data.version', { date: vintage }),
     reasons: reasonTexts(result),
-    lockText: lockTextOf(result),
+    lockText: lockTextOf(result, net),
     mpNote: settings.units === 'km' ? t('card.mpMiles') : null,
     accuracyText:
       result.accuracyM === null ? null : t('card.accuracy', { value: fmt(result.accuracyM, 0) }),
