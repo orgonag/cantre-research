@@ -48,9 +48,10 @@ describe('property: perpendicular residual', () => {
         const q = toLocalM(a, r.point, scaleLat);
         const res = { x: v.x - q.x, y: v.y - q.y };
         const resLen = Math.hypot(res.x, res.y);
-        // Below 1 mm the round-trip noise (about 1e-9 m) is not small against the residual, so
-        // the angle is meaningless; the generator's smallest offset is 1 mm.
-        if (resLen < 1e-3) {
+        // The round-trip noise along the segment is about 1e-9 m (measured 1.1e-9 m on CI seed
+        // -748002698). At a 1 mm residual that alone gives cos ~1e-6, the bound itself, so skip
+        // residuals below 1 cm, where the same noise gives ~1e-7: a tenfold margin.
+        if (resLen < 1e-2) {
           return;
         }
         const cos = Math.abs(res.x * d.x + res.y * d.y) / (resLen * Math.hypot(d.x, d.y));
