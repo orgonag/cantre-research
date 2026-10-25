@@ -120,7 +120,9 @@ The anchor code still handles all four NRWN source layers, because other provinc
 - Thresholds live in one frozen `PipelineConfig`. Every threshold is labelled experimental,
   and the manifest records the configuration and its SHA-256.
 - Determinism: the same raw bytes and the same config must give byte-identical outputs,
-  whatever the segment order, the input order or `PYTHONHASHSEED`. To get this:
+  whatever the segment order, the input order or `PYTHONHASHSEED` (one exception: the `~n`
+  suffixes of repeated `TRACKSEGID`s follow file order, Decision 1, so reordering records that
+  share a `TRACKSEGID` can change their keys). To get this:
   - JSON output is canonical: sorted keys, `separators=(",", ":")`,
     `ensure_ascii=False`, UTF-8, one trailing `\n`;
   - gzip size is measured with `mtime=0` and level 9;

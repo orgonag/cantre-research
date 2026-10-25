@@ -48,7 +48,10 @@ DIR/reports/coverage-<pr>.md     the same as a table, with the dataset version a
 Tile and manifest formats are the JSON Schemas in [`schema/`](schema/) (`cantre.tile/1`,
 `cantre.manifest/1`). `latE6`, `lonE6` and a chain piece's `sMm` are delta-encoded integers
 (first value absolute, then differences); anchor `sMm` and asset `sStartMm`/`sEndMm` are absolute.
-`s` is millimetres along the chain; `mp` is miles as published.
+`s` is millimetres along the chain; `mp` is miles as published. Each tile segment carries
+`geoAccuracyM`, the source's `GEOACCURA` in whole metres (`null` when the source says `-1` or
+nothing); it is the source's stated figure, not a verified accuracy. A tile asset's `posted`
+carries a `tier` and can be `unverified` (a marker post or station whose qualifier is `Unknown`).
 
 A line asset (bridge, tunnel) has `sStartMm <= sEndMm`: **its direction is not preserved**, and
 neither is the stored vertex direction of a segment or line asset (vertices are written in a
@@ -63,7 +66,9 @@ typed dataclasses; only `acquire`, the CLI and the writers touch the disk or net
 ## Determinism
 
 The same raw bytes and the same configuration give **byte-identical** output, whatever the input
-record order, the vertex direction of a record or `PYTHONHASHSEED`. JSON is canonical (sorted
+record order, the vertex direction of a record or `PYTHONHASHSEED`, with one exception: when
+several TRACK records share a `TRACKSEGID`, the `~1`, `~2` suffixes that keep their keys distinct
+follow file order (Decision 1), so reordering those records can change their keys. JSON is canonical (sorted
 keys, `separators=(",", ":")`, UTF-8, LF, one trailing newline), gzip size is measured at level 9
 with `mtime=0`, chain ids are content hashes and no wall-clock time is written. Tests: the
 synthetic build under `tests/golden/synthetic/` (regenerate with
@@ -101,6 +106,7 @@ judgements.
 | `slope_min_span_m` | 800 m | slope is tested only when anchors are at least this far apart |
 | `anchor_collapse_span_m` | 30 m | equal-mileage anchors this close along `s` are merged |
 | `mp_equal_tol_mi` | 0.005 mi | mileposts within this are equal (NRWN resolution is 0.01 mi) |
+| `posting_step_mi` | 0.01 mi | NRWN mileage posting step; anchors within the collapse span conflict only when their spacing leaves a mileage difference larger than this (R19) |
 | `tc_max_disagreement_mi` | 0.05 mi | largest NRWN vs Transport Canada mileage disagreement |
 | `unverified_max_deviation_mi` | 0.05 mi | largest deviation of an unverified anchor from its interval |
 | `tile_lat_deg` / `tile_lon_deg` | 0.25 / 0.5 deg | tile height / width |

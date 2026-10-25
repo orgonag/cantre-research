@@ -31,8 +31,11 @@ class ProvinceTotals:
     Attributes:
         chain_km: Length of all chains, km.
         calibrated_km: Length of chain inside calibrated intervals (any tier), km.
-        calibrated_km_posted_only: The same counting intervals whose anchors are all ``posted``
-            tier, km.
+        calibrated_km_posted_only: Calibrated length with the intervals rebuilt from the
+            qualified ``posted`` anchors alone (ruling R17: the output of ``qualify_anchors``
+            before any interval step, then the same interval steps), km. It is not the all-tier
+            intervals filtered to posted anchors, and it can exceed ``calibrated_km`` when a
+            lower-tier anchor breaks an all-tier interval.
         anchors_by_tier: Kept anchors per tier (``posted``, ``tc``, ``unverified``).
         isolated_anchors: Kept anchors that belong to no interval.
         assets_by_kind: Asset count per asset kind.

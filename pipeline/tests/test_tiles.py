@@ -252,3 +252,15 @@ def test_derived_mp_is_interpolated_from_the_millimetres_a_tile_stores(tmp_path:
             )
             checked += 1
     assert checked >= 2
+
+
+def test_segments_carry_the_stated_geometry_accuracy_or_null(r: Run) -> None:
+    """Ruling R20: GEOACCURA in metres per segment, null when the source says -1 or nothing."""
+    from dataclasses import replace
+
+    from cantre_pipeline.tiles import _segment_json
+
+    segs = {s["key"]: s for s in r.tiles[WEST]["segments"]}
+    assert segs["T1"]["geoAccuracyM"] == 10 and isinstance(segs["T1"]["geoAccuracyM"], int)
+    unknown = replace(r.net.segments[0], geo_accuracy_m=None)
+    assert _segment_json(unknown, None, CFG)["geoAccuracyM"] is None

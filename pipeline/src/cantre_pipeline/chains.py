@@ -254,7 +254,9 @@ def build_chains(net: Network, cfg: PipelineConfig) -> ChainSet:
 
     Implements the rule in the module docstring (spec section 5.3, Decision 2). The output is a
     pure function of the set of segments: record order, vertex direction and ``PYTHONHASHSEED``
-    do not matter. ``cfg`` is accepted for interface uniformity; the rule has no threshold
+    do not matter (the ``~n`` suffixes that make repeated TRACKSEGIDs distinct are fixed
+    earlier, in file order, Decision 1; reordering records that share a TRACKSEGID can change
+    their keys). ``cfg`` is accepted for interface uniformity; the rule has no threshold
     (node keys were already snapped by ``cfg.snap_deg`` during validation).
 
     Raises:

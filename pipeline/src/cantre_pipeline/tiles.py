@@ -243,6 +243,7 @@ def _segment_json(seg: Segment, chain_id: str | None, cfg: PipelineConfig) -> Ti
         "owner": seg.owner,
         "useType": seg.use_type,
         "trackName": seg.track_name,
+        "geoAccuracyM": seg.geo_accuracy_m,
         "chainId": chain_id,
         "latE6": lat,
         "lonE6": lon,

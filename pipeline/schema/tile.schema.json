@@ -111,6 +111,14 @@
           "trackName": {
             "type": "string"
           },
+          "geoAccuracyM": {
+            "description": "NRWN GEOACCURA (geometry planimetric accuracy) in metres as the source states it, or null when the source code is -1 or absent. Reported, not verified (spec section 6(e)).",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
           "chainId": {
             "type": [
               "string",
@@ -135,6 +143,7 @@
           "owner",
           "useType",
           "trackName",
+          "geoAccuracyM",
           "chainId",
           "latE6",
           "lonE6"
@@ -148,6 +157,7 @@
         "type": "object",
         "properties": {
           "id": {
+            "description": "Unique per chainId (not across chains: a double-track crossing can anchor two chains).",
             "type": "string"
           },
           "chainId": {
@@ -157,7 +167,8 @@
             "type": "integer"
           },
           "mp": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0
           },
           "source": {
             "enum": [
@@ -209,7 +220,7 @@
             "items": {
               "type": "string"
             },
-            "minItems": 1
+            "minItems": 2
           }
         },
         "required": [
@@ -269,6 +280,7 @@
                     "type": "string"
                   },
                   "tier": {
+                    "description": "Where the value comes from: posted (NRWN), tc (Transport Canada Mile) or unverified (a marker post or station whose qualifier is Unknown). An asset's posted value may be unverified.",
                     "enum": [
                       "posted",
                       "tc",
