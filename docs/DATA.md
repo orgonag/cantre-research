@@ -157,8 +157,13 @@ post. Provenance is in `pipeline/sources/tc-gci.json`.
 - Join rule (plan Decision 7): a row joins an NRWN SK crossing when its stripped `TC Number`
   equals `TCID` (not `-1`), `Province` matches, `Spur Mile Point` is `-` or empty, the normalised
   subdivision names agree (trailing `" - <word>"` operator suffix removed, case-folded, letters
-  a-z only), and `Mile` parses to 0 or more. Failing rows are audited, not dropped silently
-  (`TC_NO_ROW`, `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH`, `TC_BAD_MILE`); a `TC Number` that
-  appears twice is used for neither record (`TC_DUPLICATE_NUMBER`).
+  a-z only), and `Mile` parses to 0 or more. Failures are audited, none silently:
+  a crossing that is not usable as posted and whose row fails the join is rejected with
+  `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH` or `TC_BAD_MILE`; a Posted crossing whose TC
+  cross-check could not run (no usable `TCID`, no row of that number and province, or a row that
+  fails the join) keeps its tier and value and gets one `info` line with the failure
+  (`TC_NO_ROW`, `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH` or `TC_BAD_MILE`), so `TC_NO_ROW` is
+  only ever `info`; a `TC Number` that appears twice is used for neither record
+  (`TC_DUPLICATE_NUMBER`, info).
 - Coordinates are not used for geometry. `Latitude` and `Longitude` have 0 to 5 decimals and serve
   only as a sanity distance.

@@ -42,6 +42,7 @@ Chain cycles: 1. Subdivisions with 0 % calibration: 1.
 | SOURCE_DISAGREEMENT | 1 | 0 |
 | SUBDIVISION_MISMATCH | 1 | 0 |
 | TC_DUPLICATE_NUMBER | 0 | 1 |
+| TC_NO_ROW | 0 | 40 |
 | TC_SPUR_CROSSING | 1 | 0 |
 | TRACK_NOT_CHAINED | 1 | 0 |
 | UNVERIFIED_DEVIATION | 2 | 0 |

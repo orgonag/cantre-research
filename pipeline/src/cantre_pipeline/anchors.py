@@ -11,8 +11,10 @@ Step A, the value and its tier (spec section 3, owner decision 2026-10-24, Decis
 * A record is *posted* when ``SUB1DISTY == "Posted"`` and its mileage parsed to a value.
 * Posted crossing with a TC row that joins (Decision 7): the value must agree with the TC
   ``Mile`` within ``tc_max_disagreement_mi``, else ``SOURCE_DISAGREEMENT``. Tier ``posted``.
-  A TC row that does not join is simply not comparable and raises no line (the crossing is
-  kept on its own value).
+  A TC row that does not join is not comparable: the crossing keeps its tier and value and
+  (ruling R21) gets one ``info`` line with the join failure (``TC_NO_ROW``, ``TC_SPUR_CROSSING``,
+  ``TC_SUBDIVISION_MISMATCH`` or ``TC_BAD_MILE``), so a cross-check that could not run is
+  visible in the audit. The line changes nothing about the anchor.
 * Crossing that is not usable as posted (Unknown qualifier, ``-1`` sentinel): a TC row that joins
   gives tier ``tc`` with ``mp = TC Mile``. If the TC row exists but fails the join, the TC reason
   (``TC_SPUR_CROSSING`` ...) is the rejection. With no TC row at all the reason is
@@ -28,8 +30,9 @@ has the record's subdivision (``SUBDIVISION_MISMATCH``), projects unambiguously 
 of the named segment only (``AMBIGUOUS_TRACK`` when candidates on different chains are within
 1 m) and within ``anchor_max_residual_m`` (``RESIDUAL_TOO_LARGE``).
 
-Merge, per chain: records sharing a ``CROSSINGID`` other than ``"None"`` merge into one anchor
-when their values agree within ``mp_equal_tol_mi``, else each member gets ``ANCHOR_CONFLICT``.
+Merge, per chain: records sharing a ``CROSSINGID`` other than ``"None"`` or blank merge
+into one anchor when their values agree within ``mp_equal_tol_mi``, else each member gets
+``ANCHOR_CONFLICT``.
 A merged anchor takes the best tier of its members (Decision 8; ``posted`` > ``tc`` >
 ``unverified``) and the mean mileage of the members of that tier. Records on other chains stay
 separate (double track).
@@ -117,6 +120,8 @@ class AnchorValue:
     tier: AnchorTier | None
     reason: AuditReason | None = None
     detail: str = ""
+    tc_note: tuple[AuditReason, str] | None = None
+    """Posted crossing whose TC cross-check could not run: the join failure, as an info line."""
 
 
 def _tc_join(
@@ -176,7 +181,9 @@ def anchor_value(
                     "SOURCE_DISAGREEMENT",
                     f"NRWN posted {mp} mi vs TC {tc_mile} mi (limit {cfg.tc_max_disagreement_mi})",
                 )
-            return AnchorValue(mp, "posted")
+            return AnchorValue(
+                mp, "posted", tc_note=None if tc_mile is not None else (reason, detail)
+            )
         if tc_mile is not None:
             return AnchorValue(tc_mile, "tc")  # not usable as posted: use the TC value
         if reason != "TC_NO_ROW":
@@ -348,6 +355,9 @@ def qualify_anchors(
             reason = value.reason or "NOT_POSTED"
             audit.append(AuditRecord(f.layer, f.nid, reason, "rejected", value.detail))
             continue
+        if value.tc_note is not None:  # ruling R21: the TC cross-check could not run
+            note_reason, note_detail = value.tc_note
+            audit.append(AuditRecord(f.layer, f.nid, note_reason, "info", note_detail))
         # Rule 2. A TC value is miles by the inventory's data dictionary, whatever NRWN's unit says.
         if value.tier != "tc" and f.mp_unit != "Mile":
             audit.append(
@@ -380,7 +390,7 @@ def qualify_anchors(
     anchors: list[QualifiedAnchor] = []
     for loc_rec in located:
         cid = crossing_group.get(loc_rec.nid, "None") if loc_rec.layer == "CROSSING" else "None"
-        if cid == "None":
+        if cid.strip() in ("", "None"):  # blank is as good as "None": no merge group
             anchors.append(_merge([loc_rec]))
         else:
             groups[(loc_rec.chain.id, cid)].append(loc_rec)

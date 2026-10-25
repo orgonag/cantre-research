@@ -120,7 +120,7 @@ records and informational notes get `info` lines. The closed set of 34 reasons
 | Anchor value | `NOT_POSTED`, `UNIT_NOT_MILE`, `MILEAGE_SENTINEL`, `POSTED_SENTINEL` (rejected) |
 | Anchor location | `TRACK_NOT_FOUND`, `TRACK_NOT_CHAINED`, `SUBDIVISION_MISMATCH`, `RESIDUAL_TOO_LARGE`, `AMBIGUOUS_TRACK` (rejected) |
 | Anchor merge and rules | `ANCHOR_CONFLICT`, `ANCHOR_OUTLIER`, `SOURCE_DISAGREEMENT`, `UNVERIFIED_DEVIATION` (rejected); `ANCHOR_MERGED`, `ANCHOR_COLLAPSED` (info) |
-| Transport Canada join | `TC_NO_ROW`, `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH`, `TC_BAD_MILE` (rejected when they decide a crossing's fate), `TC_DUPLICATE_NUMBER` (info) |
+| Transport Canada join | `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH`, `TC_BAD_MILE` (rejected when they decide the fate of a crossing that is not usable as posted; `info` on a Posted crossing whose TC cross-check could not run), `TC_NO_ROW` (info, same case), `TC_DUPLICATE_NUMBER` (info) |
 | Topology | `JUNCTION_OFF_NETWORK`, `CHAIN_CYCLE` (info) |
 | Scope | `NOT_CHAINED_CLASS`, `NOT_OPERATIONAL`, `SECOND_SUBDIVISION_IGNORED` (info) |
 | Assets | `ASSET_UNPOSITIONED` (info: the asset is kept but has no chain position; the cause is in the detail) |

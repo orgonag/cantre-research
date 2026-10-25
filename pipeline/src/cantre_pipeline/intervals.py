@@ -380,7 +380,8 @@ def build_intervals(
     """Split ``chain``'s anchors into calibrated intervals (spec section 5.5).
 
     Applies steps 1 to 6 of the module docstring to the anchors whose ``chain_id`` is the
-    chain's (others are ignored), after sorting by ``(s_m, TIER_RANK[tier], id)``. Units: metres, miles.
+    chain's (others are ignored), after sorting by ``(s_m, TIER_RANK[tier], id)``. Units: metres,
+    miles.
     Returns ``(intervals, kept, audit)``: the intervals (ids ``f"{chain.id}.i{n}"``, ``n`` from
     0 along ``s``), every anchor left after collapsing and after the ANCHOR_CONFLICT,
     ANCHOR_OUTLIER and UNVERIFIED_DEVIATION drops (in ``s`` order, a superset of the interval

@@ -32,10 +32,23 @@ def base(tmp_path: Path) -> NrwnFixture:
     return fx
 
 
-def qualify(fx: NrwnFixture) -> tuple[list[QualifiedAnchor], list[AuditRecord]]:
+def qualify_raw(fx: NrwnFixture) -> tuple[list[QualifiedAnchor], list[AuditRecord]]:
     net = load_network(fx.write(), "sk", CFG)
     chains = build_chains(net, CFG)
     return qualify_anchors(net, chains, read_tc_inventory(fx.tc_path, "SK"), CFG)
+
+
+def qualify(fx: NrwnFixture) -> tuple[list[QualifiedAnchor], list[AuditRecord]]:
+    """Like ``qualify_raw`` without the R21 info lines (a Posted crossing's unrun TC check)."""
+    anchors, audit = qualify_raw(fx)
+    return anchors, [a for a in audit if not _is_tc_note(a)]
+
+
+def _is_tc_note(a: AuditRecord) -> bool:
+    return a.severity == "info" and a.reason in TC_NOTES
+
+
+TC_NOTES = {"TC_NO_ROW", "TC_SPUR_CROSSING", "TC_SUBDIVISION_MISMATCH", "TC_BAD_MILE"}
 
 
 def reasons(audit: list[AuditRecord]) -> list[str]:
@@ -197,14 +210,54 @@ def test_posted_and_tc_agreeing_keeps_posted_tier(tmp_path: Path) -> None:
     assert [(a.tier, a.mp) for a in anchors] == [("posted", 10.0)] and audit == []
 
 
-def test_posted_crossing_with_unjoinable_tc_row_stays_posted_without_noise(
+def test_posted_crossing_with_unjoinable_tc_row_stays_posted_and_gets_an_info_line(
     tmp_path: Path,
 ) -> None:
+    """Ruling R21: the cross-check could not run; say so, change nothing else."""
     fx = base(tmp_path)
     fx.crossing("X1", P(0.5), "T1", mp=10.00, tcid=603)
     fx.tc_row(603, mile=99.0, subdivision="Alpha", spur_mile_point="1.0")  # spur: not comparable
+    anchors, audit = qualify_raw(fx)
+    assert [(a.tier, a.mp) for a in anchors] == [("posted", 10.0)]
+    assert [(a.nid, a.reason, a.severity) for a in audit] == [("X1", "TC_SPUR_CROSSING", "info")]
+
+
+@pytest.mark.parametrize(
+    ("tcid", "row", "reason"),
+    [
+        (-1, None, "TC_NO_ROW"),
+        (610, None, "TC_NO_ROW"),
+        (611, {"subdivision": "Gamma"}, "TC_SUBDIVISION_MISMATCH"),
+        (612, {"mile": "-1"}, "TC_BAD_MILE"),
+        (613, {"spur_mile_point": "2.0"}, "TC_SPUR_CROSSING"),
+    ],
+)
+def test_every_unrun_tc_cross_check_of_a_posted_crossing_is_an_info_line(
+    tmp_path: Path, tcid: int, row: dict[str, str] | None, reason: str
+) -> None:
+    fx = base(tmp_path)
+    fx.crossing("X1", P(0.5), "T1", mp=10.00, tcid=tcid)
+    if row is not None:
+        fx.tc_row(tcid, **{"mile": 9.0, "subdivision": "Alpha", **row})
+    anchors, audit = qualify_raw(fx)
+    assert [(a.tier, a.mp) for a in anchors] == [("posted", 10.0)]
+    assert [(a.nid, a.reason, a.severity) for a in audit] == [("X1", reason, "info")]
+
+
+def test_joined_tc_row_raises_no_note_even_when_it_agrees(tmp_path: Path) -> None:
+    fx = base(tmp_path)
+    fx.crossing("X1", P(0.5), "T1", mp=10.00, tcid=614)
+    fx.tc_row(614, mile=10.02, subdivision="Alpha")
+    anchors, audit = qualify_raw(fx)
+    assert [a.tier for a in anchors] == ["posted"] and audit == []
+
+
+def test_blank_crossingid_is_not_a_merge_group(tmp_path: Path) -> None:
+    fx = base(tmp_path)
+    fx.crossing("Xa", P(0.50, 5), "T1", mp=3.00, crossing_id="")
+    fx.crossing("Xb", P(0.52, 5), "T1", mp=3.00, crossing_id="")
     anchors, audit = qualify(fx)
-    assert [(a.tier, a.mp) for a in anchors] == [("posted", 10.0)] and audit == []
+    assert [a.id for a in anchors] == ["Xa", "Xb"] and audit == []
 
 
 def test_posted_minus_one_with_tc_value_becomes_tc_tier(tmp_path: Path) -> None:
