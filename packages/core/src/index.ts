@@ -31,3 +31,12 @@ export { MATCH_CONFIG } from './match/config.js';
 export type { MatchConfig } from './match/config.js';
 export { MATCH_REASONS, MATCH_STATUSES } from './match/reasons.js';
 export type { MatchReason, MatchStatus } from './match/reasons.js';
+export { networkFromTiles } from './network/decode.js';
+export type {
+  DiamondPosition,
+  NetworkChain,
+  NetworkInterval,
+  NetworkSegment,
+  NetworkView,
+  TileBounds,
+} from './network/types.js';
