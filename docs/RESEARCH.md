@@ -34,6 +34,20 @@ no deployment, no public release and no new bulk data acquisition.
 | GPS freshness/uncertainty thresholds | To define and test, not inherited blindly. |
 | Offline, storage and backend | v1 spec: static PWA, regional JSON tiles plus manifest, GitHub Pages once public. No server. |
 | Open-source/public release | Owner chose MIT for code and release readiness (2026-10-23). Going public and deploying remain owner-gated. |
+| M2 decision 1: segment key | `TRACKSEGID`; a repeat gets `~1`, `~2` in file order (`DUPLICATE_SEGID`). A repeated `NID` is kept and audited (`DUPLICATE_NID`); a record naming a repeated `NID` is matched against every segment with it. |
+| M2 decision 2: chains | Only `TRACKCLASS == Main` and `STATUS == Operational`, grouped by `SUBDI1NID`. `SUBDI2*` is ignored in v1 and its records counted (`SECOND_SUBDIVISION_IGNORED`). |
+| M2 decision 3: slope test | NRWN mileage has 0.01 mi resolution (about 8 m per anchor), so the slope test applies only when the anchor spacing is at least `slope_min_span_m` (800 m); below that only monotonicity is tested. Experimental. |
+| M2 decision 4: close repeats | Anchors with equal `mp` (within 0.005 mi) and no more than 30 m apart collapse to one anchor at their mean `s` (`ANCHOR_COLLAPSED`). Equal mileage farther apart is a monotonicity failure. |
+| M2 decision 5: tile membership | An edge or line is in a tile when its bounding box overlaps the tile's buffered bounds: never a miss, a few extras. Amended by R15 below. |
+| M2 decision 6: derived mileposts | Computed in the pipeline with core's formula; the Vitest contract test checks every one against `interpolateMilepost` (1e-9 mi). |
+| M2 decision 7: Transport Canada join | A TC row joins a crossing when the number matches (not `-1`), the province matches, `Spur Mile Point` is empty or `-`, the normalised subdivision names match and `Mile` parses to 0 or more. Failures are audited (`TC_NO_ROW`, `TC_SPUR_CROSSING`, `TC_SUBDIVISION_MISMATCH`, `TC_BAD_MILE`); a TC number that occurs twice is used for neither record (`TC_DUPLICATE_NUMBER`). |
+| M2 decision 8: tier precedence | `posted` > `tc` > `unverified`. A collapsed anchor keeps the higher tier's `mp`, id and tier; when one of a conflicting pair must go, the lower tier goes first. |
+| M2 rulings R10 to R12: coincident conflicts | Two anchors within 30 m whose `mp` differ by more than 0.005 mi conflict. Conflicts are resolved by tier as clusters (connected components), before the collapse, independent of id strings and input order: among the best-tier members, if none conflicts with another all are kept and the rest dropped; otherwise the whole cluster is dropped (`ANCHOR_CONFLICT`). A conflicting lower-tier anchor can no longer keep two agreeing postings apart. |
+| M2 ruling R14: asset audit channel | `extract_assets` returns `(assets, audit)`. An asset that ends with no chain position is kept and audited `ASSET_UNPOSITIONED` (info, cause in the detail); an unknown structure type is `UNKNOWN_DOMAIN_VALUE`; a withheld posted value is `UNIT_NOT_MILE` (info); a renamed repeat is `DUPLICATE_NID` (info). "Nothing dropped silently" outranks the plan's bare-list interface. |
+| M2 ruling R15: tile buffer | Amends decision 5. The east-west buffer is computed at the poleward edge and the north-south buffer at the equatorward end of the margin, so the margin is at least 2 km on every edge (tested against GeographicLib). A single scale left the equatorward margin about 0.6 m short; the cost is at most 0.001 % extra tile area. |
+| M2 canonical output direction | Found by the determinism test: segment and line-asset vertices are written in the lexicographically smaller direction, so reversing a record cannot change a byte. A line asset's `sStartMm <= sEndMm` (direction not preserved). Tile `sMm` of chain pieces is delta-encoded like `latE6` and `lonE6`. |
+| M2 derived mileposts use stored millimetres | Found by the contract test: interpolating from unrounded `s` differed from core (which reads `sMm / 1000`) by up to 0.5 mm of track, about 3e-7 mi. The deriver now rounds anchor and asset `s` to the millimetre first. |
+| Residual check is not evidence of position accuracy | In the Saskatchewan data every crossing, marker post and station that reaches the residual check sits exactly on the track: residual 0.0 m for all 7,553 qualified anchors (5,017 crossings, 2,288 marker posts, 248 stations) and for every positioned crossing, station, bridge, culvert, tunnel and diamond. NRWN points were evidently snapped to the geometry, so `anchor_max_residual_m` only catches wrong-track and wrong-subdivision records (the 17 `RESIDUAL_TOO_LARGE` cases are 396.48 m to 13,938.97 m). It cannot show how close a point is to the true feature. Position accuracy needs independent ground truth (M5). |
 
 ## Hypothesis discipline
 
@@ -133,3 +147,26 @@ intervals, milepost interpolation and the GPS band. See
 Not done or not claimed: no datum transform (NAD83(CSRS) used as-is against WGS 84, roughly
 1 to 2 m bias, spec section 3); along-chain ambiguity is flagged, not resolved (milestone M3);
 no real track data was used, only synthetic geometry.
+
+## 2026-10-24 — M2 pipeline built (Saskatchewan)
+
+Built `pipeline/` (milestone M2) on branch `feat/m2-pipeline-sk`: the NRWN SK package and the
+Transport Canada Grade Crossings Inventory become chains, tiered anchors, calibrated intervals,
+assets, regional tiles, a manifest, an audit log and a per-subdivision coverage report. See
+[the pipeline README](../pipeline/README.md). The thresholds are experimental and the coverage
+figures are internal coverage, not surveyed accuracy. Commands run and measured results
+(Windows 11, Python 3.12.10, raw cache `CANTRE_RAW_DIR=C:/cv-raw-v`, outputs in `C:/tmp`):
+
+- `python -m cantre_pipeline acquire --source sk` printed `sk sha256=f25a91d230619b9f73093955c69f02e9ed7f93e425214c940e328c359f1a796a bytes=3239574`; `acquire --source tc-gci` printed `tc-gci sha256=5ab3f3b75b20b186800cee244a482a65451ea1c7841fb136c827f69058708a41 bytes=4000479`. Both exit 0 (verify mode, hash matches `pipeline/sources/*.json`).
+- `PYTHONHASHSEED=0 python -m cantre_pipeline build --province sk --out C:/tmp/m2a --check-budget` printed `built sk: 274 tiles, max gzip 131029 bytes, chain 8446.523479 km, calibrated 8041.425081 km (95.204 %), 10385 audit lines, 12.5 s`, exit 0 (`time`: real 12.763 s). The same command with `PYTHONHASHSEED=12345` and `--out C:/tmp/m2b` printed the same line and `diff -r C:/tmp/m2a C:/tmp/m2b` printed nothing. The tree SHA-256 (sorted path and file-hash pairs) of both is `cf53a7553a0297f12be82cf6b6ce58091f251894dcdf0aa47d52b7e22fa5a38b`.
+- Dataset version `nrwn-2.0+cantre.0.1.0`; source SHA-256 as above; configuration SHA-256 `948fe6863344f9b25957644a7ffc92ba600a37f88fd43da600d0b2f7afa3d61a`.
+- Tiles: 274; gzip total 4,382,955 bytes; maximum 131,029 bytes (budget 500,000); uncompressed total 19,342,075 bytes, maximum 619,878.
+- Coverage (`reports/coverage-sk.json`, 74 subdivisions with chain): chain 8446.523479 km; calibrated 8041.425081 km (95.204 %); calibrated from posted anchors alone 7708.997319 km. Per subdivision the two figures differ in both directions (Assiniboia 91.787 km against 0.000 posted-only; Elrose 167.059 against 167.258): the extra tiers add coverage in total but can also split an interval.
+- Kept anchors by tier: posted 4,881, tc 122, unverified 2,174 (7,177 in all). By source: crossing 5,003, markerpost 1,977, station 197, structure 0. Isolated anchors (in no interval): 9. Intervals: 151 on 132 chains.
+- Rejections by reason (severity `rejected`): ANCHOR_CONFLICT 82, ANCHOR_OUTLIER 8, MILEAGE_SENTINEL 455, NOT_POSTED 1,922, POSTED_SENTINEL 50, RESIDUAL_TOO_LARGE 17, SOURCE_DISAGREEMENT 22, SUBDIVISION_MISMATCH 19, TC_SPUR_CROSSING 53, TC_SUBDIVISION_MISMATCH 11, TRACK_NOT_CHAINED 664, UNVERIFIED_DEVIATION 189 (3,492 in all). Info lines include ANCHOR_COLLAPSED 200, ANCHOR_MERGED 58, ASSET_UNPOSITIONED 1,284, NOT_CHAINED_CLASS 5,303, SECOND_SUBDIVISION_IGNORED 23, DUPLICATE_NID 18, DUPLICATE_SEGID 1, UNKNOWN_DOMAIN_VALUE 2, VERTEX_DEDUPED 4.
+- Chain cycles: 0. Subdivisions with chain but 0 % calibrated: 4 (Colony 0.730 km, Flin Flon 2.296 km, Paddockwood Spur 14.758 km, Weyerhaeuser Spur 13.441 km).
+- Assets: 8,392 in all (bridge 450, crossing 7,660, culvert 4, diamond 21, station 256, tunnel 1); 7,108 have a chain position and 6,886 of those have a derived milepost.
+- Synthetic golden build (`pipeline/tests/golden/synthetic/`, no NRWN data): 16 tiles, 22 audit lines. `python -m pytest pipeline`: 277 passed, 6 skipped, line coverage 99.63 % (gate 95 %); with `CANTRE_RAW_DIR=C:/cv-raw-v` the 6 real-data tests run: 283 passed. `ruff check`, `ruff format --check` and `mypy --strict pipeline/src pipeline/tests` pass. `npm run coverage`: 13 test files, 99 tests passed; lines 98.6 %, branches 97.29 %, functions 100 %.
+- The determinism and contract tests found two defects in earlier output, fixed here (see the decision register): vertex direction leaked into tile bytes, and derived mileposts were interpolated from unrounded `s`.
+
+Not done or not claimed: no datum transform (NAD83(CSRS98) used as-is); the residual check cannot test position accuracy (see the register); the synthetic golden hashes were produced on Windows and have not been run on Linux, where a last-digit difference in a libm function could change a derived milepost; other provinces, offline downloads and the evaluation are M5; hosting is owner-gated.
