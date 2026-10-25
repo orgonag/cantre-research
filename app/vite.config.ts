@@ -48,8 +48,6 @@ export default defineConfig({
   // from the 300 kB shell budget, so the default 500 kB chunk warning is raised above it.
   build: { target: 'es2023', sourcemap: false, chunkSizeWarningLimit: 1200 },
   plugins: [
-    // Writes third-party-licenses.txt (name, version, licence text of every bundled package).
-    licencesPlugin(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['icons/*.png'],
@@ -88,5 +86,9 @@ export default defineConfig({
         ],
       },
     }),
+    // Must stay AFTER VitePWA: its closeBundle step reads the service-worker files VitePWA writes.
+    // Writes third-party-licenses.txt (name, version, licence text of every shipped package,
+    // including the Workbox modules found in sw.js and the workbox-*.js runtime).
+    licencesPlugin(),
   ],
 });

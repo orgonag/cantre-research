@@ -83,12 +83,15 @@ reads the notice that map tiles are requested for the area shown.
 ## Code and libraries
 
 - CANTRE's own code is MIT-licensed ([`LICENSE`](../LICENSE)).
-- The app bundles maplibre-gl 6.13.0 (BSD-3-Clause), preact 11.0.1 (MIT) and the packages they
-  depend on (25 runtime packages in all, under MIT, BSD-2-Clause, BSD-3-Clause, ISC and
-  MIT OR Apache-2.0). Their notices and full licence texts are built into the site as
-  `third-party-licenses.txt` (linked from the About page; generated from node_modules by
-  `app/licenses-plugin.ts` from the packages that are actually in the bundle, with no dev tools).
-  The size gate fails if the file is missing.
+- The site ships maplibre-gl 6.13.0 (BSD-3-Clause), preact 11.0.1 (MIT), the packages they
+  depend on, and the Workbox runtime of the service worker (workbox-core, workbox-precaching,
+  workbox-routing and workbox-strategies 7.4.1, MIT): 29 packages in all, under MIT (15), ISC (8),
+  BSD-3-Clause (3), BSD-2-Clause (2) and MIT OR Apache-2.0 (1). Their notices and full licence
+  texts are built into the site as `third-party-licenses.txt` (linked from the About page;
+  generated from node_modules by `app/licenses-plugin.ts`). The chunk packages come from the
+  built bundle; the Workbox packages come from the `workbox:<name>` markers in the emitted
+  `sw.js` and `workbox-*.js`. No dev tool is listed. The size gate fails if the file is missing
+  or lacks maplibre-gl, preact or a `workbox-` entry.
 - Build and test tools (Vite, Workbox, Playwright, axe-core and others) are not part of the
   published site. Nine transitive build packages (all dev-only in
   `package-lock.json`, pulled in by the service-worker plugin's `workbox-build` and by the

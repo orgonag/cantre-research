@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { Plugin } from 'vite';
 
@@ -22,8 +23,17 @@ import type { Plugin } from 'vite';
 interface PackageJson {
   name: string;
   version: string;
-  license?: string;
+  license?: string | { type?: string };
+  licenses?: { type?: string }[];
   dependencies?: Record<string, string>;
+}
+
+/** The licence name as text: the string form, the old `{ type }` object or the `licenses` array. */
+export function licenceName(pkg: PackageJson): string {
+  if (typeof pkg.license === 'string') return pkg.license;
+  if (typeof pkg.license?.type === 'string') return pkg.license.type;
+  const types = (pkg.licenses ?? []).flatMap((l) => (typeof l.type === 'string' ? [l.type] : []));
+  return types.length > 0 ? types.join(' OR ') : 'see the text below';
 }
 
 const LICENCE_FILE = /^(licen[cs]e|copying|notice)([-._].*)?$/i;
@@ -104,7 +114,7 @@ export function renderLicences(directories: readonly string[]): string {
       return [
         '='.repeat(72),
         `${pkg.name} ${pkg.version}`,
-        `Licence: ${pkg.license ?? 'see the text below'}`,
+        `Licence: ${licenceName(pkg)}`,
         '='.repeat(72),
         '',
         text,
@@ -123,10 +133,67 @@ export function renderLicences(directories: readonly string[]): string {
   return `${header}\n${blocks.join('\n')}`;
 }
 
+/**
+ * The Workbox packages whose code is in the emitted service-worker files. Workbox stamps every
+ * module it includes with `self["workbox:<name>:<version>"]`, so scanning the emitted `sw.js` and
+ * `workbox-*.js` for that marker lists exactly the packages that shipped (workbox-build and the
+ * other tools that generated the files are not in the output and so are not found). Each marker
+ * maps to the installed package `workbox-<name>`.
+ */
+export function workboxPackagesIn(sources: readonly string[], from: string): string[] {
+  const names = new Set<string>();
+  for (const source of sources) {
+    for (const match of source.matchAll(/workbox:([a-z][a-z-]*):\d/g))
+      names.add(match[1] as string);
+  }
+  return [...names].sort().map((name) => {
+    const found = resolveDependency(`workbox-${name}`, from);
+    if (found === null) throw new Error(`licences: cannot find workbox-${name}`);
+    return found;
+  });
+}
+
+/** Write the notices file and give its precache entry in sw.js the new content's MD5 revision. */
+function finish(outDir: string, fileName: string, chunkPackages: readonly string[]): void {
+  const swFiles = readdirSync(outDir).filter((n) => n === 'sw.js' || /^workbox-.*\.js$/.test(n));
+  const workbox = workboxPackagesIn(
+    swFiles.map((n) => readFileSync(join(outDir, n), 'utf8')),
+    outDir,
+  );
+  const text = renderLicences([...chunkPackages, ...workbox]);
+  writeFileSync(join(outDir, fileName), text);
+  const swPath = join(outDir, 'sw.js');
+  const revision = createHash('md5').update(text).digest('hex');
+  const entry = new RegExp(`(url:"${fileName.replace('.', '\\.')}",revision:")[0-9a-f]+(")`);
+  const sw = readFileSync(swPath, 'utf8');
+  if (!entry.test(sw)) throw new Error(`licences: ${fileName} is not in the precache list`);
+  writeFileSync(swPath, sw.replace(entry, `$1${revision}$2`));
+}
+
+/**
+ * Two steps, because the Workbox files do not exist until vite-plugin-pwa has run (it runs in
+ * `closeBundle`): `generateBundle` writes the notices for the chunk packages, so the file exists
+ * for the precache list; `closeBundle`, which must come after VitePWA in the plugins array, adds
+ * the Workbox packages found in the emitted service-worker files and updates the file's
+ * precache revision (Workbox uses the MD5 of the content).
+ */
 export function licencesPlugin(fileName = 'third-party-licenses.txt'): Plugin {
+  let outDir = '';
+  let chunkPackages: string[] = [];
   return {
     name: 'cantre-third-party-licences',
     apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    closeBundle: {
+      sequential: true,
+      order: 'post',
+      handler(error) {
+        if (error) return;
+        finish(outDir, fileName, chunkPackages);
+      },
+    },
     generateBundle(_options, bundle) {
       const directories = new Set<string>();
       for (const item of Object.values(bundle)) {
@@ -136,7 +203,8 @@ export function licencesPlugin(fileName = 'third-party-licenses.txt'): Plugin {
           if (directory !== null) directories.add(directory);
         }
       }
-      this.emitFile({ type: 'asset', fileName, source: renderLicences([...directories]) });
+      chunkPackages = [...directories];
+      this.emitFile({ type: 'asset', fileName, source: renderLicences(chunkPackages) });
     },
   };
 }

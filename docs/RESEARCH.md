@@ -401,7 +401,7 @@ so these heap figures need a check on real devices before anyone relies on them.
 - The service worker's clean-up of its library cache is unproven across two real releases (it
   needs two builds).
 - Memory and speed on real phones are unmeasured (above).
-- Licence notices: the build writes `third-party-licenses.txt` into the site (25 runtime packages
-  with their licence texts, linked from the About page and precached), and the size gate fails if
+- Licence notices: the build writes `third-party-licenses.txt` into the site (29 packages shipped in
+  the site, including maplibre-gl, preact and the Workbox runtime, with their licence texts, linked from the About page and precached), and the size gate fails if
   it is missing. Not yet checked by a person against each package's own repository.
 - Nunavut and Prince Edward Island are not covered (no NRWN package).
