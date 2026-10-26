@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/.tsc-check/**',
       'coverage/**',
+      'build/**',
       'node_modules/**',
     ],
   },

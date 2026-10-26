@@ -20,6 +20,7 @@ import {
 import type { ManifestResult, OfflineDeps } from '../logic/offline.js';
 import { choicesOf, directionTracker, present } from '../logic/present.js';
 import type { CardModel } from '../logic/present.js';
+import { nearestTrack } from '../logic/nearestTrack.js';
 import { createSession } from '../logic/session.js';
 import type { Session } from '../logic/session.js';
 import { updateSettings } from '../logic/settings.js';
@@ -449,10 +450,32 @@ export function App(props: {
   const model = view?.model;
   const result = view?.result;
   const live = view?.fix !== null && view?.fix !== undefined;
+  const far =
+    !!result &&
+    [
+      'OFF_NETWORK',
+      'NO_COVERAGE',
+      'LOCK_CONFLICT',
+      'AMBIGUOUS_ROUTE',
+      'MATCHED_SUBDIVISION',
+    ].includes(result.status);
+  const nearest = useMemo(
+    () => (far && data && view.fix ? nearestTrack(data.net, view.fix, result.lock) : null),
+    [
+      far,
+      data?.net,
+      view?.fix?.lat,
+      view?.fix?.lon,
+      view?.fix?.accuracyM,
+      result?.lock?.kind,
+      result?.lock && JSON.stringify(result.lock),
+    ],
+  );
+  const nearestMp = nearest?.milepost?.kind === 'calibrated' ? nearest.milepost.mp : null;
   const numeric =
     result?.status === 'MATCHED' && result.milepost?.kind === 'calibrated'
       ? result.milepost.mp
-      : null;
+      : nearestMp;
   const number = (n: number, digits = 0) =>
     new Intl.NumberFormat(settings.lang, {
       minimumFractionDigits: digits,
@@ -467,7 +490,7 @@ export function App(props: {
   const accuracyText = live
     ? number(view.fix.accuracyM / (settings.units === 'mi' ? 0.3048 : 1))
     : '—';
-  const routeChoices = result ? choicesOf(result.candidates) : [];
+  const routeChoices = result ? choicesOf(nearest?.candidates ?? result.candidates) : [];
   const title =
     screen === 'settings'
       ? t('nav.settings')
@@ -533,11 +556,17 @@ export function App(props: {
               setScreen('route');
             }}
             disabled={data === null}
-            aria-label={[t('hud.route'), result?.lock ? model?.lockText : model?.subdivision]
+            aria-label={[
+              t('hud.route'),
+              result?.lock
+                ? model?.lockText
+                : (nearest?.candidate.subdivisionName ?? model?.subdivision),
+            ]
               .filter(Boolean)
               .join(': ')}
           >
-            {model?.subdivision ??
+            {nearest?.candidate.subdivisionName ??
+              model?.subdivision ??
               (result?.lock ? model?.lockText : null) ??
               t(phase.kind === 'loading' ? 'hud.loading' : 'hud.route')}
             {view?.direction && (
@@ -562,14 +591,16 @@ export function App(props: {
           }}
           aria-label={t('hud.details')}
         >
-          <span class={`hud-mp ${result?.mpRange ? 'hud-mp--range' : ''}`}>
+          <span class={`hud-mp ${result?.mpRange && !nearest ? 'hud-mp--range' : ''}`}>
             {numeric !== null
               ? number(numeric, 3)
               : result?.mpRange
                 ? `${number(result.mpRange.lowerMp, 3)}–${number(result.mpRange.upperMp, 3)}`
                 : '—'}
           </span>
-          <span class="hud-caption">{t(result?.mpRange ? 'hud.range' : 'hud.calculated')}</span>
+          <span class="hud-caption">
+            {t(nearest ? 'hud.nearestMp' : result?.mpRange ? 'hud.range' : 'hud.calculated')}
+          </span>
         </button>
         <div class="hud-stats">
           <div>
@@ -587,6 +618,18 @@ export function App(props: {
             </span>
           </div>
         </div>
+        {nearest && (
+          <p class="hud-exploring" role="status">
+            {t('hud.trackDistance', {
+              distance: number(
+                nearest.candidate.residualM / (settings.units === 'mi' ? 1609.344 : 1000),
+                2,
+              ),
+              unit: settings.units === 'mi' ? 'mi' : 'km',
+            })}
+            {nearestMp === null ? ` · ${t('hud.noTrackMp')}` : ''}
+          </p>
+        )}
         {phase.kind === 'loading' ? (
           <p class="hud-notice" role="status">
             {t('hud.loading')}
@@ -606,7 +649,8 @@ export function App(props: {
             </button>
           </div>
         ) : (
-          numeric === null && (
+          numeric === null &&
+          !nearest && (
             <button
               class="hud-notice"
               type="button"
@@ -751,6 +795,12 @@ export function App(props: {
           {screen === 'details' &&
             (model ? (
               <>
+                {nearest && (
+                  <p>
+                    {t('hud.nearestMp')}: {nearest.candidate.subdivisionName} ·{' '}
+                    {nearestMp === null ? t('hud.noTrackMp') : number(nearestMp, 3)}
+                  </p>
+                )}
                 <StatusCard model={model} onUnlock={unlock} />
                 {result?.status === 'NO_PERMISSION' && <p>{t('hud.permission')}</p>}
                 <RouteChooser

@@ -72,8 +72,11 @@ as ground truth or material cleared for redistribution.
 The owner authorized the core HUD/map build described in [docs/CORE-RAILHUD.md](docs/CORE-RAILHUD.md).
 Use its map-first startup contract instead of the older manual-download/optional-map UI.
 One persistent GPS watch starts alongside automatic verified data loading. Preserve the
-existing matcher and route-lock semantics; no private source imports, entries or backend.
-Cache failures must not block a verified online session. Basemap consent remains required.
+existing strict matcher and route-lock semantics; the HUD also offers the separately labelled
+nearest-track projection authorized on 2026-10-26, including off-network fixes.
+No private source imports, entries or backend.
+Cache failures must not block a verified online session. The owner changed the basemap default to on (2026-10-26); respect a saved off choice
+and keep the OpenFreeMap disclosure in Layers/About.
 Push GPS markers when their sources exist even while MapLibre reports source loading;
 `isStyleLoaded()` is not a safe per-fix gate. Keep map/list asset limits aligned.
 
@@ -87,3 +90,12 @@ the ID-renaming property. Actual-device/field tests remain distinct from mocked 
 CI runs Chromium projects on Linux and the unchanged safari-core assertions on macOS.
 Linux WebKit rendered a blank WebGL screenshot; do not remove the GPS-dot pixel
 assertion or treat emulation as physical iPhone validation.
+
+## Phone follow-up (2026-10-26)
+
+Keep the capped HUD centered with auto inline margins; test narrow phones and wide screens.
+The nearest-track HUD lookup expands beyond the strict matcher's radius, respects the
+selected route, shows distance and uses existing calibrated intervals only. No extrapolation
+or fabricated milepost for an uncalibrated siding. Hide it on stale/no-permission/no-fix.
+Legacy privacy tests start with a real saved basemap-off choice; a separate fresh-visit
+case must test default-on and persistent opt-out. Ignore generated build/ in linters.
