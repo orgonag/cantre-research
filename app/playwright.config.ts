@@ -7,10 +7,9 @@ import { defineConfig, devices } from '@playwright/test';
  * `Content-Encoding: gzip` and so breaks the data client's length and hash checks).
  *
  * Projects: desktop Chromium, Pixel 7 (Chromium, Android emulation) and iPhone 13. The iPhone
- * project uses the iPhone 13 viewport, scale, touch and user agent but runs on Chromium, because
- * CI installs only Chromium (`npx playwright install --with-deps chromium`); it is not WebKit and
- * says nothing about Safari engine behaviour. A separate safari-core project runs the
- * core HUD flows in WebKit; neither emulation replaces physical-device validation.
+ * project uses the iPhone 13 viewport, scale, touch and user agent but runs on Chromium, and says nothing about Safari engine behaviour. A separate safari-core project runs
+ * the core HUD flows in WebKit on macOS CI (closer to Safari than Linux WebKit).
+ * Neither emulation replaces physical-device validation.
  */
 const PORT = 4179;
 

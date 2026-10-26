@@ -77,7 +77,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright install --with-deps chromium
       - run: npm run -w app build
       - name: Size gate on the built app with the browser-test data (the deploy runs it on the national build)
         run: |
@@ -86,11 +86,34 @@ jobs:
           cp -r app/e2e/fixtures/data build/site/data
           node scripts/check-budget.mjs --dir build/site
       - name: Playwright flows, privacy (requests and storage) and axe accessibility tests
-        run: npm run -w app e2e
+        run: npm run -w app e2e -- --project=desktop --project=pixel7 --project=iphone13
       - name: Keep the Playwright traces of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cantre-app-e2e-traces
+          path: app/test-results
+          retention-days: 7
+
+  safari:
+    # Safari's rendering path is closest to Playwright WebKit on macOS. Keep the
+    # pixel assertion enabled: Linux WebKit produced a blank WebGL screenshot.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - run: npm run -w app build
+      - name: Core RailHUD WebKit flows including rendered GPS marker
+        run: npm run -w app e2e -- --project=safari-core
+      - name: Keep failed WebKit screenshots and traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cantre-safari-e2e-traces
           path: app/test-results
           retention-days: 7

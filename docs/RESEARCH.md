@@ -495,3 +495,14 @@ national data before the frontend, publishes a versioned snapshot alongside the 
 and verifies served hashes and sizes. No application server is required. This local
 repair does not itself publish the new UI or data. Physical-phone location permission,
 GPS and screen-awake behavior remain acceptance checks after an approved deployment.
+
+
+Hosted verification follow-up: the first PR CI passed the pipeline and verification
+jobs but Linux WebKit returned a blank map screenshot for the GPS-dot pixel assertion
+(230/231 browser checks passed). Network trace requests all succeeded; the cause is
+not established as an application regression. The identical assertion passes in
+local macOS WebKit. CI now runs the 222 Chromium checks on Linux and the nine unchanged
+WebKit checks on macOS, following Playwright's recommendation to use macOS for the
+closest Safari behavior: https://playwright.dev/docs/next/browsers. No assertion,
+threshold or test was removed, skipped or relaxed. Physical Safari testing remains
+necessary; this change does not claim support for Linux WebKit rendering.
