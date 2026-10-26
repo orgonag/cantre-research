@@ -222,7 +222,7 @@ function ambiguousOf(
  * (shown but not lockable). Locking uses the base chain id, which the matcher's lock accepts for
  * every piece of the route, so crossing a gap inside one route is not a silent switch.
  */
-function choicesOf(candidates: readonly Candidate[]): readonly Choice[] {
+export function choicesOf(candidates: readonly Candidate[]): readonly Choice[] {
   const byKey = new Map<string, Choice>();
   const nearest = new Map<string, number>(); // metres, the best residual seen per route
   for (const c of candidates) {

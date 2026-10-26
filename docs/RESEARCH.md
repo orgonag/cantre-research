@@ -413,3 +413,96 @@ so these heap figures need a check on real devices before anyone relies on them.
   the site, including maplibre-gl, preact and the Workbox runtime, with their licence texts, linked from the About page and precached), and the size gate fails if
   it is missing. Not yet checked by a person against each package's own repository.
 - Nunavut and Prince Edward Island are not covered (no NRWN package).
+
+## 2026-10-25 — Core RailHUD browser implementation (not deployed)
+
+Owner-authorized follow-up to M4: [CORE-RAILHUD.md](CORE-RAILHUD.md). Independently
+implemented the approved map-first interface, automatic verified data startup alongside
+one GPS watch, normal-match route selection, persistent map, follow/recenter, native
+modal sheets and wake lock. Existing core calculation/matching and pipeline source files
+are unchanged. No private reference source/data was imported.
+
+Validation on the local branch:
+
+- `npm run lint`, `npm run typecheck`, `npm run format:check`: pass.
+- `npm run coverage`: 668 tests in 44 files pass; lines 99.58%, branches 94.81%,
+  statements 99.50%, functions 100% under the repository's configured coverage scope.
+- Core package and production frontend builds pass. This is a static app: no server build.
+- Full browser suite: 231 tests pass across desktop, Pixel 7, iPhone 13 Chromium emulation and the WebKit core suite. Physical phone GPS and field endurance remain unverified.
+- `.venv/bin/python -m pytest pipeline`: **397 passed, 6 skipped, 1 failed**;
+  coverage 99.49%. The six real-source-gated tests were skipped without their raw inputs.
+  HTTP-fixture tests must run where local port binding is allowed.
+- Existing Python failure: `test_property_renaming_ids_does_not_change_membership`.
+  Minimal generated anchors `(s metres, MP miles, tier)` are `(20, 0, tc)`,
+  `(20, .01, tc)`, `(40, 0, posted)`. Reversing the ID ordering can produce a retained
+  position at 30 m instead of 40 m. Both `pipeline/src` and `pipeline/tests` are unchanged
+  from the base commit. The failure reproduced on a second full run. No property was
+  disabled and no calibration semantics were changed to make this UI branch pass.
+- Consequently the full-suite commit gate is **not satisfied**: no commit, push, release
+  PR or deployment was performed. Resolve the pipeline defect separately before release.
+- National dataset diagnostic: `nrwn-national-c400fd8d+cantre.0.1.0`, 1,252 chains,
+  64,061 assets, 25 sampled fixes in Node 26 on this Mac. Verified load from local bytes
+  1,384 ms including 788 ms network decode; display construction 114 ms; matching median
+  6.98 ms / maximum 24.91 ms; visible-asset selection maximum 14.65 ms. These numbers
+  exclude internet transfer, do not characterize phones, and are not accuracy evidence.
+
+The WebKit test-provider timestamp unit correction is confined to tests. MapLibre marker
+updates no longer depend on `isStyleLoaded()` while sources are updating. Safari pointer
+clicks do not necessarily focus their buttons: sheets explicitly remember their opener
+so Escape restores focus. Physical iPhone/Android GPS, enlarged system text, a sustained
+15-minute device run and field accuracy remain pending. The production Pages site is unchanged.
+
+
+## Pipeline ID-order repair and core RailHUD release preparation — 2026-10-26
+
+The owner authorized resolving the full-suite blocker and preparing deployment for
+phone testing. The failure was not removed or marked expected: IDs previously broke
+ties between different mileages at the same position and tier. With postings
+`(20 m, MP 0, tc)`, `(20 m, MP 0.01, tc)`, `(40 m, MP 0, posted)`, reversing names
+could change collapse membership and move an interval endpoint from 40 m to 30 m.
+
+Pipeline 0.1.1 sorts by position, tier, mileage and then ID. Collapsed representatives
+use tier, mileage, position and then ID; equal-error outliers use position and mileage
+before ID. These are canonical ordering rules, not a claim that lower mileage is more
+accurate. Tier precedence, conflict thresholds and interpolation remain unchanged.
+Three explicit regressions cover coincident postings across name/input permutations,
+near-equal collapsed representative mileage and equal-error outlier ordering. The
+original Hypothesis ID-renaming property remains active.
+
+The pipeline version, synthetic golden files and browser fixtures were regenerated
+together. Decoded synthetic snapshot/tile changes are version-only; manifests also
+carry the corresponding new compressed sizes/hashes. Real Saskatchewan builds under
+`PYTHONHASHSEED=0` and `12345` are byte-identical and pass the size budget.
+
+A separate build of the prior committed 0.1.0 source against the same verified inputs
+measured 8,041.703461 calibrated km; 0.1.1 measures 8,040.593118 km on the same
+8,446.523479 chain km (95.207% to 95.194%). The 1.110343 km change is confined to
+St. Brieux, with one additional unverified anchor rejected by the existing deviation
+rule. Posted-only calibration changes from 7,708.982867 to 7,708.763762 km. Other
+changed subdivision report fields reflect representative source provenance. These
+are internal coverage metrics, not field accuracy evidence. Source records and
+thresholds were not changed.
+
+Validation: full Python suite with acquired Saskatchewan and TC sources: **407 passed,
+zero skipped**, coverage 99.49%; Ruff lint/format and strict mypy pass. JavaScript
+coverage: **668 passed**, plus typecheck, lint and formatting pass. Core package built
+before the frontend. Full browser suite: **231 passed**, including WebKit core checks.
+The production sub-path frontend build and size gate pass; regenerated browser
+fixtures match the committed fixture tree. The release is ready for PR review.
+
+Deployment remains manual through the existing GitHub Pages workflow. It rebuilds the
+national data before the frontend, publishes a versioned snapshot alongside the app,
+and verifies served hashes and sizes. No application server is required. This local
+repair does not itself publish the new UI or data. Physical-phone location permission,
+GPS and screen-awake behavior remain acceptance checks after an approved deployment.
+
+
+Hosted verification follow-up: the first PR CI passed the pipeline and verification
+jobs but Linux WebKit returned a blank map screenshot for the GPS-dot pixel assertion
+(230/231 browser checks passed). Network trace requests all succeeded; the cause is
+not established as an application regression. The identical assertion passes in
+local macOS WebKit. CI now runs the 222 Chromium checks on Linux and the nine unchanged
+WebKit checks on macOS, following Playwright's recommendation to use macOS for the
+closest Safari behavior: https://playwright.dev/docs/next/browsers. No assertion,
+threshold or test was removed, skipped or relaxed. Physical Safari testing remains
+necessary; this change does not claim support for Linux WebKit rendering.

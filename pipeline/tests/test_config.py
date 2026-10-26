@@ -19,7 +19,7 @@ from cantre_pipeline.errors import PipelineError
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.1.1"
 
 
 def test_config_sha256_is_stable_and_sensitive() -> None:

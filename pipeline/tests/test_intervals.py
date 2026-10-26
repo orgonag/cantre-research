@@ -1,6 +1,6 @@
 """Tests for calibrated intervals and discontinuities (spec section 5.5, Task 6)."""
 
-from itertools import pairwise
+from itertools import pairwise, permutations
 
 import pytest
 from hypothesis import given, settings
@@ -376,7 +376,7 @@ def test_collapse_keeps_posted_value_over_unverified() -> None:
     assert kept[1].member_nids == ("b1", "z1")
 
 
-def test_collapse_tie_on_tier_takes_smallest_id_and_max_residual() -> None:
+def test_collapse_tie_on_tier_takes_smallest_mileage_and_max_residual() -> None:
     anchors = [anchor("m2", 100.0, 2.001, residual=3.0), anchor("m1", 110.0, 2.0, residual=1.0)]
     _, kept, _ = build(anchors)
     assert len(kept) == 1 and kept[0].id == "m1" and kept[0].mp == 2.0
@@ -541,3 +541,38 @@ def test_unverified_bridge_never_evicts_a_posted_anchor() -> None:
     # A worse-tier anchor is still dropped by better-tier ends.
     _, _, audit = build(run_mps(mps, tiers={2: "unverified"}))
     assert [a.nid for a in audit if a.reason == "ANCHOR_OUTLIER"] == ["a02"]
+
+
+def test_coincident_different_postings_ignore_id_order() -> None:
+    # Regression: ID ordering used to decide whether the 40 m anchor collapsed
+    # with the MP 0 anchor at 20 m, changing an interval endpoint to 30 m.
+    data: list[tuple[float, float, AnchorTier]] = [
+        (20.0, 0.0, "tc"),
+        (20.0, 0.01, "tc"),
+        (40.0, 0.0, "posted"),
+    ]
+    shapes = set()
+    for names in permutations(["a", "b", "c"]):
+        values = [anchor(n, s, mp, tier) for n, (s, mp, tier) in zip(names, data, strict=True)]
+        for order in permutations(values):
+            ivs, kept, _ = build(list(order))
+            by_id = {a.id: a for a in kept}
+            shapes.add(
+                tuple(tuple((by_id[n].s_m, by_id[n].mp) for n in iv.anchor_ids) for iv in ivs)
+            )
+    assert shapes == {(((20.0, 0.01), (40.0, 0.0)),)}
+
+
+def test_collapse_representative_value_ignores_ids() -> None:
+    for names in permutations(["a", "z"]):
+        _, kept, _ = build([anchor(names[0], 100, 2.004), anchor(names[1], 110, 2.0)])
+        assert [(a.s_m, a.mp, a.tier) for a in kept] == [(105.0, 2.0, "posted")]
+
+
+def test_outlier_equal_errors_use_position_before_id() -> None:
+    anchors = run_mps([10.0, 11.0, 47.0, 13.0, 14.0, 15.0, 51.0, 17.0, 18.0])
+    # Reverse ID preference: the earlier equal-error outlier must still go first.
+    anchors[2] = anchor("z", anchors[2].s_m, anchors[2].mp)
+    anchors[6] = anchor("a", anchors[6].s_m, anchors[6].mp)
+    _, _, audit = build(anchors)
+    assert [a.nid for a in audit if a.reason == "ANCHOR_OUTLIER"] == ["z", "a"]

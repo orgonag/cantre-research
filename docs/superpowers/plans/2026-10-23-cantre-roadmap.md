@@ -57,3 +57,10 @@ Not built or not verified when M4 was written; each needs an owner or a later mi
 - A check that the service worker's library-cache clean-up works across two real releases.
 - Memory and speed on a low-end phone; licence notices for the bundled libraries.
 - All evaluation, threshold tuning and the datum study (M5).
+
+## Owner-priority core HUD follow-up (2026-10-25)
+
+Before M5, the owner requested the approved core HUD/map experience in the website.
+[Core HUD implementation contract](../../CORE-RAILHUD.md) records this branch's behavior
+and validation limits. Implementation is local; commit/PR is gated on the full test suite.
+No production deployment or M5 calculation work is included.

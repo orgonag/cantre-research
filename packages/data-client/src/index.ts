@@ -4,6 +4,8 @@ export { parseManifest } from './manifest.js';
 export type { FileRef, Manifest } from './manifest.js';
 export {
   downloadSnapshot,
+  fetchNetwork,
+  ensureNetwork,
   fetchManifest,
   installedSnapshot,
   loadNetwork,

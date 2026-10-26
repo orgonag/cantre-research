@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
 import {
   PLACES,
+  details,
   card,
   expect,
   headline,
@@ -80,14 +81,13 @@ for (const scheme of ['light', 'dark'] as const) {
 
     test('first-run screen', async ({ page }) => {
       await openApp(page);
-      await expect(page.getByRole('button', { name: /^Download data for Canada/ })).toBeVisible();
+      await expect(page.locator('.hud-route')).toBeEnabled();
       await check(page);
     });
 
     test('first-run screen with a download error', async ({ page }) => {
       await page.route('**/snapshot.bin.gz', (route) => route.abort('failed'));
       await openApp(page);
-      await page.getByRole('button', { name: /^Download data for Canada/ }).click();
       await expect(page.getByRole('alert')).toBeVisible();
       await check(page);
     });
@@ -171,26 +171,27 @@ for (const scheme of ['light', 'dark'] as const) {
     test('about', async ({ page }) => {
       await openAndInstall(page);
       await openScreen(page, 'About');
-      await expect(page.getByRole('heading', { level: 2, name: 'About CANTRE' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 3, name: 'About CANTRE' })).toBeVisible();
       await check(page);
     });
 
     test('about before any data is installed', async ({ page }) => {
       await openApp(page);
       await openScreen(page, 'About');
-      await expect(page.getByRole('heading', { level: 2, name: 'About CANTRE' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 3, name: 'About CANTRE' })).toBeVisible();
       await check(page);
     });
 
     test('offline data', async ({ page }) => {
       await openAndInstall(page);
       await openScreen(page, 'Offline data');
-      await expect(page.getByRole('heading', { level: 2, name: 'Offline data' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 3, name: 'Offline data' })).toBeVisible();
       await check(page);
     });
 
     test('find a location with a result, and the open map', async ({ page }) => {
       await openAndInstall(page);
+      await openScreen(page, 'Find a location');
       const find = page.locator('section.find');
       await find.getByLabel('Subdivision').selectOption({ label: 'Alpha (CN)' });
       await find.getByLabel('Milepost (miles)').fill('12');
@@ -208,7 +209,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await openScreen(page, 'Settings');
       await page.getByRole('radio', { name: 'Français' }).check();
       await check(page);
-      await page.getByRole('button', { name: 'Retour à la position' }).click();
+      await details(page);
       await expect(headline(page)).toHaveText('Associé à une voie');
       await check(page);
     });
@@ -233,19 +234,11 @@ test.describe('keyboard', () => {
         }),
       );
     }
-    for (const wanted of [
-      'Offline data',
-      'Settings',
-      'About',
-      'Choose this route',
-      'Find',
-      'Show map',
-    ]) {
-      expect(
-        [...stops].some((s) => s.includes(wanted)),
-        `Tab reaches "${wanted}"`,
-      ).toBe(true);
-    }
+    expect([...stops].some((s) => s.includes('Choose this route'))).toBe(true);
+    expect([...stops].some((s) => s.includes('×'))).toBe(true);
+    expect(
+      await page.evaluate(() => document.querySelector('dialog')?.contains(document.activeElement)),
+    ).toBe(true);
     // And a choice made from the keyboard works.
     await page.getByRole('button', { name: /^Choose this route: Alpha,/ }).focus();
     await page.keyboard.press('Enter');

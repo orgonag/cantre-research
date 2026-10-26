@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cantre-pipeline"
-version = "0.1.0"
+version = "0.1.1"
 description = "CANTRE data pipeline: NRWN rail network to chains, anchors, intervals and tiles."
 readme = "README.md"
 license = "MIT"

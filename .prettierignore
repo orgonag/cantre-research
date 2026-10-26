@@ -10,3 +10,5 @@ pipeline/
 app/e2e/fixtures/
 test-results/
 playwright-report/
+
+.venv/

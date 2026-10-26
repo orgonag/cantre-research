@@ -4,7 +4,7 @@ This is a test specification. The third column names the synthetic scenario repl
 `packages/core/test/scenarios/` (milestone M3) and, from milestone M4, the Playwright spec in
 `app/e2e/` that exercises a case, where one exists; every other row is still a specification, not
 a claim of executed tests. The replays and the browser tests run on synthetic networks and the
-committed golden tiles with mocked GPS in headless Chromium (not WebKit, not a real phone), not
+committed golden tiles with mocked GPS in headless Chromium, plus the new core HUD flows in WebKit (neither is a real phone), not
 field traces, and say nothing about field accuracy.
 Use independently authored synthetic fixtures first. Fix numeric tolerances according
 to the chosen representation and units; document them separately from field accuracy.
@@ -50,3 +50,15 @@ Reproducing the historical 57.91 m mean is not a required success condition; thi
 contains no private fixture to reproduce it. Pending 1% semantics blocks a 1% verdict,
 not synthetic-core development. Field acceptance requires an agreed denominator,
 near-zero handling, absolute bound and independent evidence; thresholds remain TBD.
+
+## Core HUD addendum, 2026-10-25
+
+[CORE-RAILHUD.md](CORE-RAILHUD.md) defines the owner-approved browser interaction contract.
+The new `app/e2e/railhud.spec.ts` runs on desktop Chromium, two phone Chromium layouts
+and a separate WebKit project. Existing flows, privacy scans and axe checks were migrated
+to modal sheets and automatic loading rather than removing their integrity/ambiguity checks.
+The data-client tests now cover no-storage startup, quota failure and intact-cache fallback;
+visible-asset tests cover limits, filters and exploration-centre ordering.
+
+Full-suite release gate remains blocked by the existing unchanged-pipeline anchor-ID
+property failure. Physical-phone endurance, enlarged text and field testing remain pending.

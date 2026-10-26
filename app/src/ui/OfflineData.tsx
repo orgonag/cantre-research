@@ -42,9 +42,9 @@ export function OfflineData(props: {
 
   return (
     <section class="offline" aria-labelledby="screen-heading">
-      <h2 id="screen-heading" tabIndex={-1}>
+      <h3 id="screen-heading" tabIndex={-1}>
         {t('offline.heading')}
-      </h2>
+      </h3>
       {stored.kind === 'none' && <p>{t('offline.none')}</p>}
       {stored.kind === 'damaged' && (
         <div role="alert">

@@ -1,7 +1,7 @@
-import { useEffect, useReducer, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'preact/hooks';
 import { CoreInputError } from '@cantre/core';
-import type { Fix, Lock, NetworkView } from '@cantre/core';
-import { DataClientError } from '@cantre/data-client';
+import type { Fix, Lock, NetworkAsset, NetworkView, Result } from '@cantre/core';
+import { DataClientError, ensureNetwork } from '@cantre/data-client';
 import type { AssetDetails, InstalledSnapshot } from '@cantre/data-client';
 import { getLang, setLang, t } from '../i18n/index.js';
 import { errorCode, isFatalUncaught } from '../logic/errorCode.js';
@@ -10,6 +10,7 @@ import type { GeoLike } from '../logic/geolocation.js';
 import { lockFlagIn } from '../logic/lockFlag.js';
 import {
   IDLE,
+  DATA_BASE_URL,
   dataClientDeps,
   errorMessageKey,
   offlineReducer,
@@ -17,8 +18,8 @@ import {
   runDownload,
 } from '../logic/offline.js';
 import type { ManifestResult, OfflineDeps } from '../logic/offline.js';
-import { directionTracker, present, presentAssets } from '../logic/present.js';
-import type { AssetRow, CardModel } from '../logic/present.js';
+import { choicesOf, directionTracker, present } from '../logic/present.js';
+import type { CardModel } from '../logic/present.js';
 import { createSession } from '../logic/session.js';
 import type { Session } from '../logic/session.js';
 import { updateSettings } from '../logic/settings.js';
@@ -26,11 +27,14 @@ import type { Settings as SettingsValue } from '../logic/settings.js';
 import { onResume } from '../logic/visibility.js';
 import type { Pin } from '../logic/find.js';
 import { About } from './About.js';
-import { AssetList } from './AssetList.js';
+import { VisibleAssets } from './VisibleAssets.js';
+import { ASSET_KINDS, DEFAULT_ASSET_KINDS } from '../logic/visibleAssets.js';
 import { FindLocation } from './FindLocation.js';
-import { FirstRun } from './FirstRun.js';
+import { Sheet } from './Sheet.js';
+import { WakeButton } from './WakeButton.js';
+import { BasemapSwitch } from './BasemapSwitch.js';
 import { LiveRegion } from './LiveRegion.js';
-import { MapPanel } from './MapView.js';
+import { MapView } from './MapView.js';
 import type { YouFix } from './MapView.js';
 import { OfflineData } from './OfflineData.js';
 import { RouteChooser } from './RouteChooser.js';
@@ -39,6 +43,15 @@ import { StatusCard } from './StatusCard.js';
 
 /** The card is recomputed from the clock this often (ms). */
 const TICK_MS = 1000;
+const EMPTY_NETWORK: NetworkView = {
+  datasetVersion: '',
+  coverage: [],
+  chains: [],
+  segments: [],
+  intervals: [],
+  diamonds: [],
+  assets: [],
+};
 
 /** The real data client, with the data folder next to the app (see `DATA_BASE_URL`). */
 const DEFAULT_DEPS: OfflineDeps = dataClientDeps();
@@ -53,16 +66,28 @@ type Loaded = {
 type Phase =
   | { readonly kind: 'loading' }
   | { readonly kind: 'ready'; readonly data: Loaded }
-  /** Nothing is installed: the first-run screen offers the download. */
+  /** The user removed the cached data; the HUD offers Retry. */
   | { readonly kind: 'firstRun' }
   /** Something is installed but cannot be used (damaged or unreadable): remove it and start again. */
   | { readonly kind: 'unavailable'; readonly code: string };
 
-type Screen = 'main' | 'offline' | 'settings' | 'about';
+type Screen =
+  | 'main'
+  | 'menu'
+  | 'route'
+  | 'find'
+  | 'assets'
+  | 'details'
+  | 'layers'
+  | 'offline'
+  | 'settings'
+  | 'about';
 
 type View = {
   readonly model: CardModel;
-  readonly rows: readonly AssetRow[];
+  readonly direction: 'up' | 'down' | null;
+  readonly result: Result;
+  readonly speedMps: number | null;
   readonly conflict: boolean;
   readonly nowMs: number;
   /** The last accepted fix for the "you" marker; null when none, or when it is historical. */
@@ -74,7 +99,7 @@ type View = {
  * (STALE), so an old fix is never drawn as the current position.
  */
 function youFixOf(fix: Fix | null, status: string): YouFix | null {
-  return fix === null || status === 'STALE'
+  return fix === null || ['STALE', 'NO_PERMISSION', 'NO_FIX'].includes(status)
     ? null
     : { lat: fix.lat, lon: fix.lon, accuracyM: fix.accuracyM };
 }
@@ -85,12 +110,12 @@ function isShownLoadError(error: unknown): boolean {
 }
 
 /**
- * The app layout. It loads the installed network, starts the matcher session and the
+ * The map-first app. It automatically loads verified rail data alongside the
  * geolocation watch, and re-renders the status card once a second from
  * `session.result(Date.now())`. The app is the only place the clock is read.
  *
- * With no data installed it shows the first-run screen. Offline data, Settings and About are
- * screens reached from the menu; the matcher session and the geolocation watch keep running
+ * Without a usable cache it fetches the hosted snapshot. Data, Settings and About are
+ * sheets reached from the menu; the matcher session and the geolocation watch keep running
  * underneath them.
  *
  * One settings object is held here and saved whole on every change (`updateSettings` merges into
@@ -113,6 +138,18 @@ export function App(props: {
   const { lockClearedOnReload, load, geo } = props;
   const deps = props.offline ?? DEFAULT_DEPS;
 
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const update = () => {
+      setOnline(navigator.onLine);
+    };
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
   const [settings, setSettings] = useState(props.settings);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -131,8 +168,16 @@ export function App(props: {
   const [view, setView] = useState<View | null>(null);
   const tracker = useRef(directionTracker());
   const tickRef = useRef<(() => void) | null>(null);
-  const [mapOpen, setMapOpen] = useState(false);
+  const kinds = settings.assetKinds ?? DEFAULT_ASSET_KINDS;
+  const [assets, setAssets] = useState<readonly NetworkAsset[]>([]);
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+  const [following, setFollowing] = useState(true);
+  const [recenter, setRecenter] = useState(0);
+  const [attempt, setAttempt] = useState(0);
+  // A tiny empty-network session validates and retains only the latest fix during loading.
+  const liveSession = useRef(createSession(EMPTY_NETWORK, '', lockFlagIn()));
   const [pins, setPins] = useState<readonly Pin[]>([]);
+  const sheetOpener = useRef<HTMLElement | null>(null);
   const [screen, setScreen] = useState<Screen>('main');
   const [offline, dispatchOffline] = useReducer(offlineReducer, IDLE);
   const [manifest, setManifest] = useState<ManifestResult | null>(null);
@@ -170,14 +215,20 @@ export function App(props: {
   // (a damaged copy) becomes a message with a way out; anything else goes to the error boundary.
   useEffect(() => {
     let cancelled = false;
-    (load ?? deps.loadNetwork)()
+    setPhase({ kind: 'loading' });
+    (load ?? (() => ensureNetwork(DATA_BASE_URL)))()
       .then(async (loaded) => {
-        const info = await deps.installedSnapshot();
+        const info = await deps.installedSnapshot().catch(() => null);
         if (cancelled) {
           return;
         }
-        const session = createSession(loaded.net, loaded.datasetVersion, lockFlagIn());
-        setInstalled(info);
+        const session = liveSession.current;
+        const { lastFix, permission } = session.state;
+        session.replaceNetwork(loaded.net, loaded.datasetVersion);
+        session.dispatch({ type: 'permission', state: permission });
+        if (lastFix !== null && permission === 'granted')
+          session.dispatch({ type: 'fix', fix: lastFix });
+        setInstalled(info?.datasetVersion === loaded.datasetVersion ? info : null);
         setPhase({
           kind: 'ready',
           data: {
@@ -192,9 +243,7 @@ export function App(props: {
         if (cancelled) {
           return;
         }
-        if (error instanceof DataClientError && error.code === 'NOT_INSTALLED') {
-          setPhase({ kind: 'firstRun' });
-        } else if (isShownLoadError(error)) {
+        if (isShownLoadError(error)) {
           setPhase({ kind: 'unavailable', code: errorCode(error) });
         } else {
           setAsyncError(error);
@@ -203,7 +252,7 @@ export function App(props: {
     return () => {
       cancelled = true;
     };
-  }, [load, deps]);
+  }, [load, deps, attempt]);
 
   // The manifest: needed for the first-run button's size, and for the Offline data screen's
   // "Update data". It is the same small file for everyone; it carries no position.
@@ -227,17 +276,29 @@ export function App(props: {
     dispatchOffline({ type: 'reset' });
   }, [screen]);
 
-  // Move focus to the new screen's heading, but not on the first render.
-  const firstScreen = useRef(true);
-  useEffect(() => {
-    if (firstScreen.current) {
-      firstScreen.current = false;
-      return;
-    }
-    document.getElementById(screen === 'main' ? 'status-heading' : 'screen-heading')?.focus();
-  }, [screen]);
-
   const data = phase.kind === 'ready' ? phase.data : null;
+  const availableKinds = useMemo(() => {
+    const present = new Set(data?.net.assets.map((asset) => asset.kind));
+    return ASSET_KINDS.filter((kind) => present.has(kind));
+  }, [data]);
+
+  // Start immediately, independently of data loading and sheets. One watch per app.
+  useEffect(() => {
+    const device = geo === undefined ? (navigator.geolocation as GeoLike | undefined) : geo;
+    const stopWatch =
+      device === undefined || device === null
+        ? null
+        : watchFixes(device, Date.now, (event) => {
+            liveSession.current.dispatch(event);
+          });
+    if (stopWatch === null) {
+      // No geolocation API in this browser: say so with the matcher's own reason.
+      liveSession.current.dispatch({ type: 'locationError', code: 'UNAVAILABLE' });
+    }
+    return () => {
+      stopWatch?.();
+    };
+  }, [geo]);
 
   // Recompute the card from the clock: once a second, and when the page becomes visible again,
   // so a long-backgrounded page shows STALE (historical), never an old fix as current. A change
@@ -253,25 +314,27 @@ export function App(props: {
       const dir = tracker.current.update(result);
       const current = settingsRef.current;
       setView({
+        direction:
+          dir === null || result.milepost?.kind !== 'calibrated'
+            ? null
+            : (result.milepost.upper.mp - result.milepost.lower.mp) *
+                  (result.milepost.upper.s - result.milepost.lower.s) >
+                  0 ===
+                (dir === 'up')
+              ? 'up'
+              : 'down',
+        result,
+        speedMps:
+          youFixOf(session.state.lastFix, result.status) === null
+            ? null
+            : (session.state.lastFix?.speedMps ?? null),
         model: present(result, net, current, { snapshotDate }),
-        rows: presentAssets(result, net, current, dir),
         conflict: result.status === 'LOCK_CONFLICT',
         nowMs,
         fix: youFixOf(session.state.lastFix, result.status),
       });
     };
     tickRef.current = tick;
-    const device = geo === undefined ? (navigator.geolocation as GeoLike | undefined) : geo;
-    const stopWatch =
-      device === undefined || device === null
-        ? null
-        : watchFixes(device, Date.now, (event) => {
-            session.dispatch(event);
-          });
-    if (stopWatch === null) {
-      // No geolocation API in this browser: say so with the matcher's own reason.
-      session.dispatch({ type: 'locationError', code: 'UNAVAILABLE' });
-    }
     tick();
     const timer = setInterval(tick, TICK_MS);
     const stopResume = onResume(document, tick);
@@ -279,9 +342,8 @@ export function App(props: {
       tickRef.current = null;
       clearInterval(timer);
       stopResume();
-      stopWatch?.();
     };
-  }, [data, geo]);
+  }, [data]);
   useEffect(() => {
     tickRef.current?.();
   }, [settings]);
@@ -293,9 +355,12 @@ export function App(props: {
   const choose = (lock: Lock): void => {
     // The user's explicit choice locks the route. The matcher never switches on its own.
     data?.session.lock(lock);
+    tickRef.current?.();
+    if (screen === 'route') setScreen('main');
   };
   const unlock = (): void => {
     data?.session.unlock();
+    tickRef.current?.();
   };
   const changeSettings = (change: Partial<SettingsValue>): void => {
     // Merge into the LATEST settings and save the whole object (not a copy from an old render).
@@ -305,7 +370,8 @@ export function App(props: {
   };
   const showOnMap = (found: readonly Pin[]): void => {
     setPins(found);
-    setMapOpen(true);
+    setFollowing(false);
+    setScreen('main');
   };
 
   // First run or update: download, verify, then use the new network. A failure leaves the
@@ -370,149 +436,385 @@ export function App(props: {
     );
   };
 
-  const go = (target: Screen): void => {
-    setScreen(screen === target ? 'main' : target);
-  };
-  const headingId =
-    screen === 'main' && phase.kind !== 'firstRun' ? 'status-heading' : 'screen-heading';
   const menu = (target: Screen, label: string) => (
     <button
       type="button"
-      class="nav__button"
-      aria-current={screen === target ? 'page' : undefined}
       onClick={() => {
-        go(target);
+        setScreen(target);
       }}
     >
       {label}
     </button>
   );
-
+  const model = view?.model;
+  const result = view?.result;
+  const live = view?.fix !== null && view?.fix !== undefined;
+  const numeric =
+    result?.status === 'MATCHED' && result.milepost?.kind === 'calibrated'
+      ? result.milepost.mp
+      : null;
+  const number = (n: number, digits = 0) =>
+    new Intl.NumberFormat(settings.lang, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(n);
+  // 1 international foot = 0.3048 m; 1 international mile = 1609.344 m.
+  const speed = view?.speedMps;
+  const speedText =
+    speed === null || speed === undefined || speed < 0
+      ? '—'
+      : number(speed * (settings.units === 'mi' ? 3600 / 1609.344 : 3.6));
+  const accuracyText = live
+    ? number(view.fix.accuracyM / (settings.units === 'mi' ? 0.3048 : 1))
+    : '—';
+  const routeChoices = result ? choicesOf(result.candidates) : [];
+  const title =
+    screen === 'settings'
+      ? t('nav.settings')
+      : screen === 'about'
+        ? t('nav.about')
+        : screen === 'offline'
+          ? t('hud.data')
+          : screen === 'route'
+            ? t('hud.route')
+            : screen === 'find'
+              ? t('find.heading')
+              : screen === 'assets'
+                ? t('hud.assets')
+                : screen === 'details'
+                  ? t('hud.details')
+                  : screen === 'layers'
+                    ? t('hud.layers')
+                    : t('hud.menu');
   return (
-    <div class="layout">
-      <header>
-        <h1>{t('app.title')}</h1>
-        <p class="tagline">{t('app.tagline')}</p>
-        <nav class="nav" aria-label={t('nav.label')}>
-          {phase.kind === 'ready' || phase.kind === 'unavailable'
-            ? menu('offline', t('nav.offline'))
-            : null}
-          {menu('settings', t('nav.settings'))}
-          {menu('about', t('nav.about'))}
-        </nav>
-      </header>
-      <main aria-labelledby={headingId}>
-        {reloadNotice && (
-          <p class="notice" role="status">
-            {t('lock.clearedOnReload')}{' '}
+    <main
+      class="rail-app"
+      onClickCapture={(event) => {
+        // Safari does not focus buttons on pointer click. Remember the actual opener
+        // so closing a modal restores focus consistently for mouse, touch and keyboard.
+        if (screen === 'main' && event.target instanceof Element)
+          sheetOpener.current = event.target.closest('button');
+      }}
+    >
+      <h1 class="visually-hidden">{t('app.title')}</h1>
+      <MapView
+        net={data?.net ?? EMPTY_NETWORK}
+        fix={view?.fix ?? null}
+        pins={pins}
+        basemap={settings.basemap}
+        kinds={kinds}
+        onAssets={setAssets}
+        onAssetTap={(id) => {
+          setSelectedAsset(id);
+          setScreen('assets');
+        }}
+        following={following}
+        onExplore={() => {
+          setFollowing(false);
+        }}
+        recenter={recenter}
+      />
+      <section class="rail-hud" aria-label={t('app.statusHeading')}>
+        <div class="hud-head">
+          <button
+            class="hud-icon"
+            type="button"
+            aria-label={t('hud.menu')}
+            onClick={() => {
+              setScreen('menu');
+            }}
+          >
+            ☰
+          </button>
+          <button
+            class="hud-route"
+            type="button"
+            onClick={() => {
+              setScreen('route');
+            }}
+            disabled={data === null}
+            aria-label={[t('hud.route'), result?.lock ? model?.lockText : model?.subdivision]
+              .filter(Boolean)
+              .join(': ')}
+          >
+            {model?.subdivision ??
+              (result?.lock ? model?.lockText : null) ??
+              t(phase.kind === 'loading' ? 'hud.loading' : 'hud.route')}
+            {view?.direction && (
+              <span
+                class="hud-live"
+                aria-label={
+                  view.direction === 'up' ? t('asset.side.higherMp') : t('asset.side.lowerMp')
+                }
+              >
+                {view.direction === 'up' ? ' ↗' : ' ↘'}
+              </span>
+            )}
+            {result?.lock && <span class="hud-lock"> · {t('hud.locked')}</span>}
+          </button>
+          <WakeButton />
+        </div>
+        <button
+          class="hud-reading"
+          type="button"
+          onClick={() => {
+            setScreen('details');
+          }}
+          aria-label={t('hud.details')}
+        >
+          <span class={`hud-mp ${result?.mpRange ? 'hud-mp--range' : ''}`}>
+            {numeric !== null
+              ? number(numeric, 3)
+              : result?.mpRange
+                ? `${number(result.mpRange.lowerMp, 3)}–${number(result.mpRange.upperMp, 3)}`
+                : '—'}
+          </span>
+          <span class="hud-caption">{t(result?.mpRange ? 'hud.range' : 'hud.calculated')}</span>
+        </button>
+        <div class="hud-stats">
+          <div>
+            <strong>{speedText}</strong>
+            <span>{t(settings.units === 'mi' ? 'hud.mph' : 'hud.kmh')}</span>
+          </div>
+          <div>
+            <strong>{accuracyText}</strong>
+            <span>{t(settings.units === 'mi' ? 'hud.ftAccuracy' : 'hud.mAccuracy')}</span>
+          </div>
+          <div>
+            <strong class={live ? 'hud-live' : 'hud-wait'}>●</strong>
+            <span>
+              {t(live ? 'hud.live' : result?.status === 'STALE' ? 'hud.stale' : 'hud.noFix')}
+            </span>
+          </div>
+        </div>
+        {phase.kind === 'loading' ? (
+          <p class="hud-notice" role="status">
+            {t('hud.loading')}
+          </p>
+        ) : phase.kind === 'unavailable' || phase.kind === 'firstRun' ? (
+          <div class="hud-notice" role="alert">
+            <p>
+              {phase.kind === 'unavailable' ? t(errorMessageKey(phase.code)) : t('app.noDataBody')}
+            </p>
             <button
               type="button"
               onClick={() => {
-                setReloadNotice(false);
+                setAttempt((n) => n + 1);
               }}
             >
-              {t('lock.dismiss')}
+              {t('hud.retry')}
             </button>
+          </div>
+        ) : (
+          numeric === null && (
+            <button
+              class="hud-notice"
+              type="button"
+              onClick={() => {
+                setScreen(
+                  result?.status === 'AMBIGUOUS_ROUTE' || result?.status === 'LOCK_CONFLICT'
+                    ? 'route'
+                    : 'details',
+                );
+              }}
+            >
+              {model?.headline ?? t('hud.waiting')}
+            </button>
+          )
+        )}
+        {!online && (
+          <p class="hud-exploring" role="status">
+            {t('hud.offline')}
           </p>
+        )}
+        {!following && <p class="hud-exploring">{t('hud.exploring')}</p>}
+        {reloadNotice && (
+          <button
+            class="hud-notice"
+            type="button"
+            onClick={() => {
+              setReloadNotice(false);
+            }}
+          >
+            {t('lock.clearedOnReload')} · {t('lock.dismiss')}
+          </button>
         )}
         {updateNotice && (
-          <p class="notice" role="status">
-            {t('lock.clearedByUpdate')}{' '}
-            <button
-              type="button"
-              onClick={() => {
-                data?.session.dismissNotice();
-                setUpdateNotice(false);
-              }}
-            >
-              {t('lock.dismiss')}
-            </button>
-          </p>
+          <button
+            class="hud-notice"
+            type="button"
+            onClick={() => {
+              data?.session.dismissNotice();
+              setUpdateNotice(false);
+            }}
+          >
+            {t('lock.clearedByUpdate')} · {t('lock.dismiss')}
+          </button>
         )}
-        {screen !== 'main' && (
-          <p>
-            <button
-              type="button"
-              onClick={() => {
-                setScreen('main');
-              }}
-            >
-              {t('nav.back')}
-            </button>
-          </p>
-        )}
-        {screen === 'settings' && <Settings settings={settings} onChange={changeSettings} />}
-        {screen === 'about' && <About installed={installed} />}
-        {screen === 'offline' && (
-          <OfflineData
-            installed={installed}
-            damagedCode={phase.kind === 'unavailable' ? phase.code : null}
-            remote={manifest}
-            state={offline}
-            onUpdate={download}
-            onCheck={checkManifest}
-            onRemove={remove}
-          />
-        )}
-        {screen === 'main' && (
-          <>
-            {headingId === 'status-heading' && (
-              <h2 id="status-heading" class="visually-hidden" tabIndex={-1}>
-                {t('app.statusHeading')}
-              </h2>
-            )}
-            {phase.kind === 'loading' && <p>{t('app.loadingData')}</p>}
-            {phase.kind === 'firstRun' && (
-              <FirstRun
-                manifest={manifest}
-                state={offline}
-                onDownload={download}
-                onRetryManifest={checkManifest}
-              />
-            )}
-            {phase.kind === 'unavailable' && (
-              <section role="alert">
-                <p>{t(errorMessageKey(phase.code))}</p>
-                <p>{t('app.noDataBody')}</p>
-                <button type="button" onClick={remove}>
-                  {t('offline.remove')}
+      </section>
+      <div class="hud-controls">
+        <button
+          class="hud-pill"
+          type="button"
+          onClick={() => {
+            setScreen('layers');
+          }}
+        >
+          {t('hud.layers')} ▴
+        </button>
+        <button
+          class={`hud-pill hud-recenter ${following ? 'is-following' : ''}`}
+          type="button"
+          aria-label={t('hud.recenter')}
+          aria-pressed={following}
+          disabled={!live}
+          onClick={() => {
+            setFollowing(true);
+            setRecenter((n) => n + 1);
+          }}
+        >
+          ◎
+        </button>
+      </div>
+      {!settings.basemap && (
+        <button
+          class="hud-basemap"
+          type="button"
+          onClick={() => {
+            setScreen('layers');
+          }}
+        >
+          {t('hud.background')}
+        </button>
+      )}
+      {view && <LiveRegion model={view.model} nowMs={view.nowMs} />}
+      {screen !== 'main' && (
+        <Sheet
+          opener={sheetOpener.current}
+          title={title}
+          onClose={() => {
+            setScreen('main');
+          }}
+        >
+          {screen === 'menu' && (
+            <nav class="sheet-menu" aria-label={t('nav.label')}>
+              {menu('find', t('find.heading'))}
+              {menu('route', t('hud.route'))}
+              {menu('assets', t('hud.assets'))}
+              {menu('details', t('hud.details'))}
+              {menu('settings', t('nav.settings'))}
+              {menu('offline', t('hud.data'))}
+              {menu('about', t('nav.about'))}
+            </nav>
+          )}
+          {screen === 'route' && (
+            <>
+              <p>{model?.lockText}</p>
+              {view?.direction && (
+                <span
+                  class="hud-live"
+                  aria-label={
+                    view.direction === 'up' ? t('asset.side.higherMp') : t('asset.side.lowerMp')
+                  }
+                >
+                  {view.direction === 'up' ? ' ↗' : ' ↘'}
+                </span>
+              )}
+              {result?.lock && (
+                <button type="button" onClick={unlock}>
+                  {t('lock.unlock')}
                 </button>
-              </section>
-            )}
-            {phase.kind === 'ready' && view === null && <p>{t('app.loadingData')}</p>}
-            {phase.kind === 'ready' && view !== null && (
+              )}
+              {routeChoices.length ? (
+                <RouteChooser
+                  choices={routeChoices}
+                  conflict={view?.conflict ?? false}
+                  onChoose={choose}
+                />
+              ) : (
+                <p>{t('hud.noRoutes')}</p>
+              )}
+            </>
+          )}
+          {screen === 'find' &&
+            (data ? (
+              <FindLocation net={data.net} onShowOnMap={showOnMap} />
+            ) : (
+              <p>{t('hud.loading')}</p>
+            ))}
+          {screen === 'assets' &&
+            (view && data ? (
+              <VisibleAssets assets={assets} details={data.details} selected={selectedAsset} />
+            ) : (
+              <p>{t('hud.loading')}</p>
+            ))}
+          {screen === 'details' &&
+            (model ? (
               <>
-                <StatusCard model={view.model} onUnlock={unlock} />
+                <StatusCard model={model} onUnlock={unlock} />
+                {result?.status === 'NO_PERMISSION' && <p>{t('hud.permission')}</p>}
                 <RouteChooser
                   choices={view.model.choices}
                   conflict={view.conflict}
                   singleRoute={view.model.singleRoute}
                   onChoose={choose}
                 />
-                <AssetList rows={view.rows} details={phase.data.details} />
-                <LiveRegion model={view.model} nowMs={view.nowMs} />
               </>
-            )}
-            {phase.kind === 'ready' && (
-              <>
-                <FindLocation net={phase.data.net} onShowOnMap={showOnMap} />
-                <MapPanel
-                  net={phase.data.net}
-                  fix={view?.fix ?? null}
-                  pins={pins}
-                  basemap={settings.basemap}
-                  open={mapOpen}
-                  onOpenChange={setMapOpen}
-                  onBasemapChange={(basemap) => {
-                    changeSettings({ basemap });
-                  }}
-                />
-              </>
-            )}
-          </>
-        )}
-      </main>
-      <footer>{t('app.footer')}</footer>
-    </div>
+            ) : (
+              <p>{t('hud.waiting')}</p>
+            ))}
+          {screen === 'layers' && (
+            <>
+              <fieldset>
+                <legend>{t('hud.layers')}</legend>
+                {availableKinds.map((kind) => (
+                  <label class="layer-choice" key={kind}>
+                    <input
+                      type="checkbox"
+                      checked={kinds.includes(kind)}
+                      onChange={(e) => {
+                        const checked = e.currentTarget.checked;
+                        changeSettings({
+                          assetKinds: checked ? [...kinds, kind] : kinds.filter((k) => k !== kind),
+                        });
+                      }}
+                    />
+                    {t(`asset.kind.${kind}`)}
+                  </label>
+                ))}
+              </fieldset>
+              <BasemapSwitch
+                basemap={settings.basemap}
+                onChange={(basemap) => {
+                  changeSettings({ basemap });
+                }}
+              />
+            </>
+          )}
+          {screen === 'settings' && <Settings settings={settings} onChange={changeSettings} />}
+          {screen === 'about' && <About installed={installed} />}
+          {screen === 'offline' && (
+            <>
+              <p>{t('hud.notice')}</p>
+              {data && (
+                <p>
+                  {data.net.datasetVersion} · {data.snapshotDate}
+                </p>
+              )}
+              {installed === null && data && <p>{t('hud.notSaved')}</p>}
+              <OfflineData
+                installed={installed}
+                damagedCode={phase.kind === 'unavailable' ? phase.code : null}
+                remote={manifest}
+                state={offline}
+                onUpdate={download}
+                onCheck={checkManifest}
+                onRemove={remove}
+              />
+            </>
+          )}
+        </Sheet>
+      )}
+    </main>
   );
 }

@@ -11,17 +11,13 @@
     "app.loading": "Chargement",
     "app.statusHeading": "Position",
     "app.noDataYet": "Aucune donnée ferroviaire n'est encore chargée.",
-
     "boundary.title": "Un problème est survenu",
     "boundary.body": "L'application s'est arrêtée. Votre position n'a été envoyée nulle part. Code d'erreur :",
     "boundary.reset": "Réinitialiser",
-
     "lock.clearedOnReload": "Verrouillage retiré au rechargement. Choisissez de nouveau l'itinéraire si nécessaire.",
     "lock.clearedByUpdate": "Verrouillage retiré parce que les données ont été mises à jour. Choisissez de nouveau l'itinéraire si nécessaire.",
     "lock.dismiss": "Fermer",
-
     "data.version": "Données : {date}",
-
     "status.NO_PERMISSION": "L'autorisation de localisation est désactivée",
     "status.NO_FIX": "En attente d'une position GPS",
     "status.STALE": "Historique : la dernière position GPS est ancienne",
@@ -34,7 +30,6 @@
     "status.MATCHED_SUBDIVISION": "Sur cette subdivision, voie non identifiée",
     "status.MATCHED": "Associé à une voie",
     "status.LOCK_CONFLICT": "L'itinéraire choisi ne correspond pas à cette position",
-
     "reason.PERMISSION_DENIED": "L'autorisation de localisation a été refusée. Autorisez la localisation pour ce site dans les paramètres du navigateur.",
     "reason.LOCATION_UNAVAILABLE": "L'appareil n'a pas pu fournir de position.",
     "reason.NO_FIX_YET": "Aucune position GPS n'est encore arrivée.",
@@ -59,7 +54,6 @@
     "reason.TRACK_MP_DISAGREE": "Des voies proches donnent des points milliaires différents : aucun n'est affiché.",
     "reason.TRACK_UNCALIBRATED": "Cette voie n'a pas de référence de points milliaires.",
     "reason.UNCHAINED_TRACK": "Cette voie ne fait pas partie d'un itinéraire continu : aucun point milliaire n'est affiché.",
-
     "app.noDataBody": "Les données ferroviaires installées n'ont pas pu être utilisées. Supprimez-les, puis téléchargez-les de nouveau.",
     "app.loadingData": "Chargement des données ferroviaires",
     "data.unknown": "Données : version inconnue",
@@ -130,7 +124,6 @@
     "asset.hideSource": "Masquer les attributs de la source",
     "asset.sourceLayer": "Couche source : {layer}",
     "asset.noSource": "Aucun attribut de source n'est disponible pour cet élément.",
-
     "find.heading": "Trouver un emplacement",
     "find.intro": "Choisissez une subdivision et saisissez un point milliaire pour voir où il se trouve. Cela fonctionne sans GPS et sans la carte. Un même nom peut appartenir à des subdivisions différentes : chaque entrée indique donc son exploitant et, pour les noms répétés, sa plage de points milliaires et un lieu approximatif.",
     "find.subdivision": "Subdivision",
@@ -145,7 +138,6 @@
     "find.pin": "{subdivision} : {mp} à la latitude {lat}, longitude {lon}",
     "find.pinNote": "Calculé à partir des repères du jeu de données, non arpenté, et pas une position GPS.",
     "find.showOnMap": "Afficher sur la carte",
-
     "map.heading": "Carte",
     "map.show": "Afficher la carte",
     "map.hide": "Masquer la carte",
@@ -174,7 +166,6 @@
     "find.optionId": "ID {nid}",
     "map.basemapFailed": "Le fond de carte n’a pas pu être chargé : le fond uni est affiché. Les voies et les éléments sont toujours tracés.",
     "map.keyboardAlternative": "Toucher la carte donne le point milliaire à cet endroit. L’alternative au clavier est « Trouver un emplacement », plus haut.",
-
     "nav.label": "Menu principal",
     "nav.offline": "Données hors ligne",
     "nav.settings": "Paramètres",
@@ -219,7 +210,7 @@
     "settings.lang.en": "English",
     "settings.lang.fr": "Français",
     "settings.basemap": "Fond de carte",
-    "settings.storage": "Ce qui est conservé sur cet appareil : vos paramètres (unités, langue et choix du fond de carte) dans le stockage local du navigateur; pour cet onglet seulement, un indicateur signalant qu'un verrouillage d'itinéraire était actif, afin que l'application puisse vous dire qu'il a été levé au rechargement (il ne dit pas quel itinéraire); les fichiers de l'application et la bibliothèque de carte, gardés pour que l'application s'ouvre hors ligne; et les données ferroviaires téléchargées. Quand le fond de carte est activé, le navigateur peut aussi garder des tuiles dans son cache Web habituel. Votre position, l'itinéraire choisi et vos déplacements ne sont jamais conservés ni envoyés.",
+    "settings.storage": "Ce qui est conservé sur cet appareil : vos paramètres (unités, langue, couches et choix du fond de carte) dans le stockage local du navigateur; pour cet onglet seulement, un indicateur signalant qu'un verrouillage d'itinéraire était actif, afin que l'application puisse vous dire qu'il a été levé au rechargement (il ne dit pas quel itinéraire); les fichiers de l'application et la bibliothèque de carte, gardés pour que l'application s'ouvre hors ligne; et les données ferroviaires téléchargées. Quand le fond de carte est activé, le navigateur peut aussi garder des tuiles dans son cache Web habituel. Votre position, l'itinéraire choisi et vos déplacements ne sont jamais conservés ni envoyés.",
     "about.heading": "À propos de CANTRE",
     "about.methods.heading": "Fonctionnement",
     "about.methods.body": "CANTRE repère les voies ferrées cartographiées près de votre position GPS et retient la plus proche, ou vous demande de choisir quand plus d'un itinéraire convient. Il calcule ensuite un point milliaire par interpolation entre les points de référence les plus proches sur cette voie. Il ne dépasse jamais le premier ou le dernier point de référence et ne comble jamais un trou dans la numérotation. La marge affichée vient de la précision du GPS seulement. Elle ne mesure pas l'exactitude des données. Votre position reste sur cet appareil.",
@@ -238,7 +229,6 @@
     "about.code.link": "CANTRE sur GitHub (s'ouvre dans un nouvel onglet)",
     "about.thirdParty.link": "Avis sur les logiciels tiers (textes de licence des bibliothèques de cette application)",
     "about.licence": "Le code est sous licence MIT. Les données restent sous la licence propre à chaque source.",
-
     "offline.damaged": "Les données enregistrées sur cet appareil sont endommagées ou illisibles et ne peuvent pas être utilisées.",
     "offline.redownload": "Télécharger de nouveau les données ({size} Mo)",
     "error.MANIFEST_INVALID": "La liste de données reçue du serveur n'est pas valide. Réessayez plus tard.",
@@ -247,6 +237,40 @@
     "error.NOT_INSTALLED": "Aucune donnée ferroviaire n'est encore installée sur cet appareil.",
     "error.UNSUPPORTED_FORMAT": "Ces données demandent une version plus récente de l'application. Rien n'a été téléchargé et les données déjà présentes sur cet appareil sont conservées. Mettez l'application à jour, puis réessayez.",
     "error.INVALID_SNAPSHOT": "Les données ont été téléchargées mais n'ont pas pu être lues. Elles n'ont pas été utilisées.",
-    "error.UNEXPECTED": "Un problème inattendu a interrompu le téléchargement. Réessayez."
+    "error.UNEXPECTED": "Un problème inattendu a interrompu le téléchargement. Réessayez.",
+    "hud.menu": "Menu",
+    "hud.close": "Fermer",
+    "hud.route": "Choisir un itinéraire",
+    "hud.layers": "Couches",
+    "hud.recenter": "Recentrer et suivre le GPS",
+    "hud.exploring": "Exploration · touchez ◎ pour suivre",
+    "hud.waiting": "En attente de localisation",
+    "hud.calculated": "POINT MILLIAIRE CALCULÉ",
+    "hud.range": "PLAGE DE POINTS MILLIAIRES",
+    "hud.mph": "MI/H",
+    "hud.kmh": "KM/H",
+    "hud.ftAccuracy": "PRÉC. GPS PI",
+    "hud.mAccuracy": "PRÉC. GPS M",
+    "hud.live": "ACTIF",
+    "hud.stale": "PÉRIMÉ",
+    "hud.noFix": "SANS POSITION",
+    "hud.offline": "Hors ligne · données ferroviaires chargées",
+    "hud.loading": "Chargement des données ferroviaires…",
+    "hud.retry": "Réessayer",
+    "hud.details": "Détails de position",
+    "hud.assets": "Éléments visibles",
+    "hud.assetLimit": "Jusqu’à 100 éléments activés les plus proches de la vue.",
+    "hud.wake": "Garder l’écran allumé",
+    "hud.wakeUnsupported": "Le maintien de l’écran est indisponible",
+    "hud.wakeFailed": "Impossible de garder l’écran allumé",
+    "hud.background": "Afficher les routes et les lieux",
+    "hud.data": "Données et sources",
+    "hud.noRoutes": "Aucun choix avant une position récente près des voies cartographiées.",
+    "hud.routeHelp": "Choisissez votre itinéraire. Ce choix n’améliore pas la précision GPS.",
+    "hud.permission": "Autorisez la localisation dans les réglages du navigateur. La carte reste consultable.",
+    "hud.notSaved": "Disponible maintenant; stockage hors ligne indisponible.",
+    "hud.following": "Suivi GPS",
+    "hud.locked": "Itinéraire verrouillé",
+    "hud.notice": "Recherche uniquement · Pas pour les opérations"
   }
 }

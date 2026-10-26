@@ -18,7 +18,7 @@ import { URL, fileURLToPath } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const dist = join(here, '..', 'dist');
-const dataRoot = join(here, 'fixtures', 'data');
+const dataRoot = process.env['CANTRE_DATA_ROOT'] ?? join(here, 'fixtures', 'data');
 const port = Number(process.env['CANTRE_E2E_PORT'] ?? '4179');
 
 const TYPES = {

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { LatLon, NetworkView } from '@cantre/core';
+import type { AssetKind, LatLon, NetworkAsset, NetworkView } from '@cantre/core';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import { ASSET_KINDS, visibleAssets } from '../logic/visibleAssets.js';
 import { t } from '../i18n/index.js';
-import { BasemapSwitch } from './BasemapSwitch.js';
 import { presentTap } from '../logic/find.js';
 import type { Pin, TapModel } from '../logic/find.js';
 import {
@@ -56,8 +56,17 @@ export function MapView(props: {
   readonly fix: YouFix | null;
   readonly pins: readonly Pin[];
   readonly basemap: boolean;
+  readonly kinds?: readonly AssetKind[];
+  readonly onAssets?: (assets: readonly NetworkAsset[]) => void;
+  readonly onAssetTap?: (id: string) => void;
+  readonly following?: boolean;
+  readonly onExplore?: () => void;
+  readonly recenter?: number;
 }) {
-  const { net, fix, pins, basemap } = props;
+  const { net, fix, pins, basemap, following = false, recenter = 0 } = props;
+  const controls = useRef(props);
+  controls.current = props;
+  const centered = useRef(false);
   const host = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -108,7 +117,35 @@ export function MapView(props: {
   const pushNetwork = (map: MapLibreMap): void => {
     const display = displayDataOf(latest.current.net);
     setSource(map, SOURCE.tracks, display.tracks);
-    setSource(map, SOURCE.assets, display.assets);
+    pushAssets(map);
+  };
+  const pushAssets = (map: MapLibreMap): void => {
+    const bounds = map.getBounds();
+    const c = map.getCenter();
+    const anchor =
+      controls.current.following && latest.current.fix
+        ? latest.current.fix
+        : { lat: c.lat, lon: c.lng };
+    const assets = visibleAssets(
+      latest.current.net.assets,
+      controls.current.kinds ?? ASSET_KINDS,
+      anchor,
+      {
+        west: bounds.getWest(),
+        east: bounds.getEast(),
+        south: bounds.getSouth(),
+        north: bounds.getNorth(),
+      },
+    );
+    setSource(map, SOURCE.assets, {
+      type: 'FeatureCollection',
+      features: assets.map((a) => ({
+        type: 'Feature',
+        properties: { id: a.id, kind: a.kind },
+        geometry: { type: 'Point', coordinates: [a.at.lon, a.at.lat] },
+      })),
+    });
+    controls.current.onAssets?.(assets);
   };
   /** The small layers: the fix and its accuracy circle, and the found locations. */
   const pushMarkers = (map: MapLibreMap): void => {
@@ -156,7 +193,7 @@ export function MapView(props: {
           // No device-location control: the map never asks for the position itself.
           dragRotate: false,
         });
-        map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'top-right');
+        map.addControl(new maplibre.NavigationControl({ showCompass: false }), 'bottom-right');
         mapRef.current = map;
         map.on('style.load', () => {
           watch.current.ready = true;
@@ -168,7 +205,22 @@ export function MapView(props: {
         map.on('error', () => {
           fallBack(map);
         });
+        map.on('dragstart', (event) => {
+          if (event.originalEvent) controls.current.onExplore?.();
+        });
+        map.on('moveend', () => {
+          if (map.getSource(SOURCE.assets)) pushAssets(map);
+        });
         map.on('click', (event) => {
+          const asset = map.getLayer('assets')
+            ? map.queryRenderedFeatures(event.point, { layers: ['assets'] })[0]
+            : undefined;
+          const id: unknown = asset?.properties['id'];
+          if (typeof id === 'string') {
+            setTap(null);
+            controls.current.onAssetTap?.(id);
+            return;
+          }
           setTap(presentTap(latest.current.net, { lat: event.lngLat.lat, lon: event.lngLat.lng }));
         });
         setState('ready');
@@ -220,19 +272,36 @@ export function MapView(props: {
   // New network: redraw the tracks and assets (large; only when the network object changes).
   useEffect(() => {
     const map = mapRef.current;
-    if (map !== null && map.isStyleLoaded()) {
+    if (map !== null) {
       pushNetwork(map);
     }
   }, [net, state]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map !== null) pushAssets(map);
+  }, [props.kinds, following, state]);
 
   // A new fix or new pins: redraw the small layers. Keyed on the numbers, so a fresh object
   // with the same values does not redraw.
   useEffect(() => {
     const map = mapRef.current;
-    if (map !== null && map.isStyleLoaded()) {
+    if (map !== null) {
       pushMarkers(map);
     }
   }, [fix?.lat, fix?.lon, fix?.accuracyM, pins, state]);
+
+  // Follow only accepted, fresh fixes. Panning pauses following; zoom does not.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fix || !following) return;
+    map.easeTo({
+      center: [fix.lon, fix.lat],
+      ...(centered.current ? {} : { zoom: CLOSE_ZOOM }),
+      duration: 0,
+    });
+    centered.current = true;
+  }, [fix?.lat, fix?.lon, following, recenter, state]);
 
   // Bring found locations into view.
   useEffect(() => {
@@ -265,6 +334,8 @@ export function MapView(props: {
               {line}
             </span>
           ))}
+          {' · '}
+          {t('hud.notice')}
         </p>
       </div>
       {basemapFailed && (
@@ -272,11 +343,18 @@ export function MapView(props: {
           {t('map.basemapFailed')}
         </p>
       )}
-      <p class="muted">{t('map.note')}</p>
-      <p class="muted">{t('map.keyboardAlternative')}</p>
-      {fix !== null && <p class="muted">{t('map.you')}</p>}
+
       {tap !== null && (
         <div class="map__tap" role="status">
+          <button
+            type="button"
+            aria-label={t('hud.close')}
+            onClick={() => {
+              setTap(null);
+            }}
+          >
+            ×
+          </button>
           <h4>{tap.label}</h4>
           {tap.outside && <p>{t('map.tap.outside')}</p>}
           {!tap.outside && tap.rows.length === 0 && <p>{t('map.tap.none')}</p>}
@@ -298,42 +376,5 @@ export function MapView(props: {
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * The map section: a show/hide button (the map and its chunk load only when opened) and the
- * basemap control ({@link BasemapSwitch}, which shows the D2 notice before turning it on). The
- * Settings screen offers the same switch.
- */
-export function MapPanel(props: {
-  readonly net: NetworkView;
-  readonly fix: YouFix | null;
-  readonly pins: readonly Pin[];
-  readonly basemap: boolean;
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-  readonly onBasemapChange: (on: boolean) => void;
-}) {
-  const { net, fix, pins, basemap, open, onOpenChange, onBasemapChange } = props;
-  return (
-    <section class="map-panel" aria-labelledby="map-heading">
-      <h3 id="map-heading">{t('map.heading')}</h3>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => {
-          onOpenChange(!open);
-        }}
-      >
-        {t(open ? 'map.hide' : 'map.show')}
-      </button>
-      {open && (
-        <>
-          <BasemapSwitch basemap={basemap} onChange={onBasemapChange} />
-          <MapView net={net} fix={fix} pins={pins} basemap={basemap} />
-        </>
-      )}
-    </section>
   );
 }

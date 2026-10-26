@@ -158,7 +158,8 @@ export async function openApp(page: Page): Promise<void> {
 
 /** First run: press the download button and wait until the data is installed and in use. */
 export async function installData(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /^Download data for Canada/ }).click();
+  await expect(page.locator('.hud-route')).toBeEnabled();
+  await page.getByRole('button', { name: 'Position details', exact: true }).click();
   await expect(page.locator('#card-headline')).toBeVisible();
 }
 
@@ -177,12 +178,25 @@ export const card = (page: Page) => page.locator('section.card');
 /** Menu buttons ("Settings", "About", "Offline data") and "Back to position". */
 export async function openScreen(
   page: Page,
-  name: 'Settings' | 'About' | 'Offline data',
+  name: 'Settings' | 'About' | 'Offline data' | 'Find a location',
 ): Promise<void> {
-  await page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
+  await closeSheet(page);
+  await page.getByRole('button', { name: /^(Menu|RailHUD menu)$/, exact: true }).click();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', {
+      name:
+        name === 'Offline data'
+          ? 'Data and sources'
+          : name === 'Find a location'
+            ? /^(Find a location|Trouver un emplacement)$/
+            : name,
+      exact: true,
+    })
+    .click();
 }
 export async function backToPosition(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Back to position' }).click();
+  await details(page);
 }
 
 /**
@@ -240,3 +254,16 @@ export async function countColour(
 
 /** The track colour of the light theme (`PALETTE.light.track` in src/logic/mapdata.ts). */
 export const TRACK_RGB = [0x0b, 0x4f, 0x9e] as const;
+
+export async function closeSheet(page: Page): Promise<void> {
+  const close = page.getByRole('button', { name: /^(Close|Fermer)$/ });
+  if (await close.isVisible()) {
+    await close.click();
+    await expect(page.locator('dialog')).toHaveCount(0);
+  }
+}
+export async function details(page: Page): Promise<void> {
+  await closeSheet(page);
+  await page.locator('.hud-reading').click();
+  await expect(page.locator('dialog')).toBeVisible();
+}

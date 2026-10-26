@@ -5,6 +5,9 @@ export default tseslint.config(
   {
     ignores: [
       '.superpowers/**',
+      '**/.venv/**',
+      '**/test-results/**',
+      '**/playwright-report/**',
       '**/dist/**',
       '**/.tsc-check/**',
       'coverage/**',

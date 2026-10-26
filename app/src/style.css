@@ -497,3 +497,290 @@ progress {
 .about a {
   color: var(--accent);
 }
+
+/* Core RailHUD: the approved floating card, with the map kept mounted underneath sheets. */
+.rail-app {
+  position: relative;
+  height: 100dvh;
+  min-height: 300px;
+  overflow: hidden;
+}
+.rail-app > .map,
+.rail-app .map__frame,
+.rail-app .map__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+}
+.rail-hud {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  max-width: 390px;
+  padding: 8px 15px 12px;
+  border: 1px solid #514f48;
+  border-radius: 16px;
+  background: #141310f2;
+  color: #f7f6f2;
+  box-shadow: 0 5px 18px #0003;
+}
+.hud-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.rail-hud button {
+  color: inherit;
+}
+.hud-icon {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid #47443e;
+  border-radius: 50%;
+  background: #24221f;
+  color: #d0cfc8;
+  font-size: 20px;
+}
+.hud-icon.is-active {
+  color: #46d29f;
+  border-color: #46d29f;
+}
+.hud-route {
+  border: 0;
+  padding: 4px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.hud-lock {
+  display: block;
+  color: #46d29f;
+  letter-spacing: 1px;
+  font-size: 9px;
+}
+.hud-reading {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+}
+.hud-mp {
+  display: block;
+  font-size: 56px;
+  line-height: 1.13;
+  font-weight: 750;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+  margin: 4px 0 0;
+}
+.hud-mp--range {
+  font-size: clamp(24px, 7vw, 36px);
+  letter-spacing: -1px;
+  padding: 10px 0;
+}
+.hud-caption {
+  display: block;
+  color: #b5b1a6;
+  letter-spacing: 1.6px;
+  font-size: 9px;
+  margin: 3px 0 9px;
+}
+.hud-stats {
+  display: flex;
+  justify-content: center;
+  gap: 39px;
+  border-top: 1px solid #333029;
+  padding-top: 9px;
+  text-align: center;
+}
+.hud-stats strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.hud-stats span {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #b5b1a6;
+  margin-top: 2px;
+}
+.hud-live {
+  color: #46d29f;
+}
+.hud-wait {
+  color: #dbb264;
+}
+.rail-hud .hud-notice {
+  display: block;
+  width: 100%;
+  padding: 7px 0 0;
+  margin: 6px 0 0;
+  border: 0;
+  border-top: 1px solid #47443e;
+  font-size: 12px;
+  text-align: center;
+}
+.hud-exploring {
+  text-align: center;
+  font-size: 11px;
+  color: #d9d6cb;
+  margin: 8px 0 0;
+}
+.hud-controls {
+  position: absolute;
+  bottom: max(43px, calc(env(safe-area-inset-bottom) + 28px));
+  left: 14px;
+  right: 14px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.hud-pill {
+  pointer-events: auto;
+  border: 1px solid #615c50;
+  border-radius: 24px;
+  background: #171611ef;
+  color: white;
+  padding: 10px 15px;
+  font-size: 12px;
+  box-shadow: 0 3px 12px #0002;
+}
+.hud-recenter {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  font-size: 25px;
+}
+.hud-recenter.is-following {
+  color: #69b6ff;
+  border-color: #549ee3;
+}
+.hud-basemap {
+  position: absolute;
+  bottom: max(44px, calc(env(safe-area-inset-bottom) + 29px));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 50%;
+  border: 0;
+  border-radius: 18px;
+  background: #fffdf2e8;
+  color: #313b32;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+.rail-app .map__attribution {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0;
+  background: #fffdf2e8;
+  color: #343b32;
+  padding: 3px 6px max(3px, env(safe-area-inset-bottom));
+  font-size: 9px;
+  text-align: center;
+}
+.rail-app .maplibregl-ctrl-bottom-right {
+  bottom: 105px;
+}
+.rail-app .map__status {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: 80%;
+  background: var(--bg);
+  padding: 10px;
+  border-radius: 12px;
+}
+.rail-app .map__tap {
+  position: absolute;
+  bottom: 110px;
+  left: 14px;
+  max-width: min(390px, calc(100% - 28px));
+  max-height: 40dvh;
+  overflow: auto;
+  background: var(--bg);
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 5px 25px #0003;
+}
+.map__tap > button {
+  float: right;
+}
+.hud-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  width: min(100%, 480px);
+  max-width: 100%;
+  max-height: 80dvh;
+  margin: 0 auto;
+  padding: 16px 20px max(24px, env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.hud-sheet::backdrop {
+  background: #0005;
+}
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.sheet-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.sheet-menu {
+  display: grid;
+  gap: 8px;
+}
+.sheet-menu button {
+  text-align: left;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}
+.layer-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+.layer-choice input {
+  width: 20px;
+  height: 20px;
+}
+.hud-sheet summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.rail-app .map > .notice {
+  position: absolute;
+  bottom: 105px;
+  left: 14px;
+  max-width: min(390px, calc(100% - 80px));
+  font-size: 12px;
+}
