@@ -100,3 +100,12 @@ Tapping a map feature opens only that feature, with its name or type as the shee
 title and its source attributes expanded. Resolve the selection against the loaded
 network so viewport/GPS updates cannot replace it with another visible feature.
 Menu → Visible assets still opens the full viewport list and clears the selection.
+
+The feature summary uses readable labels for access, warning system, crossing level,
+road class, TC ID and other published attributes. Subdivision names come from explicit
+asset associations. Published, TC, unverified and calculated mileage retain separate
+labels and route associations; unavailable information says Not recorded. Source record
+keeps the original field names, record ID and dataset version for inspection.
+Crossing label semantics were checked against the public
+[NRWN-adapted Ontario crossing dictionary](https://www.publicdocs.mnr.gov.on.ca/mirb/ORWN%20Crossing%20-%20Data%20Description.pdf).
+Source values remain unchanged; Unknown is never converted to None.

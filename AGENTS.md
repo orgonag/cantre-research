@@ -99,3 +99,9 @@ selected route, shows distance and uses existing calibrated intervals only. No e
 or fabricated milepost for an uncalibrated siding. Hide it on stale/no-permission/no-fix.
 Legacy privacy tests start with a real saved basemap-off choice; a separate fresh-visit
 case must test default-on and persistent opt-out. Ignore generated build/ in linters.
+
+Feature details use plain-language labels but preserve source values and unknowns.
+Resolve subdivision names from the asset's own posted/chain associations, never the
+phone's current route. Keep published, TC, unverified and calculated mileposts distinct,
+including separate subdivisions at a diamond. Retain raw fields and record/dataset IDs
+under Source record; a missing TC ID or milepost is not inferred from a nearby feature.

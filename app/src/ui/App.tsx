@@ -793,6 +793,7 @@ export function App(props: {
           {screen === 'assets' &&
             (view && data ? (
               <VisibleAssets
+                net={data.net}
                 assets={selectedAsset === null ? assets : tappedAsset ? [tappedAsset] : []}
                 details={data.details}
                 selected={selectedAsset}
