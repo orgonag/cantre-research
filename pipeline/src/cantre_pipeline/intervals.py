@@ -6,7 +6,7 @@ strictly decreases. Between two anchors of an interval the milepost is the linea
 of core's ``interpolateMilepost``; across an interval boundary nothing is ever interpolated.
 
 ``build_intervals`` applies these steps in this order to the anchors of one chain, sorted by
-``(s_m, TIER_RANK[tier], id)``. Distances are metres, mileposts miles, ``1 mi = 1609.344 m``.
+``(s_m, TIER_RANK[tier], mp, id)``. Distances are metres, mileposts miles, ``1 mi = 1609.344 m``.
 
 1. **Coincident conflicts** (spec section 5.5, rulings R12 and R19). Two anchors *conflict* when
    ``|Δs| <= anchor_collapse_span_m``, ``|Δmp| > mp_equal_tol_mi`` and the spacing cannot explain
@@ -20,15 +20,15 @@ of core's ``interpolateMilepost``; across an interval boundary nothing is ever i
    (``ANCHOR_CONFLICT`` ``rejected``, detail names the kept ids and their mp). If a conflict edge
    joins two best-tier members there is no basis to choose and the whole cluster is dropped
    (detail lists the cluster ids). Clusters depend only on ``s``, ``mp`` and tier, so the result
-   is independent of id strings and input order. The sort key is ``(s_m, TIER_RANK[tier], id)``;
-   ids only break ties between equal ``s`` and equal tier, which can matter to the order of
+   is independent of id strings and input order. The sort key is ``(s_m, TIER_RANK[tier], mp, id)``;
+   ids only break ties between equal ``s``, tier and ``mp``, which can matter to the order of
    audit lines but never to which anchors survive. This runs before the collapse so that a
    conflicting lower-tier anchor sitting between two agreeing postings cannot keep them apart.
 2. **Collapse** (Decision 4). Consecutive anchors with ``|Δs| <= anchor_collapse_span_m`` and
    ``|Δmp| <= mp_equal_tol_mi`` form a run (each member is compared with the previous member).
    A run becomes one anchor at the mean ``s``; it keeps the ``mp``, id, tier and source of the
-   best-tier member (Decision 8; ties: smallest id), the union of the ``member_nids`` and the
-   largest residual. Every member gets an ``ANCHOR_COLLAPSED`` info line.
+   best-tier member (Decision 8; ties: smallest mp, then s, then id), the union of the
+   ``member_nids`` and the largest residual. Every member gets an ``ANCHOR_COLLAPSED`` info line.
 3. **pair_ok(a, b)**, for ``a`` before ``b``: ``Δs = s_b - s_a > 0``; ``|Δmp| > mp_equal_tol_mi``;
    and either ``Δs < slope_min_span_m`` (too short for the slope to mean anything) or
    ``| |Δmp| * 1609.344 / Δs - 1 | <= slope_tolerance``. A true track mile is 1609.344 m, so the
@@ -40,7 +40,8 @@ of core's ``interpolateMilepost``; across an interval boundary nothing is ever i
    itself ok, and neither bridge end ``k-1`` or ``k+1`` has a worse tier (higher ``TIER_RANK``)
    than ``k`` (so unverified anchors can never bridge a posted one away). Several candidates in
    one pass: drop one only, the worst first (highest
-   ``TIER_RANK``, then the largest slope error of its two bad pairs, then id), then re-test.
+   ``TIER_RANK``, then the largest slope error of its two bad pairs, then s, mp and id),
+   then re-test.
    Each drop is an ``ANCHOR_OUTLIER`` ``rejected`` line carrying both slopes.
 5. **Unverified check** (Decision 3, ruling R4). ``H`` is the anchors left after step 2 whose
    tier is not ``unverified``, run through steps 3 and 4 on their own. For an unverified anchor
@@ -193,7 +194,9 @@ def _collapse(
         if len(run) == 1:
             out.append(run[0])
             continue
-        best = min(run, key=lambda m: (TIER_RANK[m.tier], m.id))  # Decision 8, ties: smallest id
+        best = min(run, key=lambda m: (TIER_RANK[m.tier], m.mp, m.s_m, m.id))
+        # Numeric tie-breaks are canonical ordering, not evidence of greater accuracy.
+        # IDs may select provenance only after the retained numerical value is fixed.
         merged = replace(
             best,
             s_m=math.fsum(m.s_m for m in run) / len(run),
@@ -277,7 +280,7 @@ def _outliers(
     """Step 4: drop interior outliers, one per round, worst first, until stable."""
     cur = list(anchors)
     while True:
-        best: tuple[tuple[int, float, str], int] | None = None
+        best: tuple[tuple[int, float, float, float, str], int] | None = None
         for k in range(1, len(cur) - 1):
             p, a, n = cur[k - 1], cur[k], cur[k + 1]
             if _pair_ok(p, a, cfg) or _pair_ok(a, n, cfg) or not _pair_ok(p, n, cfg):
@@ -290,7 +293,7 @@ def _outliers(
             if k + 2 < len(cur) and _pair_ok(n, cur[k + 2], cfg) and _sign(n, cur[k + 2]) != bridge:
                 continue
             err = max(_slope_error(p, a), _slope_error(a, n))
-            key = (-TIER_RANK[a.tier], -err, a.id)  # worst tier, then largest error, then id
+            key = (-TIER_RANK[a.tier], -err, a.s_m, a.mp, a.id)
             if best is None or key < best[0]:
                 best = (key, k)
         if best is None:
@@ -380,8 +383,8 @@ def build_intervals(
     """Split ``chain``'s anchors into calibrated intervals (spec section 5.5).
 
     Applies steps 1 to 6 of the module docstring to the anchors whose ``chain_id`` is the
-    chain's (others are ignored), after sorting by ``(s_m, TIER_RANK[tier], id)``. Units: metres,
-    miles.
+    chain's (others are ignored), after sorting by ``(s_m, TIER_RANK[tier], mp, id)``.
+    Units: metres, miles.
     Returns ``(intervals, kept, audit)``: the intervals (ids ``f"{chain.id}.i{n}"``, ``n`` from
     0 along ``s``), every anchor left after collapsing and after the ANCHOR_CONFLICT,
     ANCHOR_OUTLIER and UNVERIFIED_DEVIATION drops (in ``s`` order, a superset of the interval
@@ -392,7 +395,7 @@ def build_intervals(
     audit: list[AuditRecord] = []
     own = sorted(
         (a for a in anchors if a.chain_id == chain.id),
-        key=lambda a: (a.s_m, TIER_RANK[a.tier], a.id),
+        key=lambda a: (a.s_m, TIER_RANK[a.tier], a.mp, a.id),
     )
     resolved = _resolve_conflicts(own, cfg, audit)  # step 1 (ruling R12)
     collapsed = _collapse(resolved, cfg, audit)  # step 2

@@ -17,9 +17,9 @@ export function About(props: { readonly installed: InstalledSnapshot | null }) {
   );
   return (
     <section class="about" aria-labelledby="screen-heading">
-      <h2 id="screen-heading" tabIndex={-1}>
+      <h3 id="screen-heading" tabIndex={-1}>
         {t('about.heading')}
-      </h2>
+      </h3>
 
       <h3>{t('about.methods.heading')}</h3>
       <p>{t('about.methods.body')}</p>

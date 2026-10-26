@@ -112,3 +112,17 @@ describe('updateSettings', () => {
     expect(updateSettings(DEFAULT_SETTINGS, { units: 'km' }, blocked).units).toBe('km');
   });
 });
+
+it('round-trips only known layer kinds without persisting position data', () => {
+  const store = memoryStorage();
+  saveSettings({ ...DEFAULT_SETTINGS, assetKinds: ['bridge'] }, store);
+  expect(loadSettings(store).assetKinds).toEqual(['bridge']);
+  store.setItem(
+    SETTINGS_KEY,
+    JSON.stringify({ assetKinds: ['bridge', 'bridge', 'unknown', 52.1] }),
+  );
+  expect(loadSettings(store).assetKinds).toEqual(['bridge']);
+  expect(loadSettings(memoryStorage({ [SETTINGS_KEY]: '{"assetKinds":[]}' })).assetKinds).toEqual(
+    [],
+  );
+});

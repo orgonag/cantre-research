@@ -28,7 +28,9 @@ export function RouteChooser(props: {
         ? 'route.diamondHelp'
         : singleRoute === 'other'
           ? 'route.singleHelp'
-          : 'route.help';
+          : choices.length > 1
+            ? 'route.help'
+            : 'hud.routeHelp';
   return (
     <section class="chooser" aria-labelledby="chooser-heading">
       <h3 id="chooser-heading">{t('route.heading')}</h3>

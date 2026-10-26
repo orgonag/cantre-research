@@ -7,6 +7,7 @@ import {
   DataClientError,
   cacheName,
   downloadSnapshot,
+  ensureNetwork,
   fetchManifest,
   installedSnapshot,
   loadNetwork,
@@ -725,4 +726,66 @@ describe('error reporting', () => {
     });
     expect((await failure(loadNetwork({ caches }))).code).toBe('INVALID_SNAPSHOT');
   });
+});
+
+describe('automatic browser startup', () => {
+  it('fetches and verifies on first visit, then reuses the cache without network', async () => {
+    const f = fakeFetch(serve(bundleA()));
+    const caches = new FakeCacheStorage();
+    const loaded = await ensureNetwork(BASE, { fetch: f, caches });
+    expect(loaded.net.chains.length).toBeGreaterThan(0);
+    expect(f.requests).toHaveLength(3);
+    const offline = fakeFetch({});
+    expect((await ensureNetwork(BASE, { fetch: offline, caches })).datasetVersion).toBe(
+      loaded.datasetVersion,
+    );
+    expect(offline.requests).toHaveLength(0);
+  });
+  it('works online when cache storage is unavailable or writes exceed quota', async () => {
+    const caches = new FakeCacheStorage();
+    caches.failPutAfter = 0;
+    for (const storage of [undefined, caches]) {
+      const f = fakeFetch(serve(bundleA()));
+      expect(
+        (await ensureNetwork(BASE, { fetch: f, caches: storage })).net.chains.length,
+      ).toBeGreaterThan(0);
+      expect(f.requests).toHaveLength(3);
+    }
+  });
+  it('still refuses tampered bytes when running without storage', async () => {
+    const a = bundleA();
+    const files = serve(a);
+    flipByte(a.snapshot);
+    files[`${BASE}${a.manifest.snapshot.path}`] = { body: a.snapshot };
+    await expect(
+      ensureNetwork(BASE, { fetch: fakeFetch(files), caches: undefined }),
+    ).rejects.toMatchObject({ code: 'HASH_MISMATCH' });
+  });
+});
+
+it('automatic startup tolerates a present but blocked storage API', async () => {
+  const caches = new FakeCacheStorage();
+  vi.spyOn(caches, 'keys').mockRejectedValue(new DOMException('blocked', 'SecurityError'));
+  const f = fakeFetch(serve(bundleA()));
+  expect((await ensureNetwork(BASE, { fetch: f, caches })).net.chains.length).toBeGreaterThan(0);
+});
+
+it('automatic startup falls back to an older intact cache when the newest is corrupt and offline', async () => {
+  const old = new FakeCacheStorage();
+  const a = bundleA();
+  await installBundle(a, old);
+  const recent = new FakeCacheStorage();
+  const b = bundleB();
+  await installBundle(b, recent);
+  const entry = [...(recent.stores.get(cacheName(b.manifest.datasetVersion))?.values() ?? [])].find(
+    (x) => x.bytes.length === b.snapshot.length,
+  );
+  if (!entry) throw new Error('missing fixture snapshot');
+  flipByte(entry.bytes);
+  old.adopt(recent);
+  const f = fakeFetch({});
+  expect((await ensureNetwork(BASE, { fetch: f, caches: old })).datasetVersion).toBe(
+    a.manifest.datasetVersion,
+  );
+  expect(f.requests).toHaveLength(0);
 });

@@ -765,14 +765,14 @@ def test_projection_uses_the_referenced_segment_span_only(tmp_path) -> None:
 A = anchors on this chain sorted by (s_m, id)
 1. collapse: merge runs where |Δs| ≤ anchor_collapse_span_m and |Δmp| ≤ mp_equal_tol_mi
    → one anchor at mean s; it keeps the best-tier member's mp, id and tier
-   (ties: smallest id), member_nids unioned, ANCHOR_COLLAPSED
+   (0.1.1 ties: smallest mp, then s, then id), member_nids unioned, ANCHOR_COLLAPSED
 2. pair_ok(i, j): Δs = s_j − s_i > 0, Δmp = mp_j − mp_i ≠ 0 beyond mp_equal_tol_mi,
    and (Δs < slope_min_span_m or | |Δmp|·1609.344/Δs − 1 | ≤ slope_tolerance)
 3. outliers: repeat until stable — for interior k, if not pair_ok(k−1,k) and
    not pair_ok(k,k+1) and pair_ok(k−1,k+1) and sign(Δmp) of (k−1,k+1) agrees with
    the neighbouring pairs → drop k (ANCHOR_OUTLIER, detail has both slopes).
    When several k qualify in one pass, drop the worst tier first (TIER_RANK, then
-   largest slope error, then id)
+   largest slope error, then s, mp and id in 0.1.1)
 4. unverified check, run on the higher tiers only:
    H = the anchors with tier != "unverified", run through steps 2–3 on their own.
    For each unverified anchor u whose s lies strictly between consecutive h1, h2 in H with

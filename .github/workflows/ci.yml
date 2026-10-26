@@ -77,7 +77,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run -w app build
       - name: Size gate on the built app with the browser-test data (the deploy runs it on the national build)
         run: |

@@ -3,7 +3,7 @@ import type { NetworkView } from '@cantre/core';
 import { DataClientError, errorText } from './errors.js';
 import { parseManifest } from './manifest.js';
 import type { FileRef, Manifest } from './manifest.js';
-import { findInstalled, install, readFiles, removeAll } from './store.js';
+import { cacheName, findInstalled, install, readFiles, removeAll } from './store.js';
 import type { CacheStorageLike, InstalledFiles } from './store.js';
 
 /**
@@ -71,9 +71,15 @@ const REQUEST_INIT: RequestInit = {
 
 function envOf(env: Partial<ClientEnv> | undefined): ClientEnv {
   const g = globalThis as { caches?: CacheStorageLike };
+  let caches: CacheStorageLike | undefined;
+  try {
+    caches = env !== undefined && 'caches' in env ? env.caches : g.caches;
+  } catch {
+    caches = undefined;
+  }
   return {
     fetch: env?.fetch ?? globalThis.fetch.bind(globalThis),
-    caches: env !== undefined && 'caches' in env ? env.caches : g.caches,
+    caches,
   };
 }
 
@@ -296,6 +302,65 @@ export async function downloadSnapshot(
   };
   await decodeFiles(manifest, files); // throws INVALID_SNAPSHOT before anything is stored
   await install(storage, manifest, files);
+}
+
+/** Load a verified build directly into memory. Persistence is an optimization, never a
+ * prerequisite for online use. Only verified, fully decoded bytes may be cached. */
+export async function fetchNetwork(
+  baseUrl: string,
+  manifest: Manifest,
+  env?: Partial<ClientEnv>,
+): Promise<LoadedNetwork> {
+  if (manifest.snapshotFormat !== SNAPSHOT_FORMAT_VERSION) {
+    throw new DataClientError('UNSUPPORTED_FORMAT', 'unsupported snapshot format');
+  }
+  const e = envOf(env);
+  const fetchOne = async (ref: FileRef): Promise<Uint8Array> => {
+    const bytes = await readBody(await get(e, urlFor(baseUrl, ref.path)), ref, () => {});
+    await verify(bytes, ref);
+    return bytes;
+  };
+  const files = {
+    snapshotGz: await fetchOne(manifest.snapshot),
+    assetDetailsGz: await fetchOne(manifest.assetDetails),
+  };
+  const loaded = await decodeFiles(manifest, files);
+  try {
+    if (e.caches !== undefined) await install(e.caches, manifest, files);
+  } catch {
+    // Quota/blocked storage cannot discard a usable in-memory network.
+  }
+  return loaded;
+}
+
+/** Reuse a verified local snapshot; automatically repair an absent/unusable cache online.
+ * The active session owns this result: no background hot-swapping of route identities. */
+export async function ensureNetwork(
+  baseUrl: string,
+  env?: Partial<ClientEnv>,
+): Promise<LoadedNetwork> {
+  const e = envOf(env);
+  const excluded = new Set<string>();
+  while (e.caches !== undefined) {
+    // Storage access may be denied even when the API exists. That is not an online failure.
+    let candidate;
+    try {
+      candidate = await findInstalled(e.caches, excluded);
+    } catch {
+      break;
+    }
+    if (candidate === null) break;
+    try {
+      const files = await readFiles(candidate);
+      await verify(files.snapshotGz, candidate.manifest.snapshot);
+      await verify(files.assetDetailsGz, candidate.manifest.assetDetails);
+      return await decodeFiles(candidate.manifest, files);
+    } catch (error) {
+      if (!(error instanceof DataClientError) && !(error instanceof CoreInputError)) throw error;
+      excluded.add(cacheName(candidate.manifest.datasetVersion));
+    }
+  }
+  return fetchNetwork(baseUrl, await fetchManifest(baseUrl, env), env);
 }
 
 /** What is installed (dataset version, date, stored size), or null. Reads no data file. */

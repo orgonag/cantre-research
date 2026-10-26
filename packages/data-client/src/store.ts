@@ -89,10 +89,13 @@ function newer(a: Manifest, b: Manifest): boolean {
  * entries exist. If several are complete (a crash between storing a new version and deleting the
  * old), the one with the later `snapshotDate`, then the later `datasetVersion`, wins.
  */
-export async function findInstalled(storage: CacheStorageLike): Promise<Installed | null> {
+export async function findInstalled(
+  storage: CacheStorageLike,
+  excluded: ReadonlySet<string> = new Set(),
+): Promise<Installed | null> {
   let best: Installed | null = null;
   for (const name of await storage.keys()) {
-    if (!name.startsWith(CACHE_PREFIX)) {
+    if (!name.startsWith(CACHE_PREFIX) || excluded.has(name)) {
       continue;
     }
     const cache = await storage.open(name);
@@ -110,6 +113,7 @@ export async function findInstalled(storage: CacheStorageLike): Promise<Installe
     } catch {
       continue;
     }
+    if (excluded.has(cacheName(manifest.datasetVersion))) continue;
     if (best === null || newer(manifest, best.manifest)) {
       best = { manifest, snapshot: snapshotRes, assetDetails: detailsRes };
     }
@@ -119,10 +123,14 @@ export async function findInstalled(storage: CacheStorageLike): Promise<Installe
 
 /** Reads the two stored files of an install. */
 export async function readFiles(installed: Installed): Promise<InstalledFiles> {
-  return {
-    snapshotGz: new Uint8Array(await installed.snapshot.arrayBuffer()),
-    assetDetailsGz: new Uint8Array(await installed.assetDetails.arrayBuffer()),
-  };
+  try {
+    return {
+      snapshotGz: new Uint8Array(await installed.snapshot.arrayBuffer()),
+      assetDetailsGz: new Uint8Array(await installed.assetDetails.arrayBuffer()),
+    };
+  } catch (error) {
+    throw new DataClientError('FETCH_FAILED', `cached data could not be read: ${errorText(error)}`);
+  }
 }
 
 /**

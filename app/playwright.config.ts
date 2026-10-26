@@ -9,7 +9,8 @@ import { defineConfig, devices } from '@playwright/test';
  * Projects: desktop Chromium, Pixel 7 (Chromium, Android emulation) and iPhone 13. The iPhone
  * project uses the iPhone 13 viewport, scale, touch and user agent but runs on Chromium, because
  * CI installs only Chromium (`npx playwright install --with-deps chromium`); it is not WebKit and
- * says nothing about Safari engine behaviour.
+ * says nothing about Safari engine behaviour. A separate safari-core project runs the
+ * core HUD flows in WebKit; neither emulation replaces physical-device validation.
  */
 const PORT = 4179;
 
@@ -39,6 +40,7 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'pixel7', use: { ...devices['Pixel 7'] } },
     { name: 'iphone13', use: iPhone13 },
+    { name: 'safari-core', testMatch: 'railhud.spec.ts', use: { ...devices['iPhone 13'] } },
   ],
   webServer: {
     command: 'node e2e/server.mjs',

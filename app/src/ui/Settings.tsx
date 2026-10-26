@@ -15,9 +15,9 @@ export function Settings(props: {
   const { settings, onChange } = props;
   return (
     <section class="settings" aria-labelledby="screen-heading">
-      <h2 id="screen-heading" tabIndex={-1}>
+      <h3 id="screen-heading" tabIndex={-1}>
         {t('settings.heading')}
-      </h2>
+      </h3>
 
       <fieldset>
         <legend>{t('settings.units')}</legend>

@@ -196,3 +196,14 @@ Regenerate the geodesy golden file with `python pipeline/scripts/make_geodesy_go
 synthetic build golden with `python pipeline/scripts/make_golden.py`. `measure_residuals.py` and
 `diagnose_posted_only.py` (both read the acquired raw cache) print the evidence behind two
 RESEARCH.md findings.
+
+### Pipeline 0.1.1: ID-independent interval calculation
+
+Anchor order is `(s_m, tier rank, mp, id)`. For a collapsed run the representative is
+selected by `(tier rank, mp, s_m, id)`; equal-error outliers are processed by ascending
+`s_m`, then `mp`, then ID after the existing tier/error priorities. These numeric
+orders are deterministic tie-breaks, not evidence that lower mileage is more accurate.
+Tier precedence, conflict detection, thresholds and interpolation rules are unchanged.
+Previously renaming IDs could change collapse membership and the resulting interval.
+The pipeline version and generated fixtures were advanced together to invalidate old
+snapshot identities.

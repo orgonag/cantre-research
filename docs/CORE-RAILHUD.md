@@ -1,0 +1,85 @@
+# Core RailHUD browser build
+
+Implemented on `feat/core-railhud-map`, 2026-10-25. This branch is not deployed.
+The owner approved a full-screen map with one dark floating HUD and then authorized
+implementation. This supersedes the M4 download-first and optional-map presentation.
+Matching semantics, public data sources and production hosting remain unchanged.
+The release also includes the separately authorized pipeline 0.1.1 ID-order repair;
+its data impact and verification are recorded in RESEARCH.md.
+
+## Interaction contract
+
+- Opening the page starts one browser location watch immediately while the verified
+  national dataset loads automatically. No installation or manual file download is needed.
+- The map stays mounted. The HUD shows subdivision, calculated milepost (three display
+  decimals, not a precision claim), supported direction, device speed and GPS accuracy.
+  Unknown values are dashes. MP remains in railway miles even when display distances
+  and speed use kilometres.
+- Tap the subdivision to choose any currently plausible lockable route, including during
+  a normal match. Locks stay visible; conflict does not silently switch tracks. Stale,
+  uncalibrated or conflicting results cannot supply a current single milepost. Historical
+  readings and evidence remain in Position details.
+- Initial mode follows GPS. Dragging pauses follow; a new fix never resumes it. Recenter
+  restores follow without resetting the user's zoom. Search fits its result and pauses
+  follow. The main HUD always refers to GPS, not a map tap or search result.
+- Layers offers only asset kinds present in the dataset, initially crossings and bridges,
+  and remembers changes in the existing settings key. Markers and the accessible visible-assets list share
+  the nearest 100 enabled items in the viewport, ranked around the fix while following
+  or around the map centre while exploring. No subdivision filter hides nearby assets.
+- Menu, route, search, layers, source data and settings use one native modal sheet with
+  Escape, focus containment and focus restoration. Sheets do not restart GPS or the map.
+- Screen-awake uses the browser Wake Lock API. Its indicator represents an actually held
+  lock. Rejection leaves it off; release updates it; visible resume reacquires only when
+  requested. Unsupported browsers have a disabled control.
+- Roads and places remain off until existing basemap consent is given. The optional
+  OpenFreeMap background keeps its fallback and disclosure. Public tiles are not cached
+  for bulk offline use. Research notice and source attribution remain available.
+- Notes, photographs, entries, archive, accounts, telemetry and a new backend are excluded.
+
+## Data and hosting
+
+Production continues to use the existing GitHub Pages app and `data/manifest.json` with
+versioned snapshot and asset-detail files. A local preview is not production hosting.
+The current public dataset is approximately 14 MB compressed. Cache Storage is optional:
+verified bytes are decoded once at startup and usable online even if storage is denied
+or full. Startup tries an older intact cached build before fetching when a newer cached
+build is damaged. All integrity, format and dataset-identity checks still apply.
+
+The active dataset is pinned to its session. A user explicitly applies updates in Data
+and sources; a version change clears the route lock with a notice. No coordinates are
+included in data URLs. Settings and the existing boolean lock flag remain the only
+personal preferences stored. No location trace is retained.
+
+## Verification and limits
+
+See the latest entry in [RESEARCH.md](RESEARCH.md) for executed checks and release gates.
+Browser fixtures are independently authored synthetic railway data and mocked GPS.
+`railhud.spec.ts` covers automatic startup, cache denial, persistent GPS/map lifecycle,
+route selection in a normal match, stale clearing, following, wake release/rejection,
+position-dot rendering, narrow/landscape layouts and sheet focus.
+
+The WebKit 2370 mock in the installed Playwright 1.64.0 supplies its GPS timestamp in
+microseconds although the protocol receives epoch milliseconds. The test-only adapter
+normalizes that provider output. Production continues to reject implausibly future fixes.
+These WebKit tests are not physical iPhone or field-GPS validation.
+
+A local national-data sample (Node 26 on a Mac, 25 fixes, no network transfer included)
+measured 1,252 chains and 64,061 assets: verified load/decode about 1.38 s, display geometry
+about 114 ms, median matching 7.0 ms, maximum matching 24.9 ms, maximum visible-asset
+selection 14.7 ms. Dataset: `nrwn-national-c400fd8d+cantre.0.1.0`.
+This is a desktop diagnostic, not a phone performance guarantee. Actual iPhone Safari,
+Android Chrome, enlarged system text, sustained 15-minute movement/pan testing and field
+accuracy remain unverified. No matcher/index rewrite was justified by this sample.
+
+## Maintenance gotchas
+
+- `MapLibre.isStyleLoaded()` can be false during normal GeoJSON source updates. Do not
+  gate GPS marker pushes on it: a fresh fix can otherwise disappear until another style
+  reload. Push to sources that exist; `style.load` restores the latest complete state.
+- Serve `.gz` data as opaque bytes, without `Content-Encoding: gzip`. Vite preview can
+  transparently decompress them and make integrity checks fail. `app/e2e/server.mjs`
+  preserves bytes; `CANTRE_DATA_ROOT` optionally selects a locally prepared public dataset.
+- The app is static. There is no application-server build. Build the core package and
+  frontend; deployment remains an explicit separate action through the existing workflow.
+- Preserve the previous deployment/data artifacts for rollback. No production data or
+  deployed site was changed by this branch.

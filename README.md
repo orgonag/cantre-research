@@ -20,7 +20,9 @@ Island). It is **research software**: mileposts are calculated, not surveyed, ev
 the matcher is experimental and unevaluated, and there has been **no field validation yet**. It
 is not for safety, operations or track access.
 
-- One download of the national data (about 14 MB), then it works offline.
+- On the core RailHUD branch, opening the page asks for location and automatically loads
+  the national data (about 14 MB); a usable cached copy supports later offline visits.
+  See [the core HUD contract](docs/CORE-RAILHUD.md). This branch has not been deployed.
 - Your GPS position stays on the device: no request carries a coordinate, and no fix or trace
   is stored. The only storage is your settings, the downloaded data and a one-bit "lock was set"
   flag. There is no analytics or telemetry.

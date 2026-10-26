@@ -2,6 +2,8 @@ import type { Page } from '@playwright/test';
 import {
   BASEMAP_HOST,
   PLACES,
+  closeSheet,
+  details,
   card,
   coordinateStrings,
   disallowed,
@@ -104,16 +106,18 @@ test.describe('what the app keeps', () => {
     await openScreen(page, 'Settings');
     await page.getByRole('radio', { name: 'Kilometres' }).check();
     await page.getByRole('radio', { name: 'Français' }).check();
-    await page.getByRole('button', { name: 'Retour à la position' }).click();
+    await details(page);
+    await openScreen(page, 'Find a location');
     const find = page.locator('section.find');
     await find.getByLabel('Subdivision').selectOption({ label: 'Alpha (CN)' });
     await find.getByLabel('Point milliaire (milles)').fill('12');
     await find.locator('button[type=submit]').click();
     await expect(find.locator('.find__result li')).toHaveCount(1);
-    await page.locator('section.map-panel button[aria-expanded]').click();
+    await closeSheet(page);
     await expect(page.locator('.map__canvas canvas')).toBeVisible();
-    await page.locator('.map__canvas').click();
+    await page.locator('.map__canvas').click({ position: { x: 50, y: 300 } });
     await expect(page.locator('.map__tap')).toBeVisible();
+    await details(page);
     await page.clock.fastForward(16_000);
     await expect(headline(page)).toContainText('Historique');
 
@@ -187,6 +191,7 @@ test.describe('what the app keeps', () => {
       await navigator.serviceWorker.ready;
     });
     await page.reload();
+    await details(page);
     await expect(headline(page)).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null))
@@ -194,9 +199,9 @@ test.describe('what the app keeps', () => {
 
     await moveTo(context, PLACES.chain);
     await expect(card(page).locator('.card__mp')).toBeVisible();
-    await page.locator('section.map-panel button[aria-expanded]').click();
+    await closeSheet(page);
     await expect(page.locator('.map__canvas canvas')).toBeVisible();
-    await page.locator('.map__canvas').click();
+    await page.locator('.map__canvas').click({ position: { x: 50, y: 300 } });
     await expect(page.locator('.map__tap')).toBeVisible();
 
     await expect
@@ -222,6 +227,7 @@ test.describe('what the app keeps', () => {
     const raw = await page.evaluate(() => JSON.stringify(sessionStorage));
     expect(raw).toBe('{"cantre.lockWasSet":"1"}');
     await page.reload();
+    await details(page);
     await expect(page.getByText('Lock cleared on reload.')).toBeVisible();
     // Read once and removed at start-up.
     expect(await page.evaluate(() => JSON.stringify(sessionStorage))).toBe('{}');
@@ -267,7 +273,7 @@ test.describe('what the app sends', () => {
         const page = await context.newPage();
         await openAndInstall(page);
         await expect(headline(page)).not.toHaveText('Waiting for a GPS fix');
-        await page.locator('section.map-panel button[aria-expanded]').click();
+        await closeSheet(page);
         await expect(page.locator('.map__canvas canvas')).toBeVisible();
         await page.waitForTimeout(500);
         const unique = [...new Set(seen)].sort();
@@ -295,7 +301,7 @@ test.describe('what the app sends', () => {
     const storage = page.getByText(/^What is stored on this device:/);
     await expect(storage).toBeVisible();
     for (const part of [
-      "your settings (units, language and the basemap choice) in the browser's local storage",
+      "your settings (units, language, map layers and the basemap choice) in the browser's local storage",
       'for this browser tab only, a flag saying that a route lock was set',
       "the app's own files and the map library, kept so the app opens offline",
       'the downloaded rail data',
@@ -306,7 +312,9 @@ test.describe('what the app sends', () => {
     await backToPosition(page);
     await openScreen(page, 'About');
     await expect(
-      page.getByText('Contains information licensed under the Open Government Licence – Canada'),
+      page
+        .getByRole('dialog')
+        .getByText('Contains information licensed under the Open Government Licence – Canada'),
     ).toBeVisible();
     // The third-party notices are linked from About and are served with the site.
     const link = page.getByRole('link', { name: /Third-party software notices/ });
@@ -329,8 +337,8 @@ test.describe('the checks themselves', () => {
       `${ORIGIN}/index.html`,
       `${ORIGIN}/assets/index-AbC123.js`,
       `${ORIGIN}/data/manifest.json`,
-      `${ORIGIN}/data/nrwn-national-4ecefe56-cantre.0.1.0/snapshot.bin.gz`,
-      `${ORIGIN}/data/nrwn-national-4ecefe56-cantre.0.1.0/asset-details.json.gz`,
+      `${ORIGIN}/data/nrwn-national-4ecefe56-cantre.0.1.1/snapshot.bin.gz`,
+      `${ORIGIN}/data/nrwn-national-4ecefe56-cantre.0.1.1/asset-details.json.gz`,
       'blob:http://127.0.0.1:4179/0f2f',
     ];
     for (const url of ok) {

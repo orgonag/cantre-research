@@ -1,7 +1,10 @@
+import type { AssetKind } from '@cantre/core';
+import { ASSET_KINDS } from './visibleAssets.js';
+
 /**
  * Settings: the only thing the app keeps in localStorage (ruling P8, spec §9).
  *
- * One key, `cantre.settings.v1`, holds three values: distance units, language and basemap
+ * One key, `cantre.settings.v1`, holds distance units, language, optional asset-layer kinds and basemap
  * consent. No fix, trace, route, lock or position is ever stored. Every storage call is inside
  * try/catch, because storage can be missing or blocked (private window, blocked site data) and
  * the app must work without it.
@@ -13,6 +16,8 @@ export type Settings = {
   readonly lang: 'en' | 'fr';
   /** True once the user has accepted the basemap notice (D2). Off by default. */
   readonly basemap: boolean;
+  /** Enabled map layers only; no location or asset IDs. Absent uses the default layers. */
+  readonly assetKinds?: readonly AssetKind[];
 };
 
 export const SETTINGS_KEY = 'cantre.settings.v1';
@@ -68,7 +73,19 @@ export function loadSettings(
     stored = {};
   }
   const deviceLang = preferredLang?.toLowerCase().startsWith('fr') === true ? 'fr' : 'en';
+  const rawKinds = stored['assetKinds'];
+  const assetKinds = Array.isArray(rawKinds)
+    ? [
+        ...new Set(
+          rawKinds.filter(
+            (value: unknown): value is AssetKind =>
+              typeof value === 'string' && ASSET_KINDS.includes(value as AssetKind),
+          ),
+        ),
+      ]
+    : undefined;
   return {
+    ...(assetKinds === undefined ? {} : { assetKinds }),
     units: stored['units'] === 'km' || stored['units'] === 'mi' ? stored['units'] : 'mi',
     lang: stored['lang'] === 'fr' || stored['lang'] === 'en' ? stored['lang'] : deviceLang,
     basemap: stored['basemap'] === true,
@@ -83,7 +100,12 @@ export function saveSettings(
   try {
     storage?.setItem(
       SETTINGS_KEY,
-      JSON.stringify({ units: settings.units, lang: settings.lang, basemap: settings.basemap }),
+      JSON.stringify({
+        units: settings.units,
+        lang: settings.lang,
+        basemap: settings.basemap,
+        ...(settings.assetKinds === undefined ? {} : { assetKinds: settings.assetKinds }),
+      }),
     );
   } catch {
     // Storage is blocked or full: keep working with the in-memory value.

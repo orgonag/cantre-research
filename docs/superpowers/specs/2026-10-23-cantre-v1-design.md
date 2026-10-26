@@ -377,3 +377,11 @@ go-ahead.
 - OpenFreeMap is best-effort. Fallback: the app still works with no basemap (tracks and
   assets only), and self-hosted PMTiles is a later option.
 - The 1% metric definition from the research log stays unresolved. v1 does not claim it.
+
+## Core RailHUD presentation amendment (2026-10-25)
+
+The owner approved [CORE-RAILHUD.md](../../CORE-RAILHUD.md): automatic verified data loading
+alongside browser GPS permission, a persistent full-screen map and one floating HUD,
+with secondary actions in sheets. This supersedes manual-download and optional-map
+presentation requirements, while preserving data rights, basemap consent, matching and
+route-lock semantics. The amendment excludes entries, photos, archive and a new backend.

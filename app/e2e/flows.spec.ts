@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import {
   BASEMAP_HOST,
   PLACES,
+  closeSheet,
+  details,
   TRACK_RGB,
   backToPosition,
   card,
@@ -30,20 +32,12 @@ const choose = (page: import('@playwright/test').Page, subdivision: string) =>
   page.getByRole('button', { name: new RegExp(`^Choose this route: ${subdivision},`) });
 
 test.describe('first run and a fix on a chain', () => {
-  test('asks first, downloads on the button, then shows MATCHED with a milepost', async ({
+  test('loads automatically on first visit, then shows MATCHED with a milepost', async ({
     page,
     traffic,
   }) => {
     await openApp(page);
-    await expect(page.getByRole('heading', { name: 'Get the rail data' })).toBeVisible();
-    // Only the small manifest is fetched until the user presses the button.
-    const button = page.getByRole('button', { name: /^Download data for Canada \(\d+\.\d MB\)$/ });
-    await expect(button).toBeVisible();
-    expect(traffic.urls().some((u) => u.includes('snapshot.bin.gz'))).toBe(false);
-    expect(traffic.urls().some((u) => u.endsWith('/data/manifest.json'))).toBe(true);
-
-    await button.click();
-    await expect(headline(page)).toBeVisible();
+    await installData(page);
     expect(traffic.urls().filter((u) => u.includes('snapshot.bin.gz'))).toHaveLength(1);
     expect(traffic.urls().filter((u) => u.includes('asset-details.json.gz'))).toHaveLength(1);
 
@@ -56,9 +50,6 @@ test.describe('first run and a fix on a chain', () => {
     await expect(card(page)).toContainText('from GPS accuracy only');
     await expect(card(page)).toContainText('Data: 2026-01-02');
     await expect(card(page)).not.toContainText(/confidence|probab|%/i);
-    await expect(
-      page.getByText('Research software. Not for safety, operations or track access.'),
-    ).toBeVisible();
   });
 
   test('a milepost from unverified reference points is labelled as such', async ({
@@ -199,15 +190,19 @@ test.describe('ambiguity, the chooser and the lock', () => {
     await expect(card(page).locator('.chip--locked')).toBeVisible();
 
     await page.reload();
+    await details(page);
     const notice = page.getByText('Lock cleared on reload. Choose the route again if you need it.');
     await expect(notice).toBeVisible();
     await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
     await expect(card(page).locator('.chip--auto')).toBeVisible();
-    await page.getByRole('button', { name: 'Dismiss' }).click();
+    await closeSheet(page);
+    await page.getByRole('button', { name: /Dismiss/ }).click();
+    await details(page);
     await expect(notice).toHaveCount(0);
 
     // Once only: a second reload (no lock was set meanwhile) shows nothing.
     await page.reload();
+    await details(page);
     await expect(headline(page)).toBeVisible();
     await expect(notice).toHaveCount(0);
   });
@@ -255,6 +250,7 @@ test.describe('find a location, language, units', () => {
     page,
   }) => {
     await openAndInstall(page);
+    await openScreen(page, 'Find a location');
     const find = page.locator('section.find');
     await find.getByLabel('Subdivision').selectOption({ label: 'Alpha (CN)' });
     await find.getByLabel('Milepost (miles)').fill('12');
@@ -275,15 +271,19 @@ test.describe('find a location, language, units', () => {
     await find.getByLabel('Milepost (miles)').fill('12');
     await find.getByRole('button', { name: 'Find' }).click();
     await find.getByRole('button', { name: 'Show on map' }).click();
-    const toggle = page.getByRole('button', { name: 'Hide map' });
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('.hud-recenter')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('.map__canvas canvas')).toBeVisible();
     await expect(page.locator('.map__status')).toHaveCount(0);
     // The pin is drawn at the centre of the map (the view was fitted to it).
-    const shot = await page.locator('.map__canvas').screenshot();
     await expect
       .poll(async () =>
-        countColour(page.context(), shot, TRACK_RGB, 24, { x: 0.45, y: 0.45, w: 0.1, h: 0.1 }),
+        countColour(
+          page.context(),
+          await page.locator('.map__canvas').screenshot(),
+          TRACK_RGB,
+          24,
+          { x: 0.45, y: 0.45, w: 0.1, h: 0.1 },
+        ),
       )
       .toBeGreaterThan(0);
   });
@@ -299,7 +299,7 @@ test.describe('find a location, language, units', () => {
     await page.getByRole('radio', { name: 'Français' }).check();
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
     await expect(page.getByRole('heading', { level: 2, name: 'Paramètres' })).toBeVisible();
-    await page.getByRole('button', { name: 'Retour à la position' }).click();
+    await details(page);
     await expect(headline(page)).toHaveText('Associé à une voie');
     await expect(card(page).locator('.card__mp')).toHaveText('PM 11,91');
     await expect(card(page)).toContainText('selon la précision du GPS seulement');
@@ -364,8 +364,11 @@ test.describe('data updates', () => {
     );
     await expect(notice).toBeVisible();
     await expect(card(page).locator('.chip--auto')).toBeVisible(); // no lock was migrated
+    await moveTo(context, PLACES.diamond);
     await expect(headline(page)).toHaveText('Route not certain: a crossing (diamond) is nearby');
-    await page.getByRole('button', { name: 'Dismiss' }).click();
+    await closeSheet(page);
+    await page.getByRole('button', { name: /Dismiss/ }).click();
+    await details(page);
     await expect(notice).toHaveCount(0);
 
     // Only the new version is stored.
@@ -495,7 +498,6 @@ test.describe('data updates', () => {
   });
 
   test('a download that is cut short is rejected and the first run can retry', async ({ page }) => {
-    await openApp(page);
     let calls = 0;
     await page.route('**/snapshot.bin.gz', async (route) => {
       calls += 1;
@@ -506,14 +508,14 @@ test.describe('data updates', () => {
         await route.continue();
       }
     });
-    await page.getByRole('button', { name: /^Download data for Canada/ }).click();
+    await openApp(page);
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('The data could not be downloaded.');
     // First run: nothing was installed before, so nothing may be installed now.
     const names = await page.evaluate(() => caches.keys());
     expect(names.filter((n) => n.startsWith('cantre-data-'))).toEqual([]);
-    await alert.getByRole('button', { name: 'Try again' }).click();
-    await expect(headline(page)).toBeVisible();
+    await alert.getByRole('button', { name: 'Retry' }).click();
+    await installData(page);
   });
 });
 
@@ -526,8 +528,8 @@ test.describe('the map and the basemap consent', () => {
     await openAndInstall(page);
     await moveTo(context, PLACES.chain);
     await expect(headline(page)).toHaveText('Matched to a track');
-    await page.getByRole('button', { name: 'Show map' }).click();
-    await expect(page.getByText('The basemap is off.')).toBeVisible();
+    await closeSheet(page);
+    await expect(page.getByRole('button', { name: 'Show roads and places' })).toBeVisible();
     await expect(page.locator('.map__canvas canvas')).toBeVisible();
     await expect(page.locator('.map__status')).toHaveCount(0);
     await expect(page.locator('.map__attribution')).toContainText(
@@ -549,6 +551,7 @@ test.describe('the map and the basemap consent', () => {
     await expect(tap.getByRole('heading')).toHaveText('From map position, no GPS');
     await expect(tap).toContainText('Alpha, Main');
     await expect(tap).toContainText(/MP 11\.9\d/);
+    await details(page);
     // The tap never became a fix: the card still shows the GPS fix's own milepost.
     await expect(card(page).locator('.card__mp')).toHaveText('MP 11.91');
 
@@ -565,9 +568,10 @@ test.describe('the map and the basemap consent', () => {
     await openAndInstall(page);
     await moveTo(context, PLACES.chain);
     await expect(headline(page)).toHaveText('Matched to a track');
-    await page.getByRole('button', { name: 'Show map' }).click();
+    await closeSheet(page);
     expect(traffic.urls().filter((u) => new URL(u).host === BASEMAP_HOST)).toEqual([]);
 
+    await page.getByRole('button', { name: /^Layers/ }).click();
     // Turning it on first shows the notice; nothing is requested until it is accepted.
     await page.getByRole('button', { name: 'Turn on basemap' }).click();
     const dialog = page.getByRole('alertdialog');
@@ -580,6 +584,7 @@ test.describe('the map and the basemap consent', () => {
     await expect(dialog).toContainText('Your exact GPS position is not sent');
     expect(traffic.urls().filter((u) => new URL(u).host === BASEMAP_HOST)).toEqual([]);
     await dialog.getByRole('button', { name: 'Turn on basemap' }).click();
+    await closeSheet(page);
 
     await expect(
       page.getByText('The basemap could not be loaded, so the plain background is shown.'),
@@ -654,8 +659,9 @@ test.describe('the map with the basemap consent already stored', () => {
       localStorage.setItem(key, JSON.stringify({ ...stored, basemap: true }));
     });
     await page.reload();
+    await details(page);
     await expect(headline(page)).toHaveText('Matched to a track');
-    await page.getByRole('button', { name: 'Show map' }).click();
+    await closeSheet(page);
     await expect(page.locator('.map__canvas canvas')).toBeVisible();
     await expect(page.locator('.map__attribution')).toContainText('OpenStreetMap');
     // The stand-in basemap and the app's tracks in the same picture: the tracks are drawn on top
@@ -697,6 +703,7 @@ test.describe('offline', () => {
 
     await context.setOffline(true);
     await page.reload();
+    await details(page);
     await expect(page.getByRole('heading', { level: 1, name: 'CANTRE' })).toBeVisible();
     await expect(headline(page)).toBeVisible(); // the installed data loads from this device
     await moveTo(context, PLACES.chain);
@@ -709,10 +716,11 @@ test.describe('offline', () => {
     await openScreen(page, 'Offline data');
     await page.getByRole('button', { name: 'Remove data' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remove data' }).click();
-    await expect(page.getByRole('heading', { name: 'Get the rail data' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
     expect(
       (await page.evaluate(() => caches.keys())).filter((n) => n.startsWith('cantre-data-')),
     ).toEqual([]);
+    await page.getByRole('button', { name: 'Retry' }).click();
     await installData(page);
   });
 });

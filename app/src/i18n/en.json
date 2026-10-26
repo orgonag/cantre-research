@@ -11,17 +11,13 @@
     "app.loading": "Loading",
     "app.statusHeading": "Position",
     "app.noDataYet": "No rail data is loaded yet.",
-
     "boundary.title": "Something went wrong",
     "boundary.body": "The app stopped. Your location was not sent anywhere. Error code:",
     "boundary.reset": "Reset",
-
     "lock.clearedOnReload": "Lock cleared on reload. Choose the route again if you need it.",
     "lock.clearedByUpdate": "Lock cleared because the data was updated. Choose the route again if you need it.",
     "lock.dismiss": "Dismiss",
-
     "data.version": "Data: {date}",
-
     "status.NO_PERMISSION": "Location permission is off",
     "status.NO_FIX": "Waiting for a GPS fix",
     "status.STALE": "Historical: the last GPS fix is old",
@@ -34,7 +30,6 @@
     "status.MATCHED_SUBDIVISION": "On this subdivision, track not identified",
     "status.MATCHED": "Matched to a track",
     "status.LOCK_CONFLICT": "Your chosen route does not fit this fix",
-
     "reason.PERMISSION_DENIED": "Location permission was denied. Allow location for this site in the browser settings.",
     "reason.LOCATION_UNAVAILABLE": "The device could not provide a location.",
     "reason.NO_FIX_YET": "No GPS fix has arrived yet.",
@@ -59,7 +54,6 @@
     "reason.TRACK_MP_DISAGREE": "Nearby tracks give different mileposts, so none is shown.",
     "reason.TRACK_UNCALIBRATED": "This track has no milepost reference.",
     "reason.UNCHAINED_TRACK": "This track is not part of a connected route, so no milepost is shown.",
-
     "app.noDataBody": "The installed rail data could not be used. Remove it, then download it again.",
     "app.loadingData": "Loading rail data",
     "data.unknown": "Data: version unknown",
@@ -130,7 +124,6 @@
     "asset.hideSource": "Hide source attributes",
     "asset.sourceLayer": "Source layer: {layer}",
     "asset.noSource": "No source attributes are available for this asset.",
-
     "find.heading": "Find a location",
     "find.intro": "Choose a subdivision and type a milepost to see where it lies. This works without GPS and without the map. The same name can belong to different subdivisions, so each entry shows its operator and, for repeated names, its milepost range and a rough place.",
     "find.subdivision": "Subdivision",
@@ -145,7 +138,6 @@
     "find.pin": "{subdivision}: {mp} at latitude {lat}, longitude {lon}",
     "find.pinNote": "Calculated from the dataset's reference points, not surveyed, and not a GPS position.",
     "find.showOnMap": "Show on map",
-
     "map.heading": "Map",
     "map.show": "Show map",
     "map.hide": "Hide map",
@@ -174,7 +166,6 @@
     "find.optionId": "ID {nid}",
     "map.basemapFailed": "The basemap could not be loaded, so the plain background is shown. Tracks and assets are still drawn.",
     "map.keyboardAlternative": "Tapping the map gives the milepost at a spot. The keyboard alternative is Find a location, above.",
-
     "nav.label": "Main menu",
     "nav.offline": "Offline data",
     "nav.settings": "Settings",
@@ -219,7 +210,7 @@
     "settings.lang.en": "English",
     "settings.lang.fr": "Français",
     "settings.basemap": "Basemap",
-    "settings.storage": "What is stored on this device: your settings (units, language and the basemap choice) in the browser's local storage; for this browser tab only, a flag saying that a route lock was set, so the app can tell you it was cleared on reload (it does not say which route); the app's own files and the map library, kept so the app opens offline; and the downloaded rail data. When the basemap is on, the browser may also keep map tiles in its ordinary web cache. Your position, the route you chose and your movements are never stored or sent.",
+    "settings.storage": "What is stored on this device: your settings (units, language, map layers and the basemap choice) in the browser's local storage; for this browser tab only, a flag saying that a route lock was set, so the app can tell you it was cleared on reload (it does not say which route); the app's own files and the map library, kept so the app opens offline; and the downloaded rail data. When the basemap is on, the browser may also keep map tiles in its ordinary web cache. Your position, the route you chose and your movements are never stored or sent.",
     "about.heading": "About CANTRE",
     "about.methods.heading": "How it works",
     "about.methods.body": "CANTRE finds the mapped railway tracks near your GPS position and picks the closest one, or asks you to choose when more than one route fits. It then calculates a milepost by interpolating between the nearest milepost reference points on that track. It never extends past the first or last reference point and never bridges a gap in the numbering. The band shown comes from GPS accuracy only. It is not a measure of how correct the data is. Your position stays on this device.",
@@ -238,7 +229,6 @@
     "about.code.link": "CANTRE on GitHub (opens in a new tab)",
     "about.thirdParty.link": "Third-party software notices (licence texts of the libraries in this app)",
     "about.licence": "The code is under the MIT licence. Data stays under each source's own licence.",
-
     "offline.damaged": "The data stored on this device is damaged or unreadable, so it cannot be used.",
     "offline.redownload": "Download the data again ({size} MB)",
     "error.MANIFEST_INVALID": "The data list from the server is not valid. Try again later.",
@@ -247,6 +237,40 @@
     "error.NOT_INSTALLED": "No rail data is installed on this device yet.",
     "error.UNSUPPORTED_FORMAT": "This data needs a newer version of the app. Nothing was downloaded, and the data already on this device is kept. Update the app, then try again.",
     "error.INVALID_SNAPSHOT": "The data was downloaded but could not be read. It was not used.",
-    "error.UNEXPECTED": "Something unexpected stopped the download. Try again."
+    "error.UNEXPECTED": "Something unexpected stopped the download. Try again.",
+    "hud.menu": "Menu",
+    "hud.close": "Close",
+    "hud.route": "Choose route",
+    "hud.layers": "Layers",
+    "hud.recenter": "Recenter and follow GPS",
+    "hud.exploring": "Exploring map · tap ◎ to follow",
+    "hud.waiting": "Waiting for location",
+    "hud.calculated": "CALCULATED MILEPOST",
+    "hud.range": "MILEPOST RANGE",
+    "hud.mph": "MPH",
+    "hud.kmh": "KM/H",
+    "hud.ftAccuracy": "FT GPS ACC",
+    "hud.mAccuracy": "M GPS ACC",
+    "hud.live": "LIVE",
+    "hud.stale": "STALE",
+    "hud.noFix": "NO FIX",
+    "hud.offline": "Offline · using loaded railway data",
+    "hud.loading": "Loading railway data…",
+    "hud.retry": "Retry",
+    "hud.details": "Position details",
+    "hud.assets": "Visible assets",
+    "hud.assetLimit": "Up to 100 nearest enabled assets around the map view.",
+    "hud.wake": "Keep screen awake",
+    "hud.wakeUnsupported": "Screen awake is unavailable in this browser",
+    "hud.wakeFailed": "Could not keep the screen awake",
+    "hud.background": "Show roads and places",
+    "hud.data": "Data and sources",
+    "hud.noRoutes": "No route choices available until a fresh location fits mapped tracks.",
+    "hud.routeHelp": "Choose the route you are on. Your choice does not improve GPS accuracy.",
+    "hud.permission": "Allow location in your browser’s site settings. You can still browse the map.",
+    "hud.notSaved": "Available now; offline storage is unavailable.",
+    "hud.following": "Following GPS",
+    "hud.locked": "Route locked",
+    "hud.notice": "Research use only · Not for operations"
   }
 }
