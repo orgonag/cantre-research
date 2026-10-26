@@ -441,6 +441,7 @@ export function App(props: {
     <button
       type="button"
       onClick={() => {
+        if (target === 'assets') setSelectedAsset(null);
         setScreen(target);
       }}
     >
@@ -491,6 +492,7 @@ export function App(props: {
     ? number(view.fix.accuracyM / (settings.units === 'mi' ? 0.3048 : 1))
     : '—';
   const routeChoices = result ? choicesOf(nearest?.candidates ?? result.candidates) : [];
+  const tappedAsset = data?.net.assets.find((asset) => asset.id === selectedAsset);
   const title =
     screen === 'settings'
       ? t('nav.settings')
@@ -503,7 +505,9 @@ export function App(props: {
             : screen === 'find'
               ? t('find.heading')
               : screen === 'assets'
-                ? t('hud.assets')
+                ? tappedAsset
+                  ? (tappedAsset.name ?? t(`asset.kind.${tappedAsset.kind}`))
+                  : t('hud.assets')
                 : screen === 'details'
                   ? t('hud.details')
                   : screen === 'layers'
@@ -788,7 +792,11 @@ export function App(props: {
             ))}
           {screen === 'assets' &&
             (view && data ? (
-              <VisibleAssets assets={assets} details={data.details} selected={selectedAsset} />
+              <VisibleAssets
+                assets={selectedAsset === null ? assets : tappedAsset ? [tappedAsset] : []}
+                details={data.details}
+                selected={selectedAsset}
+              />
             ) : (
               <p>{t('hud.loading')}</p>
             ))}

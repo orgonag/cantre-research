@@ -186,7 +186,7 @@ export const card = (page: Page) => page.locator('section.card');
 /** Menu buttons ("Settings", "About", "Offline data") and "Back to position". */
 export async function openScreen(
   page: Page,
-  name: 'Settings' | 'About' | 'Offline data' | 'Find a location',
+  name: 'Settings' | 'About' | 'Offline data' | 'Find a location' | 'Visible assets',
 ): Promise<void> {
   await closeSheet(page);
   await page.getByRole('button', { name: /^(Menu|RailHUD menu)$/, exact: true }).click();
