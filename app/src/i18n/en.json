@@ -245,8 +245,8 @@
     "hud.recenter": "Recenter and follow GPS",
     "hud.exploring": "Exploring map · tap ◎ to follow",
     "hud.waiting": "Waiting for location",
-    "hud.nearestMp": "NEAREST TRACK MILEPOST",
-    "hud.trackDistance": "{distance} {unit} from track",
+    "hud.nearestMp": "NEAREST MAINLINE MILEPOST",
+    "hud.trackDistance": "{distance} {unit} from mainline",
     "hud.noTrackMp": "Milepost unavailable",
     "hud.calculated": "CALCULATED MILEPOST",
     "hud.range": "MILEPOST RANGE",
@@ -299,6 +299,14 @@
     "feature.sourceRecord": "Source record",
     "feature.recordId": "Record ID",
     "feature.dataset": "Dataset version",
-    "feature.sourceNote": "Values are reported by the public dataset. Calculated mileposts come from mapped track calibration."
+    "feature.sourceNote": "Values are reported by the public dataset. Calculated mileposts come from mapped track calibration.",
+    "mainline.none": "No mainline available for this selection",
+    "mainline.heading": "Nearby mainlines",
+    "mainline.auto": "Auto · nearest mainline",
+    "mainline.help": "Choose a mainline to keep it selected, or use Auto for the nearest mainline with available mileage. Distance is from your location to the mapped track.",
+    "mainline.distance": "{distance} {unit} away",
+    "mainline.unverified": "Unverified reference points",
+    "mainline.selected": "Selected",
+    "mainline.lockedCaption": "SELECTED MAINLINE MILEPOST"
   }
 }

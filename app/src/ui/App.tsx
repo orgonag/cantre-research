@@ -18,9 +18,10 @@ import {
   runDownload,
 } from '../logic/offline.js';
 import type { ManifestResult, OfflineDeps } from '../logic/offline.js';
-import { choicesOf, directionTracker, present } from '../logic/present.js';
+import { directionTracker, present } from '../logic/present.js';
 import type { CardModel } from '../logic/present.js';
-import { nearestTrack } from '../logic/nearestTrack.js';
+import { mainlines } from '../logic/mainlines.js';
+import { MainlineChooser } from './MainlineChooser.js';
 import { createSession } from '../logic/session.js';
 import type { Session } from '../logic/session.js';
 import { updateSettings } from '../logic/settings.js';
@@ -451,19 +452,9 @@ export function App(props: {
   const model = view?.model;
   const result = view?.result;
   const live = view?.fix !== null && view?.fix !== undefined;
-  const far =
-    !!result &&
+  const mainlineSearch = useMemo(
+    () => (data && view?.fix ? mainlines(data.net, view.fix, result?.lock ?? null) : null),
     [
-      'OFF_NETWORK',
-      'NO_COVERAGE',
-      'LOCK_CONFLICT',
-      'AMBIGUOUS_ROUTE',
-      'MATCHED_SUBDIVISION',
-    ].includes(result.status);
-  const nearest = useMemo(
-    () => (far && data && view.fix ? nearestTrack(data.net, view.fix, result.lock) : null),
-    [
-      far,
       data?.net,
       view?.fix?.lat,
       view?.fix?.lon,
@@ -472,11 +463,14 @@ export function App(props: {
       result?.lock && JSON.stringify(result.lock),
     ],
   );
+  const nearest = mainlineSearch?.selected ?? null;
   const nearestMp = nearest?.milepost?.kind === 'calibrated' ? nearest.milepost.mp : null;
-  const numeric =
-    result?.status === 'MATCHED' && result.milepost?.kind === 'calibrated'
-      ? result.milepost.mp
-      : nearestMp;
+  const numeric = nearestMp;
+  // Strict-matcher direction belongs only to the same chain, never a different projected mainline.
+  const mainlineDirection =
+    nearest && result?.chosen?.chainId && result.chosen.chainId === nearest.candidate.chainId
+      ? view?.direction
+      : null;
   const number = (n: number, digits = 0) =>
     new Intl.NumberFormat(settings.lang, {
       minimumFractionDigits: digits,
@@ -491,7 +485,7 @@ export function App(props: {
   const accuracyText = live
     ? number(view.fix.accuracyM / (settings.units === 'mi' ? 0.3048 : 1))
     : '—';
-  const routeChoices = result ? choicesOf(nearest?.candidates ?? result.candidates) : [];
+
   const tappedAsset = data?.net.assets.find((asset) => asset.id === selectedAsset);
   const title =
     screen === 'settings'
@@ -562,25 +556,22 @@ export function App(props: {
             disabled={data === null}
             aria-label={[
               t('hud.route'),
-              result?.lock
-                ? model?.lockText
-                : (nearest?.candidate.subdivisionName ?? model?.subdivision),
+              result?.lock ? model?.lockText : nearest?.candidate.subdivisionName,
             ]
               .filter(Boolean)
               .join(': ')}
           >
             {nearest?.candidate.subdivisionName ??
-              model?.subdivision ??
               (result?.lock ? model?.lockText : null) ??
               t(phase.kind === 'loading' ? 'hud.loading' : 'hud.route')}
-            {view?.direction && (
+            {mainlineDirection && (
               <span
                 class="hud-live"
                 aria-label={
-                  view.direction === 'up' ? t('asset.side.higherMp') : t('asset.side.lowerMp')
+                  mainlineDirection === 'up' ? t('asset.side.higherMp') : t('asset.side.lowerMp')
                 }
               >
-                {view.direction === 'up' ? ' ↗' : ' ↘'}
+                {mainlineDirection === 'up' ? ' ↗' : ' ↘'}
               </span>
             )}
             {result?.lock && <span class="hud-lock"> · {t('hud.locked')}</span>}
@@ -595,15 +586,15 @@ export function App(props: {
           }}
           aria-label={t('hud.details')}
         >
-          <span class={`hud-mp ${result?.mpRange && !nearest ? 'hud-mp--range' : ''}`}>
-            {numeric !== null
-              ? number(numeric, 3)
-              : result?.mpRange
-                ? `${number(result.mpRange.lowerMp, 3)}–${number(result.mpRange.upperMp, 3)}`
-                : '—'}
-          </span>
+          <span class="hud-mp">{numeric !== null ? number(numeric, 3) : '—'}</span>
           <span class="hud-caption">
-            {t(nearest ? 'hud.nearestMp' : result?.mpRange ? 'hud.range' : 'hud.calculated')}
+            {t(
+              nearest
+                ? result?.lock
+                  ? 'mainline.lockedCaption'
+                  : 'hud.nearestMp'
+                : 'hud.calculated',
+            )}
           </span>
         </button>
         <div class="hud-stats">
@@ -632,6 +623,9 @@ export function App(props: {
               unit: settings.units === 'mi' ? 'mi' : 'km',
             })}
             {nearestMp === null ? ` · ${t('hud.noTrackMp')}` : ''}
+            {nearest.tier === 'unverified' ? ` · ${t('mainline.unverified')}` : ''}
+            <br />
+            {t(result?.lock ? 'hud.locked' : 'mainline.auto')}
           </p>
         )}
         {phase.kind === 'loading' ? (
@@ -666,7 +660,7 @@ export function App(props: {
                 );
               }}
             >
-              {model?.headline ?? t('hud.waiting')}
+              {live ? t('mainline.none') : (model?.headline ?? t('hud.waiting'))}
             </button>
           )
         )}
@@ -758,30 +752,16 @@ export function App(props: {
           {screen === 'route' && (
             <>
               <p>{model?.lockText}</p>
-              {view?.direction && (
-                <span
-                  class="hud-live"
-                  aria-label={
-                    view.direction === 'up' ? t('asset.side.higherMp') : t('asset.side.lowerMp')
-                  }
-                >
-                  {view.direction === 'up' ? ' ↗' : ' ↘'}
-                </span>
-              )}
-              {result?.lock && (
-                <button type="button" onClick={unlock}>
-                  {t('lock.unlock')}
-                </button>
-              )}
-              {routeChoices.length ? (
-                <RouteChooser
-                  choices={routeChoices}
-                  conflict={view?.conflict ?? false}
-                  onChoose={choose}
-                />
-              ) : (
-                <p>{t('hud.noRoutes')}</p>
-              )}
+              <MainlineChooser
+                choices={mainlineSearch?.choices ?? []}
+                lock={result?.lock ?? null}
+                units={settings.units}
+                onChoose={choose}
+                onAuto={() => {
+                  unlock();
+                  setScreen('main');
+                }}
+              />
             </>
           )}
           {screen === 'find' &&

@@ -77,8 +77,7 @@ test('first visit loads itself and the route picker works during a normal match'
   await expect(page.locator('dialog')).toHaveCount(0);
   await expect(page.locator('.hud-lock')).toBeVisible();
   await page.locator('.hud-route').click();
-  await page.getByRole('button', { name: 'Unlock', exact: true }).click();
-  await closeSheet(page);
+  await page.getByRole('button', { name: 'Auto · nearest mainline', exact: true }).click();
   await expect(page.locator('.hud-lock')).toHaveCount(0);
 });
 
@@ -300,9 +299,9 @@ test('far from track still shows nearest route and milepost, then clears on stal
 }) => {
   await context.setGeolocation({ ...PLACES.chain, latitude: PLACES.chain.latitude - 0.029 });
   await openApp(page);
-  await expect(page.locator('.hud-caption')).toHaveText('NEAREST TRACK MILEPOST');
+  await expect(page.locator('.hud-caption')).toHaveText('NEAREST MAINLINE MILEPOST');
   await expect(page.locator('.hud-mp')).not.toHaveText('—');
-  await expect(page.locator('.hud-exploring').filter({ hasText: 'from track' })).toBeVisible();
+  await expect(page.locator('.hud-exploring').filter({ hasText: 'from mainline' })).toBeVisible();
   await page.clock.install();
   await page.clock.fastForward(16000);
   await expect(page.locator('.hud-mp')).toHaveText('—');
@@ -335,4 +334,36 @@ test.describe('new visit basemap default', () => {
     await page.reload();
     await expect(page.getByRole('button', { name: 'Show roads and places' })).toBeVisible();
   });
+});
+
+test('a nearby siding does not hide mainlines; manual choice holds until Auto', async ({
+  page,
+  context,
+}) => {
+  await context.setGeolocation({ latitude: 52.1003, longitude: -106.05, accuracy: 5 });
+  await openApp(page);
+  await expect(page.locator('.hud-route')).toContainText('Alpha');
+  await expect(page.locator('.hud-mp')).toHaveText(/11\.9\d{2}/);
+  await expect(page.locator('.hud-caption')).toHaveText('NEAREST MAINLINE MILEPOST');
+  await page.locator('.hud-route').click();
+  // Move near an uncalibrated mainline: it remains selectable beside the usable fallback.
+  await context.setGeolocation({ latitude: 52.4, longitude: -106.05, accuracy: 5 });
+  const choices = page.locator('.chooser__item');
+  await expect(choices.first()).toContainText('away');
+  const alternative = page.getByRole('button', { name: /^Choose this route: Beta/ });
+  await expect(choices.filter({ hasText: 'Beta' })).toContainText('Milepost unavailable');
+  const alternativeName = await alternative.getAttribute('aria-label');
+  await alternative.click();
+  await expect(page.locator('.hud-lock')).toBeVisible();
+  await expect(page.locator('.hud-caption')).toHaveText('SELECTED MAINLINE MILEPOST');
+  await expect(page.locator('.hud-mp')).toHaveText('—');
+  await context.setGeolocation({ latitude: 52.1004, longitude: -106.049, accuracy: 5 });
+  await page.locator('.hud-route').click();
+  await expect(
+    page.getByRole('button', { name: alternativeName ?? '', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Auto · nearest mainline', exact: true }).click();
+  await expect(page.locator('.hud-route')).toContainText('Alpha');
+  await expect(page.locator('.hud-lock')).toHaveCount(0);
+  await expect(page.locator('.hud-mp')).not.toHaveText('—');
 });

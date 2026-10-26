@@ -533,3 +533,22 @@ Validation: core then frontend production builds passed; `npm run coverage` pass
 the pipeline suite with cached real source data passed 407 tests with 99.49% coverage.
 Lint, type checking and formatting passed. Rendered desktop and phone screenshots
 were inspected. Mocked location tests do not replace a physical-phone field check.
+
+## Nearest usable mainline and explicit choice — 2026-10-26
+
+The owner approved bypassing a closer spur/siding in the HUD to show the nearest
+Main-class route whose closest projection has usable mileage. The chooser retains
+uncalibrated mainlines with distance and unavailable labels, shows unverified
+reference points, and preserves manual locks until Auto is chosen. Strict matching
+remains diagnostic in Position details. No dataset or calibration policy changed.
+The superseded nearest-track helper was replaced with the mainline selector.
+
+Validation: core then frontend builds, lint, type checking and format checks passed.
+Unit coverage passed 683 tests; full Playwright passed 251 tests across desktop,
+Android/iPhone Chromium emulation and macOS WebKit. Pipeline tests with cached real
+source data passed 407 tests (99.49% coverage). Synthetic regressions cover closer
+spurs, unavailable-mileage alternatives, manual locks, Auto restoration, calibration
+gaps, distance expansion, missing geometry and stale GPS. Phone-size HUD and chooser
+screenshots were inspected. The supplied example was checked locally against the
+hash-verified public snapshot `nrwn-national-c400fd8d+cantre.0.1.1`; its coordinates
+and per-location results are not committed. Physical-phone GPS remains a field check.
