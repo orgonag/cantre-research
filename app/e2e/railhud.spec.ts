@@ -1,4 +1,13 @@
-import { test, expect, openApp, closeSheet, PLACES, countColour, TRACK_RGB } from './helpers';
+import {
+  test,
+  expect,
+  openApp,
+  openScreen,
+  closeSheet,
+  PLACES,
+  countColour,
+  TRACK_RGB,
+} from './helpers';
 
 // The installed Playwright 1.64.0 / WebKit 2370 mock emits epoch microseconds
 // although its protocol is passed Date.now(). Correct this test-provider unit only;
@@ -23,6 +32,32 @@ test.beforeEach(async ({ page, browserName }) => {
 });
 
 /** The map-first contract; all traffic also goes through the privacy fixture. */
+test('tapping a crossing shows only that feature; the menu still opens the full list', async ({
+  page,
+  context,
+}) => {
+  // Synthetic crossing X2 at P(-5.5, 52.1), centered under the GPS dot.
+  await context.setGeolocation({ latitude: 52.1, longitude: -106.055, accuracy: 5 });
+  await openApp(page);
+  await expect(page.locator('.hud-mp')).not.toHaveText('—');
+  const canvas = page.locator('.map__canvas');
+  await expect(canvas.locator('canvas')).toBeVisible();
+  await expect(async () => {
+    if (!(await page.getByRole('dialog').isVisible())) await canvas.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  }).toPass();
+  const sheet = page.getByRole('dialog');
+  await expect(sheet.getByRole('heading', { name: 'Level crossing', exact: true })).toBeVisible();
+  await expect(sheet.locator('li')).toHaveCount(1);
+  await expect(sheet.locator('details')).toHaveAttribute('open', '');
+  await expect(sheet.getByText('1002', { exact: true })).toBeVisible();
+  await expect(sheet).toContainText('posted MP 11.7');
+  await closeSheet(page);
+  await openScreen(page, 'Visible assets');
+  await expect(sheet.getByRole('heading', { name: 'Visible assets', exact: true })).toBeVisible();
+  expect(await sheet.locator('li').count()).toBeGreaterThan(1);
+});
+
 test('first visit loads itself and the route picker works during a normal match', async ({
   page,
 }, testInfo) => {

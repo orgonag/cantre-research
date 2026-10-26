@@ -95,3 +95,8 @@ extrapolates. Uncalibrated tracks show a route and distance with mileage unavail
 The original strict match result remains available in Position details. Stale or
 missing GPS clears the nearest-track reading as well. Roads/places start on for
 new visits; a saved off choice remains off.
+
+Tapping a map feature opens only that feature, with its name or type as the sheet
+title and its source attributes expanded. Resolve the selection against the loaded
+network so viewport/GPS updates cannot replace it with another visible feature.
+Menu → Visible assets still opens the full viewport list and clears the selection.
