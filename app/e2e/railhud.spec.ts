@@ -49,9 +49,15 @@ test('tapping a crossing shows only that feature; the menu still opens the full 
   const sheet = page.getByRole('dialog');
   await expect(sheet.getByRole('heading', { name: 'Level crossing', exact: true })).toBeVisible();
   await expect(sheet.locator('li')).toHaveCount(1);
-  await expect(sheet.locator('details')).toHaveAttribute('open', '');
-  await expect(sheet.getByText('1002', { exact: true })).toBeVisible();
-  await expect(sheet).toContainText('posted MP 11.7');
+  await expect(sheet.locator('.feature-source')).not.toHaveAttribute('open', '');
+  await expect(sheet.getByText('1002', { exact: true }).first()).toBeVisible();
+  await expect(sheet.getByText('Transport Canada ID', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('TCID', { exact: true })).not.toBeVisible();
+  await expect(sheet.getByText('Alpha', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('Published milepost', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('Calculated milepost', { exact: true })).toBeVisible();
+  await expect(sheet.getByText('MP 11.7', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('feature-details.png') });
   await closeSheet(page);
   await openScreen(page, 'Visible assets');
   await expect(sheet.getByRole('heading', { name: 'Visible assets', exact: true })).toBeVisible();

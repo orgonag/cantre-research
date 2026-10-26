@@ -785,3 +785,25 @@ progress {
   max-width: min(390px, calc(100% - 80px));
   font-size: 12px;
 }
+
+.feature-facts {
+  margin: 0.75rem 0;
+}
+.feature-facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.feature-facts dt {
+  color: var(--muted);
+}
+.feature-facts dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.feature-source {
+  margin-top: 1rem;
+}
