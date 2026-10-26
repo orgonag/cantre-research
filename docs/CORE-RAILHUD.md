@@ -1,6 +1,7 @@
 # Core RailHUD browser build
 
-Implemented on `feat/core-railhud-map`, 2026-10-25. This branch is not deployed.
+Initial core release deployed from PR #14 on 2026-10-26.
+Phone follow-up changes are described below.
 The owner approved a full-screen map with one dark floating HUD and then authorized
 implementation. This supersedes the M4 download-first and optional-map presentation.
 Matching semantics, public data sources and production hosting remain unchanged.
@@ -31,8 +32,7 @@ its data impact and verification are recorded in RESEARCH.md.
 - Screen-awake uses the browser Wake Lock API. Its indicator represents an actually held
   lock. Rejection leaves it off; release updates it; visible resume reacquires only when
   requested. Unsupported browsers have a disabled control.
-- Roads and places remain off until existing basemap consent is given. The optional
-  OpenFreeMap background keeps its fallback and disclosure. Public tiles are not cached
+- Roads and places default on, per the owner's phone follow-up request; an explicitly saved off choice is respected. The OpenFreeMap background keeps its fallback and disclosure. Public tiles are not cached
   for bulk offline use. Research notice and source attribution remain available.
 - Notes, photographs, entries, archive, accounts, telemetry and a new backend are excluded.
 
@@ -83,3 +83,15 @@ accuracy remain unverified. No matcher/index rewrite was justified by this sampl
   frontend; deployment remains an explicit separate action through the existing workflow.
 - Preserve the previous deployment/data artifacts for rollback. No production data or
   deployed site was changed by this branch.
+
+## Phone follow-up contract
+
+The capped card is horizontally centered at all viewport widths. When the strict
+matcher cannot select a track, the HUD searches outward for the nearest mapped
+track, even outside tile coverage or kilometres away. It shows NEAREST TRACK
+MILEPOST and distance from track, not an on-track claim. A selected route restricts
+the search. The calculation uses existing intervals and never bridges a gap or
+extrapolates. Uncalibrated tracks show a route and distance with mileage unavailable.
+The original strict match result remains available in Position details. Stale or
+missing GPS clears the nearest-track reading as well. Roads/places start on for
+new visits; a saved off choice remains off.

@@ -90,9 +90,17 @@ export type Traffic = {
   urls(): string[];
 };
 
-export const test = base.extend<{ traffic: Traffic }>({
+export const test = base.extend<{ traffic: Traffic; freshBasemapDefault: boolean }>({
+  freshBasemapDefault: [false, { option: true }],
   traffic: [
-    async ({ context, baseURL }, use) => {
+    async ({ context, baseURL, freshBasemapDefault }, use) => {
+      // Existing opt-out/privacy cases explicitly start with a saved off choice.
+      // Fresh-default cases opt out of this fixture and exercise the real startup default.
+      if (!freshBasemapDefault)
+        await context.addInitScript(() => {
+          if (localStorage.getItem('cantre.settings.v1') === null)
+            localStorage.setItem('cantre.settings.v1', JSON.stringify({ basemap: false }));
+        });
       const origin = new URL(baseURL ?? 'http://127.0.0.1').origin;
       const headers: Promise<Record<string, string> | null>[] = [];
       const traffic: Traffic = {

@@ -12,9 +12,9 @@ import type { StorageLike } from '../../src/logic/settings.js';
 import { blocked, memoryStorage } from './storage.js';
 
 describe('settings', () => {
-  it('uses miles, English and no basemap by default', () => {
-    expect(loadSettings(memoryStorage())).toEqual({ units: 'mi', lang: 'en', basemap: false });
-    expect(DEFAULT_SETTINGS.basemap).toBe(false);
+  it('uses miles, English and basemap by default', () => {
+    expect(loadSettings(memoryStorage())).toEqual({ units: 'mi', lang: 'en', basemap: true });
+    expect(DEFAULT_SETTINGS.basemap).toBe(true);
   });
 
   it('defaults to French only when the device language says so and nothing is stored', () => {
@@ -41,7 +41,7 @@ describe('settings', () => {
     const store = memoryStorage({
       [SETTINGS_KEY]: '{"units":"furlongs","lang":"fr","basemap":"yes","lat":52.1}',
     });
-    expect(loadSettings(store)).toEqual({ units: 'mi', lang: 'fr', basemap: false });
+    expect(loadSettings(store)).toEqual({ units: 'mi', lang: 'fr', basemap: true });
     expect(loadSettings(memoryStorage({ [SETTINGS_KEY]: 'not json' }))).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(memoryStorage({ [SETTINGS_KEY]: '[1]' }))).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(memoryStorage({ [SETTINGS_KEY]: 'null' }))).toEqual(DEFAULT_SETTINGS);

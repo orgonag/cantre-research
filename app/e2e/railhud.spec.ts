@@ -241,3 +241,57 @@ test('controls remain reachable in narrow and landscape layouts and sheets resto
     );
   }
 });
+
+test('HUD is centered at phone and desktop widths', async ({ page }) => {
+  await openApp(page);
+  for (const width of [320, 390, 430, 844, 1280]) {
+    await page.setViewportSize({ width, height: 844 });
+    const box = await page.locator('.rail-hud').boundingBox();
+    if (!box) throw new Error('HUD missing');
+    expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThan(1);
+    expect(box.x).toBeGreaterThanOrEqual(12);
+  }
+});
+
+test('far from track still shows nearest route and milepost, then clears on stale GPS', async ({
+  page,
+  context,
+}) => {
+  await context.setGeolocation({ ...PLACES.chain, latitude: PLACES.chain.latitude - 0.029 });
+  await openApp(page);
+  await expect(page.locator('.hud-caption')).toHaveText('NEAREST TRACK MILEPOST');
+  await expect(page.locator('.hud-mp')).not.toHaveText('—');
+  await expect(page.locator('.hud-exploring').filter({ hasText: 'from track' })).toBeVisible();
+  await page.clock.install();
+  await page.clock.fastForward(16000);
+  await expect(page.locator('.hud-mp')).toHaveText('—');
+  await expect(page.locator('.hud-caption')).toHaveText('CALCULATED MILEPOST');
+});
+
+test.describe('new visit basemap default', () => {
+  test.use({ freshBasemapDefault: true });
+  test('loads roads automatically and preserves an explicit off choice', async ({
+    page,
+    traffic,
+  }) => {
+    traffic.basemapConsented = true;
+    await page.route('https://tiles.openfreemap.org/**', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          version: 8,
+          sources: {},
+          layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#eee' } }],
+        }),
+      }),
+    );
+    await openApp(page);
+    await expect
+      .poll(() => traffic.urls().some((url) => url.startsWith('https://tiles.openfreemap.org/')))
+      .toBe(true);
+    await page.getByRole('button', { name: 'Layers ▴' }).click();
+    await page.getByRole('button', { name: 'Turn off basemap' }).click();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'Show roads and places' })).toBeVisible();
+  });
+});

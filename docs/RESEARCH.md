@@ -506,3 +506,30 @@ WebKit checks on macOS, following Playwright's recommendation to use macOS for t
 closest Safari behavior: https://playwright.dev/docs/next/browsers. No assertion,
 threshold or test was removed, skipped or relaxed. Physical Safari testing remains
 necessary; this change does not claim support for Linux WebKit rendering.
+
+
+## Phone follow-up: centered HUD, nearest track, basemap default — 2026-10-26
+
+The owner reported an off-center card and no milepost about two miles from Wilkie,
+then requested basemap-on-by-default and authorized push/merge. The card lacked
+horizontal auto margins once its 390 px cap applied. Those margins now center it.
+The strict matching radius (max of 50 m and three times GPS accuracy) deliberately
+has no candidates at that distance. A separate HUD projection now expands the
+search, honors the route lock, labels the nearest track and distance, and uses
+existing calibration only. The strict matching policy is unchanged. No source
+coordinates supplied by the user were retained or used in fixtures.
+
+Synthetic regression: a 3,218 m lateral offset from a line calibrated through
+MP 4.44 returns that projection even with no coverage tiles. Tests also cover a
+closer uncalibrated track, selected-route restriction, absent routes, empty geometry
+and calibration gaps. Browser regressions verify centering at 320/390/430/844/1280 px,
+a distant reading clearing on stale GPS, fresh default basemap loading and a saved
+opt-out surviving reload. Existing privacy cases explicitly seed an off preference;
+the fresh-default case does not. OpenFreeMap receives viewport tile requests as
+explained in the existing disclosure; no exact GPS coordinate is put in a URL.
+
+Validation: core then frontend production builds passed; `npm run coverage` passed
+673 tests, the full Playwright suite passed 243 tests (including macOS WebKit), and
+the pipeline suite with cached real source data passed 407 tests with 99.49% coverage.
+Lint, type checking and formatting passed. Rendered desktop and phone screenshots
+were inspected. Mocked location tests do not replace a physical-phone field check.

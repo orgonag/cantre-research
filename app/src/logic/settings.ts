@@ -14,7 +14,7 @@ export type Settings = {
   /** Distance units for display: miles (default) or kilometres by explicit conversion. */
   readonly units: 'mi' | 'km';
   readonly lang: 'en' | 'fr';
-  /** True once the user has accepted the basemap notice (D2). Off by default. */
+  /** Roads and places are on by default; an explicitly saved off choice is respected. */
   readonly basemap: boolean;
   /** Enabled map layers only; no location or asset IDs. Absent uses the default layers. */
   readonly assetKinds?: readonly AssetKind[];
@@ -25,7 +25,7 @@ export const SETTINGS_KEY = 'cantre.settings.v1';
 export const DEFAULT_SETTINGS: Settings = Object.freeze({
   units: 'mi',
   lang: 'en',
-  basemap: false,
+  basemap: true,
 });
 
 /** The parts of `Storage` the app uses. */
@@ -88,7 +88,7 @@ export function loadSettings(
     ...(assetKinds === undefined ? {} : { assetKinds }),
     units: stored['units'] === 'km' || stored['units'] === 'mi' ? stored['units'] : 'mi',
     lang: stored['lang'] === 'fr' || stored['lang'] === 'en' ? stored['lang'] : deviceLang,
-    basemap: stored['basemap'] === true,
+    basemap: typeof stored['basemap'] === 'boolean' ? stored['basemap'] : true,
   };
 }
 

@@ -264,6 +264,11 @@ test.describe('what the app sends', () => {
         geolocation: place,
       });
       try {
+        // These manually created contexts bypass the fixture's saved-off preference.
+        // Compare location-independent rail-data requests with the basemap disabled.
+        await context.addInitScript(() => {
+          localStorage.setItem('cantre.settings.v1', JSON.stringify({ basemap: false }));
+        });
         const seen: string[] = [];
         context.on('request', (r) => {
           if (r.url().startsWith('http')) {
