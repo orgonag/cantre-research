@@ -73,7 +73,7 @@ The owner authorized the core HUD/map build described in [docs/CORE-RAILHUD.md](
 Use its map-first startup contract instead of the older manual-download/optional-map UI.
 One persistent GPS watch starts alongside automatic verified data loading. Preserve the
 existing strict matcher and route-lock semantics; the HUD also offers the separately labelled
-nearest-track projection authorized on 2026-10-26, including off-network fixes.
+nearest-mainline projection authorized on 2026-10-26, including off-network fixes.
 No private source imports, entries or backend.
 Cache failures must not block a verified online session. The owner changed the basemap default to on (2026-10-26); respect a saved off choice
 and keep the OpenFreeMap disclosure in Layers/About.
@@ -94,9 +94,13 @@ assertion or treat emulation as physical iPhone validation.
 ## Phone follow-up (2026-10-26)
 
 Keep the capped HUD centered with auto inline margins; test narrow phones and wide screens.
-The nearest-track HUD lookup expands beyond the strict matcher's radius, respects the
-selected route, shows distance and uses existing calibrated intervals only. No extrapolation
-or fabricated milepost for an uncalibrated siding. Hide it on stale/no-permission/no-fix.
+The mainline HUD lookup expands beyond the strict matcher's radius and selects the
+nearest Main-class chain with usable mileage; spurs/sidings/yards cannot hide it.
+Keep uncalibrated mainlines selectable, label unverified reference points, and retain
+explicit locks even without mileage. Auto is an explicit unlock. Use each chain's
+nearest pass, never a farther calibrated pass. Show distance and mode; no extrapolation
+or fabricated milepost. Hide readings/choices on stale/no-permission/no-fix. The strict
+matcher remains diagnostic in Position details; only reuse direction for the same chain.
 Legacy privacy tests start with a real saved basemap-off choice; a separate fresh-visit
 case must test default-on and persistent opt-out. Ignore generated build/ in linters.
 

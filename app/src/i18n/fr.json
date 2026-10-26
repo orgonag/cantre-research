@@ -245,8 +245,8 @@
     "hud.recenter": "Recentrer et suivre le GPS",
     "hud.exploring": "Exploration · touchez ◎ pour suivre",
     "hud.waiting": "En attente de localisation",
-    "hud.nearestMp": "POINT MILLIAIRE DE LA VOIE LA PLUS PROCHE",
-    "hud.trackDistance": "À {distance} {unit} de la voie",
+    "hud.nearestMp": "POINT MILLIAIRE DE LA VOIE PRINCIPALE LA PLUS PROCHE",
+    "hud.trackDistance": "À {distance} {unit} de la voie principale",
     "hud.noTrackMp": "Point milliaire indisponible",
     "hud.calculated": "POINT MILLIAIRE CALCULÉ",
     "hud.range": "PLAGE DE POINTS MILLIAIRES",
@@ -299,6 +299,14 @@
     "feature.sourceRecord": "Fiche source",
     "feature.recordId": "Identifiant de la fiche",
     "feature.dataset": "Version du jeu de données",
-    "feature.sourceNote": "Les valeurs proviennent du jeu de données public. Les points milliaires calculés proviennent du calibrage des voies cartographiées."
+    "feature.sourceNote": "Les valeurs proviennent du jeu de données public. Les points milliaires calculés proviennent du calibrage des voies cartographiées.",
+    "mainline.none": "Aucune voie principale disponible pour cette sélection",
+    "mainline.heading": "Voies principales à proximité",
+    "mainline.auto": "Auto · voie principale la plus proche",
+    "mainline.help": "Choisissez une voie principale pour la conserver, ou Auto pour la voie principale la plus proche avec un point milliaire disponible. La distance relie votre position à la voie cartographiée.",
+    "mainline.distance": "À {distance} {unit}",
+    "mainline.unverified": "Points de référence non vérifiés",
+    "mainline.selected": "Sélectionnée",
+    "mainline.lockedCaption": "POINT MILLIAIRE DE LA VOIE SÉLECTIONNÉE"
   }
 }

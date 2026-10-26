@@ -16,10 +16,12 @@ its data impact and verification are recorded in RESEARCH.md.
   decimals, not a precision claim), supported direction, device speed and GPS accuracy.
   Unknown values are dashes. MP remains in railway miles even when display distances
   and speed use kilometres.
-- Tap the subdivision to choose any currently plausible lockable route, including during
-  a normal match. Locks stay visible; conflict does not silently switch tracks. Stale,
-  uncalibrated or conflicting results cannot supply a current single milepost. Historical
-  readings and evidence remain in Position details.
+- Tap the subdivision to choose from nearby mainlines, with distance and calculated
+  mileage (or unavailable) shown for each. Auto chooses the nearest mainline whose
+  closest projection has usable calibration. Spurs, sidings, yards and rapid transit
+  do not replace it. A manual selection stays locked even without mileage; Auto is
+  the explicit return to automatic selection. Stale GPS clears the current reading.
+  The original strict match and its conflicts remain in Position details.
 - Initial mode follows GPS. Dragging pauses follow; a new fix never resumes it. Recenter
   restores follow without resetting the user's zoom. Search fits its result and pauses
   follow. The main HUD always refers to GPS, not a map tap or search result.
@@ -86,15 +88,26 @@ accuracy remain unverified. No matcher/index rewrite was justified by this sampl
 
 ## Phone follow-up contract
 
-The capped card is horizontally centered at all viewport widths. When the strict
-matcher cannot select a track, the HUD searches outward for the nearest mapped
-track, even outside tile coverage or kilometres away. It shows NEAREST TRACK
-MILEPOST and distance from track, not an on-track claim. A selected route restricts
-the search. The calculation uses existing intervals and never bridges a gap or
-extrapolates. Uncalibrated tracks show a route and distance with mileage unavailable.
-The original strict match result remains available in Position details. Stale or
-missing GPS clears the nearest-track reading as well. Roads/places start on for
-new visits; a saved off choice remains off.
+The capped card is horizontally centered at all viewport widths. The main HUD now
+searches for the nearest **mainline with usable mileage**, including off-network fixes.
+It shows NEAREST MAINLINE MILEPOST, distance from mainline and Auto mode. A selected
+route shows SELECTED MAINLINE MILEPOST and a visible lock. These are geometric
+projections, not on-track claims. The GPS map dot stays at the actual fix.
+
+Only Main-class geometry participates. Search starts at 10 km and expands until a
+usable mainline is found or the loaded geometry is exhausted. The chooser lists the
+nearest eight mainline chains plus the current selection if farther away. It keeps
+uncalibrated alternatives visible. Each chain uses its closest projection, never a
+farther calibrated pass substituted for an uncalibrated nearest pass. A lock restricts
+selection without hiding alternatives; missing locked geometry produces no reading.
+Unverified reference points are labelled. If no mainline has usable mileage, show
+the nearest mainline with mileage unavailable. Never bridge gaps or extrapolate.
+
+The original strict match result remains available in Position details. Its direction
+arrow is used only for the same selected chain. Stale or missing GPS clears the
+mainline reading and choices. Roads/places start on for new visits; a saved off
+choice remains off. Tests use synthetic coordinates; physical-phone validation
+remains separate from browser geolocation emulation.
 
 Tapping a map feature opens only that feature, with its name or type as the sheet
 title and its source attributes expanded. Resolve the selection against the loaded
