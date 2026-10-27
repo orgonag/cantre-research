@@ -122,3 +122,20 @@ keeps the original field names, record ID and dataset version for inspection.
 Crossing label semantics were checked against the public
 [NRWN-adapted Ontario crossing dictionary](https://www.publicdocs.mnr.gov.on.ca/mirb/ORWN%20Crossing%20-%20Data%20Description.pdf).
 Source values remain unchanged; Unknown is never converted to None.
+
+## Follow and explore refinement — 2026-10-26
+
+The primary flows are follow-along mainline mileage and free map exploration. Dragging,
+keyboard panning or tapping a location/asset enters exploration. Zoom alone preserves
+following. Exploration compacts the live GPS counter, makes its GPS origin explicit and
+shows a labelled Follow me control. GPS processing and the selected mainline continue
+independently of the camera. Follow me closes inspection and recentres without resetting
+zoom. Stale/no-fix readings remain unavailable.
+
+A selected asset opens a non-modal panel with a fixed header and scrollable body with its own source information.
+The map remains interactive so another asset can be selected directly. The selected
+marker has a larger green outline. Tap targets extend 14 CSS pixels around the pointer;
+nearby rendered features are ranked by screen distance, with IDs breaking exact ties.
+Blank-map taps replace asset inspection with the existing map-position lookup. Closing
+inspection does not resume following. Menu/list/settings sheets retain modal behavior.
+These changes do not alter matching, calibration, source data or route-lock semantics.

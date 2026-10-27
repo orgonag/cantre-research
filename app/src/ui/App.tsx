@@ -509,7 +509,7 @@ export function App(props: {
                     : t('hud.menu');
   return (
     <main
-      class="rail-app"
+      class={`rail-app ${following ? 'is-following' : 'is-exploring'}`}
       onClickCapture={(event) => {
         // Safari does not focus buttons on pointer click. Remember the actual opener
         // so closing a modal restores focus consistently for mouse, touch and keyboard.
@@ -526,8 +526,14 @@ export function App(props: {
         kinds={kinds}
         onAssets={setAssets}
         onAssetTap={(id) => {
+          setFollowing(false);
           setSelectedAsset(id);
           setScreen('assets');
+        }}
+        selectedAsset={screen === 'assets' ? selectedAsset : null}
+        onMapTap={() => {
+          setSelectedAsset(null);
+          setScreen('main');
         }}
         following={following}
         onExplore={() => {
@@ -669,7 +675,7 @@ export function App(props: {
             {t('hud.offline')}
           </p>
         )}
-        {!following && <p class="hud-exploring">{t('hud.exploring')}</p>}
+        {!following && <p class="hud-mode">{t('hud.exploring')}</p>}
         {reloadNotice && (
           <button
             class="hud-notice"
@@ -711,11 +717,13 @@ export function App(props: {
           aria-pressed={following}
           disabled={!live}
           onClick={() => {
+            setScreen('main');
+            setSelectedAsset(null);
             setFollowing(true);
             setRecenter((n) => n + 1);
           }}
         >
-          ◎
+          {following ? '◎' : `◎ ${t('hud.follow')}`}
         </button>
       </div>
       {!settings.basemap && (
@@ -732,10 +740,12 @@ export function App(props: {
       {view && <LiveRegion model={view.model} nowMs={view.nowMs} />}
       {screen !== 'main' && (
         <Sheet
+          modal={!(screen === 'assets' && selectedAsset !== null)}
           opener={sheetOpener.current}
           title={title}
           onClose={() => {
             setScreen('main');
+            setSelectedAsset(null);
           }}
         >
           {screen === 'menu' && (

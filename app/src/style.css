@@ -807,3 +807,64 @@ progress {
 .feature-source {
   margin-top: 1rem;
 }
+
+/* Exploration keeps a live GPS reference but gives priority to the map. */
+.is-exploring .rail-hud {
+  padding: 8px 12px;
+}
+.is-exploring .hud-mp {
+  font-size: 28px;
+  letter-spacing: -1px;
+}
+.is-exploring .hud-stats,
+.is-exploring .rail-hud > .hud-exploring {
+  display: none;
+}
+.hud-mode {
+  text-align: center;
+  font-size: 11px;
+  margin: 6px 0 0;
+  color: #d9d6cb;
+}
+.is-exploring .hud-recenter {
+  width: auto;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.asset-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  bottom: max(104px, calc(env(safe-area-inset-bottom) + 89px));
+  width: min(440px, calc(100% - 28px));
+  max-height: min(38dvh, calc(50dvh - 124px));
+  z-index: 3;
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 5px 25px #0004;
+}
+.asset-panel .sheet-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.asset-panel .sheet-header {
+  flex-shrink: 0;
+  padding: 10px 0;
+  background: var(--bg);
+}
+@media (max-height: 500px) and (min-width: 640px) {
+  .is-exploring .rail-hud {
+    right: auto;
+    width: 280px;
+  }
+  .asset-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    left: auto;
+    right: 14px;
+    width: 320px;
+    max-height: 65dvh;
+  }
+}

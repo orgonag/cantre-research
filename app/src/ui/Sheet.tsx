@@ -9,23 +9,39 @@ export function Sheet(props: {
   onClose: () => void;
   children: ComponentChildren;
   opener?: HTMLElement | null;
+  /** Asset inspection leaves the map interactive; other sheets remain modal. */
+  modal?: boolean;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLElement>(null);
   const close = useRef(props.onClose);
   close.current = props.onClose;
   useEffect(() => {
     const opener = props.opener ?? document.activeElement;
     const el = dialog.current;
-    el?.showModal();
+    if (el instanceof HTMLDialogElement) el.showModal();
+    else el?.querySelector<HTMLButtonElement>('button')?.focus();
+    const escape = (event: KeyboardEvent) => {
+      if (props.modal === false && event.key === 'Escape') {
+        event.preventDefault();
+        close.current();
+      }
+    };
+    document.addEventListener('keydown', escape);
     return () => {
-      el?.close();
+      document.removeEventListener('keydown', escape);
+      if (el instanceof HTMLDialogElement) el.close();
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
-  }, []);
+  }, [props.modal]);
+  const Panel = props.modal === false ? 'section' : 'dialog';
   return (
-    <dialog
-      ref={dialog}
-      class="hud-sheet"
+    <Panel
+      role="dialog"
+      ref={(element: HTMLElement | null) => {
+        dialog.current = element;
+      }}
+      class={`hud-sheet ${props.modal === false ? 'asset-panel' : ''}`}
+      aria-modal={props.modal === false ? 'false' : 'true'}
       aria-labelledby="sheet-title"
       onCancel={(e) => {
         e.preventDefault();
@@ -38,7 +54,7 @@ export function Sheet(props: {
           ×
         </button>
       </div>
-      {props.children}
-    </dialog>
+      <div class="sheet-body">{props.children}</div>
+    </Panel>
   );
 }

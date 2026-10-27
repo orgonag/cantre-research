@@ -552,3 +552,26 @@ gaps, distance expansion, missing geometry and stale GPS. Phone-size HUD and cho
 screenshots were inspected. The supplied example was checked locally against the
 hash-verified public snapshot `nrwn-national-c400fd8d+cantre.0.1.1`; its coordinates
 and per-location results are not committed. Physical-phone GPS remains a field check.
+
+## Follow-along and map exploration — 2026-10-26
+
+The owner clarified two primary uses: a GPS-following mainline milepost counter and
+free map exploration with asset information. Exploration now compacts the GPS HUD,
+keeps its origin explicit, highlights a tapped asset and opens a non-modal information
+panel. GPS processing and explicit mainline locks survive panning and inspection.
+Follow me closes inspection and restores camera following while retaining zoom.
+Keyboard arrows enter exploration; zoom alone does not. Asset touch targets are
+ranked by screen distance rather than renderer order. No calculation/data changes.
+
+The panel has a fixed header and a separate scrolling body. Chromium painted a blank
+rectangle above the fixed overflow-auto panel over WebGL; separating the scrollable
+body resolved it. A screenshot pixel regression catches that exposed-map defect.
+Phone and desktop screenshots were inspected using synthetic fixtures.
+
+Validation: 683 JavaScript tests with coverage; 407 pipeline tests with cached real
+source inputs and no skips; 259 browser tests across desktop, Pixel/iPhone Chromium
+layouts and macOS WebKit. Lint, typecheck and formatting pass. Core was built before
+the production frontend. Browser checks include moving GPS while an asset stays
+selected, preserving a mainline lock, pan/recenter, keyboard navigation and Escape.
+Physical-device GPS and field accuracy remain unverified. This change is prepared
+for review and has not been deployed.
