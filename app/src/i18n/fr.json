@@ -243,7 +243,7 @@
     "hud.route": "Choisir un itinéraire",
     "hud.layers": "Couches",
     "hud.recenter": "Recentrer et suivre le GPS",
-    "hud.exploring": "Exploration · touchez ◎ pour suivre",
+    "hud.exploring": "Exploration · le compteur indique votre position GPS",
     "hud.waiting": "En attente de localisation",
     "hud.nearestMp": "POINT MILLIAIRE DE LA VOIE PRINCIPALE LA PLUS PROCHE",
     "hud.trackDistance": "À {distance} {unit} de la voie principale",
@@ -307,6 +307,7 @@
     "mainline.distance": "À {distance} {unit}",
     "mainline.unverified": "Points de référence non vérifiés",
     "mainline.selected": "Sélectionnée",
-    "mainline.lockedCaption": "POINT MILLIAIRE DE LA VOIE SÉLECTIONNÉE"
+    "mainline.lockedCaption": "POINT MILLIAIRE DE LA VOIE SÉLECTIONNÉE",
+    "hud.follow": "Me suivre"
   }
 }

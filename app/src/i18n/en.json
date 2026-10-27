@@ -243,7 +243,7 @@
     "hud.route": "Choose route",
     "hud.layers": "Layers",
     "hud.recenter": "Recenter and follow GPS",
-    "hud.exploring": "Exploring map · tap ◎ to follow",
+    "hud.exploring": "Exploring map · counter shows your GPS position",
     "hud.waiting": "Waiting for location",
     "hud.nearestMp": "NEAREST MAINLINE MILEPOST",
     "hud.trackDistance": "{distance} {unit} from mainline",
@@ -307,6 +307,7 @@
     "mainline.distance": "{distance} {unit} away",
     "mainline.unverified": "Unverified reference points",
     "mainline.selected": "Selected",
-    "mainline.lockedCaption": "SELECTED MAINLINE MILEPOST"
+    "mainline.lockedCaption": "SELECTED MAINLINE MILEPOST",
+    "hud.follow": "Follow me"
   }
 }

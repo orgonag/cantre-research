@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AssetKind, LatLon, NetworkAsset, NetworkView } from '@cantre/core';
-import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import type { ExpressionSpecification, GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { ASSET_KINDS, visibleAssets } from '../logic/visibleAssets.js';
 import { t } from '../i18n/index.js';
 import { presentTap } from '../logic/find.js';
@@ -59,6 +59,8 @@ export function MapView(props: {
   readonly kinds?: readonly AssetKind[];
   readonly onAssets?: (assets: readonly NetworkAsset[]) => void;
   readonly onAssetTap?: (id: string) => void;
+  readonly onMapTap?: () => void;
+  readonly selectedAsset?: string | null;
   readonly following?: boolean;
   readonly onExplore?: () => void;
   readonly recenter?: number;
@@ -146,6 +148,18 @@ export function MapView(props: {
       })),
     });
     controls.current.onAssets?.(assets);
+    highlightAsset(map);
+  };
+  const highlightAsset = (map: MapLibreMap): void => {
+    if (!map.getLayer('assets')) return;
+    const selected: ExpressionSpecification = [
+      '==',
+      ['get', 'id'],
+      controls.current.selectedAsset ?? '',
+    ];
+    map.setPaintProperty('assets', 'circle-radius', ['case', selected, 9, 5]);
+    map.setPaintProperty('assets', 'circle-stroke-width', ['case', selected, 4, 2]);
+    map.setPaintProperty('assets', 'circle-stroke-color', ['case', selected, '#32d9a1', '#ffffff']);
   };
   /** The small layers: the fix and its accuracy circle, and the found locations. */
   const pushMarkers = (map: MapLibreMap): void => {
@@ -208,19 +222,48 @@ export function MapView(props: {
         map.on('dragstart', (event) => {
           if (event.originalEvent) controls.current.onExplore?.();
         });
+        map.on('movestart', (event) => {
+          if (
+            event.originalEvent instanceof KeyboardEvent &&
+            ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.originalEvent.key)
+          ) {
+            controls.current.onExplore?.();
+          }
+        });
         map.on('moveend', () => {
           if (map.getSource(SOURCE.assets)) pushAssets(map);
         });
         map.on('click', (event) => {
-          const asset = map.getLayer('assets')
-            ? map.queryRenderedFeatures(event.point, { layers: ['assets'] })[0]
-            : undefined;
+          // A small screen-space target helps fingers without choosing by render order.
+          // Rank nearby rendered markers by distance in CSS pixels; source IDs break ties.
+          const hits = map.getLayer('assets')
+            ? map.queryRenderedFeatures(
+                [
+                  [event.point.x - 14, event.point.y - 14],
+                  [event.point.x + 14, event.point.y + 14],
+                ],
+                { layers: ['assets'] },
+              )
+            : [];
+          const distance = (feature: (typeof hits)[number]) => {
+            const asset = latest.current.net.assets.find((a) => a.id === feature.properties['id']);
+            if (!asset) return Infinity;
+            const point = map.project([asset.at.lon, asset.at.lat]);
+            return Math.hypot(point.x - event.point.x, point.y - event.point.y);
+          };
+          const asset = hits.sort(
+            (a, b) =>
+              distance(a) - distance(b) ||
+              String(a.properties['id']).localeCompare(String(b.properties['id'])),
+          )[0];
+          controls.current.onExplore?.();
           const id: unknown = asset?.properties['id'];
           if (typeof id === 'string') {
             setTap(null);
             controls.current.onAssetTap?.(id);
             return;
           }
+          controls.current.onMapTap?.();
           setTap(presentTap(latest.current.net, { lat: event.lngLat.lat, lon: event.lngLat.lng }));
         });
         setState('ready');
@@ -281,6 +324,15 @@ export function MapView(props: {
     const map = mapRef.current;
     if (map !== null) pushAssets(map);
   }, [props.kinds, following, state]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) highlightAsset(map);
+  }, [props.selectedAsset, state]);
+
+  useEffect(() => {
+    if (following) setTap(null);
+  }, [following, recenter]);
 
   // A new fix or new pins: redraw the small layers. Keyed on the numbers, so a fresh object
   // with the same values does not redraw.

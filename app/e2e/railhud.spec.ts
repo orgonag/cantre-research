@@ -57,6 +57,17 @@ test('tapping a crossing shows only that feature; the menu still opens the full 
   await expect(sheet.getByText('Published milepost', { exact: true })).toBeVisible();
   await expect(sheet.getByText('Calculated milepost', { exact: true })).toBeVisible();
   await expect(sheet.getByText('MP 11.7', { exact: true }).first()).toBeVisible();
+  // The non-modal panel must not paint a blank rectangle over the map above it.
+  await expect
+    .poll(async () =>
+      countColour(context, await page.screenshot(), [255, 255, 255], 1, {
+        x: 0.48,
+        y: 0.3,
+        w: 0.04,
+        h: 0.05,
+      }),
+    )
+    .toBe(0);
   await page.screenshot({ path: test.info().outputPath('feature-details.png') });
   await closeSheet(page);
   await openScreen(page, 'Visible assets');
@@ -366,4 +377,66 @@ test('a nearby siding does not hide mainlines; manual choice holds until Auto', 
   await expect(page.locator('.hud-route')).toContainText('Alpha');
   await expect(page.locator('.hud-lock')).toHaveCount(0);
   await expect(page.locator('.hud-mp')).not.toHaveText('—');
+});
+
+test('asset exploration keeps the map usable and the chosen mainline through moving GPS', async ({
+  page,
+  context,
+}) => {
+  await context.setGeolocation({ latitude: 52.1, longitude: -106.055, accuracy: 5 });
+  await openApp(page);
+  await expect(page.locator('.hud-mp')).not.toHaveText('—');
+  await page.locator('.hud-route').click();
+  await page.getByRole('button', { name: /^Choose this route: Alpha/ }).click();
+  const canvas = page.locator('.map__canvas canvas');
+  await expect(canvas).toBeVisible();
+  await expect(async () => {
+    if (!(await page.locator('.asset-panel').isVisible())) await canvas.click();
+    await expect(page.locator('.asset-panel')).toBeVisible();
+  }).toPass();
+  const panel = page.locator('.asset-panel');
+  await expect(panel).toHaveAttribute('aria-modal', 'false');
+  await expect(page.locator('.hud-recenter')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.hud-recenter')).toContainText('Follow me');
+  await expect(page.locator('.hud-lock')).toBeVisible();
+  const reading = await page.locator('.hud-mp').innerText();
+  await context.setGeolocation({ latitude: 52.1, longitude: -106.045, accuracy: 5 });
+  await expect(page.locator('.hud-mp')).not.toHaveText(reading);
+  await expect(panel.getByText('1002', { exact: true }).first()).toBeVisible();
+  // Real map gestures remain available while inspecting the selected feature.
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('missing map');
+  await page.mouse.move(box.width * 0.45, box.height * 0.35);
+  await page.mouse.down();
+  await page.mouse.move(box.width * 0.65, box.height * 0.4, { steps: 8 });
+  await page.mouse.up();
+  await expect(panel).toBeVisible();
+  await expect(page.locator('.hud-lock')).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('explore-asset.png') });
+  await page.locator('.hud-recenter').click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('.hud-recenter')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.hud-lock')).toBeVisible();
+  await expect(page.locator('.hud-stats')).toBeVisible();
+});
+
+test('keyboard map panning enters exploration and Escape dismisses asset inspection', async ({
+  page,
+  context,
+}) => {
+  await context.setGeolocation({ latitude: 52.1, longitude: -106.055, accuracy: 5 });
+  await openApp(page);
+  await expect(page.locator('.hud-mp')).not.toHaveText('—');
+  const canvas = page.locator('.map__canvas canvas');
+  await expect(canvas).toBeVisible();
+  await expect(async () => {
+    if (!(await page.locator('.asset-panel').isVisible())) await canvas.click();
+    await expect(page.locator('.asset-panel')).toBeVisible();
+  }).toPass();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.asset-panel')).toHaveCount(0);
+  await page.locator('.hud-recenter').click();
+  await canvas.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.hud-recenter')).toHaveAttribute('aria-pressed', 'false');
 });

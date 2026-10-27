@@ -109,3 +109,21 @@ Resolve subdivision names from the asset's own posted/chain associations, never 
 phone's current route. Keep published, TC, unverified and calculated mileposts distinct,
 including separate subdivisions at a diamond. Retain raw fields and record/dataset IDs
 under Source record; a missing TC ID or milepost is not inferred from a nearby feature.
+
+## Follow and explore (2026-10-26)
+
+The two primary flows are a live mainline counter with GPS following, and free map
+exploration with per-asset information. Panning (including keyboard arrows) or tapping
+the map pauses camera following, not the GPS session or selected mainline. Zoom alone
+keeps follow active. Follow me explicitly restores following and closes map inspection.
+Exploration uses a compact GPS counter; map taps never become GPS fixes or route locks.
+A tapped asset uses a non-modal dialog panel so the map and other assets remain usable.
+Other sheets remain modal. Modal sheets use a native dialog; the asset panel exposes dialog semantics without
+making the map inert. Escape for non-modal inspection is handled explicitly. Highlight the selected marker,
+retain its identity through GPS/viewport updates, and rank touch hit targets in screen
+pixels rather than by renderer order. Preserve source-specific asset facts and unknowns.
+
+Keep the asset panel frame overflow-hidden with a separate scrolling body. Chromium
+painted a white rectangle above a fixed overflow-auto panel over WebGL; the pixel
+regression checks that the exposed map stays visible. Keep the close button outside
+the scrolling body and the panel below the map centre in portrait layouts.
