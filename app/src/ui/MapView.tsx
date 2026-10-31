@@ -5,10 +5,12 @@ import { ASSET_KINDS, visibleAssets } from '../logic/visibleAssets.js';
 import { t } from '../i18n/index.js';
 import { presentTap } from '../logic/find.js';
 import type { Pin, TapModel } from '../logic/find.js';
+import { assetCompanies } from '../logic/companies.js';
 import {
   BASEMAP_STYLE_URL,
   SOURCE,
   attributionOf,
+  assetMapProperties,
   cantreLayers,
   cantreSources,
   displayDataOf,
@@ -57,6 +59,7 @@ export function MapView(props: {
   readonly pins: readonly Pin[];
   readonly basemap: boolean;
   readonly kinds?: readonly AssetKind[];
+  readonly company?: string;
   readonly onAssets?: (assets: readonly NetworkAsset[]) => void;
   readonly onAssetTap?: (id: string) => void;
   readonly onMapTap?: () => void;
@@ -119,7 +122,24 @@ export function MapView(props: {
   const pushNetwork = (map: MapLibreMap): void => {
     const display = displayDataOf(latest.current.net);
     setSource(map, SOURCE.tracks, display.tracks);
+    filterTracks(map);
     pushAssets(map);
+  };
+  const filterTracks = (map: MapLibreMap): void => {
+    const company = controls.current.company ?? '';
+    const filter: ExpressionSpecification | null = company
+      ? ['in', company, ['get', 'companyIds']]
+      : null;
+    const bases: Record<string, ExpressionSpecification | null> = {
+      'tracks-halo': null,
+      'tracks-other': ['==', ['get', 'kind'], 'other'],
+      'tracks-chain': ['all', ['==', ['get', 'kind'], 'chain'], ['!', ['get', 'shared']]],
+      'tracks-shared': ['all', ['==', ['get', 'kind'], 'chain'], ['get', 'shared']],
+    };
+    for (const [id, base] of Object.entries(bases)) {
+      if (map.getLayer(id))
+        map.setFilter(id, filter ? (base ? ['all', base, filter] : filter) : base);
+    }
   };
   const pushAssets = (map: MapLibreMap): void => {
     const bounds = map.getBounds();
@@ -129,7 +149,11 @@ export function MapView(props: {
         ? latest.current.fix
         : { lat: c.lat, lon: c.lng };
     const assets = visibleAssets(
-      latest.current.net.assets,
+      controls.current.company
+        ? latest.current.net.assets.filter((a) =>
+            assetCompanies(a, latest.current.net).some((c) => c.id === controls.current.company),
+          )
+        : latest.current.net.assets,
       controls.current.kinds ?? ASSET_KINDS,
       anchor,
       {
@@ -143,7 +167,7 @@ export function MapView(props: {
       type: 'FeatureCollection',
       features: assets.map((a) => ({
         type: 'Feature',
-        properties: { id: a.id, kind: a.kind },
+        properties: assetMapProperties(a, latest.current.net),
         geometry: { type: 'Point', coordinates: [a.at.lon, a.at.lat] },
       })),
     });
@@ -264,7 +288,13 @@ export function MapView(props: {
             return;
           }
           controls.current.onMapTap?.();
-          setTap(presentTap(latest.current.net, { lat: event.lngLat.lat, lon: event.lngLat.lng }));
+          setTap(
+            presentTap(
+              latest.current.net,
+              { lat: event.lngLat.lat, lon: event.lngLat.lng },
+              controls.current.company,
+            ),
+          );
         });
         setState('ready');
       } catch {
@@ -324,6 +354,15 @@ export function MapView(props: {
     const map = mapRef.current;
     if (map !== null) pushAssets(map);
   }, [props.kinds, following, state]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) {
+      filterTracks(map);
+      pushAssets(map);
+    }
+    setTap(null);
+  }, [props.company, state]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -416,6 +455,7 @@ export function MapView(props: {
                 <strong>
                   {t('map.tap.row', { subdivision: row.subdivision, trackClass: row.trackClass })}
                 </strong>
+                <span class="map__company-name">{row.company}</span>
                 {': '}
                 {row.mpText ?? row.noMpText}
                 <span class="muted"> · {row.offsetText}</span>

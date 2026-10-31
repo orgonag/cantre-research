@@ -147,3 +147,11 @@ its passive effect installed the key listener. The existing Pixel 7 browser regr
 failed in 2 of 8 repeated runs. Sheet focus, native-dialog opening and the Escape
 listener now initialize in a layout effect, before paint. Cleanup still removes the
 listener and restores the opener. Validation is recorded in the research log.
+
+### Railway company display — 2026-10-30
+
+The company display adds source-operator colours, labels and a Layers selector.
+Filtering affects the map, map-tap explanations and the shared visible-assets list,
+while GPS following, matching, mainline choice and locks retain the full network.
+The source alias audit, historical-name limits, shared-operator representation and
+unknown handling are specified in [COMPANIES.md](COMPANIES.md).

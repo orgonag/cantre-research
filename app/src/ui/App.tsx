@@ -22,6 +22,9 @@ import { directionTracker, present } from '../logic/present.js';
 import type { CardModel } from '../logic/present.js';
 import { mainlines } from '../logic/mainlines.js';
 import { MainlineChooser } from './MainlineChooser.js';
+import { activeCompany, companiesOf, companyIndex, companyLabel } from '../logic/companies.js';
+import { CompanyLayers } from './CompanyLayers.js';
+import { CompanyLabel } from './CompanyLabel.js';
 import { createSession } from '../logic/session.js';
 import type { Session } from '../logic/session.js';
 import { updateSettings } from '../logic/settings.js';
@@ -450,6 +453,9 @@ export function App(props: {
     </button>
   );
   const model = view?.model;
+  const companies = companyIndex(data?.net ?? EMPTY_NETWORK).choices;
+  const company = activeCompany(data?.net ?? EMPTY_NETWORK, settings.company);
+  const filteredCompany = companies.find((c) => c.id === company);
   const result = view?.result;
   const live = view?.fix !== null && view?.fix !== undefined;
   const mainlineSearch = useMemo(
@@ -524,6 +530,7 @@ export function App(props: {
         pins={pins}
         basemap={settings.basemap}
         kinds={kinds}
+        company={company}
         onAssets={setAssets}
         onAssetTap={(id) => {
           setFollowing(false);
@@ -584,6 +591,13 @@ export function App(props: {
           </button>
           <WakeButton />
         </div>
+        {nearest && (
+          <div class="hud-company" aria-label={t('company.heading')}>
+            {companiesOf(nearest.candidate.operator.split('+')).map((c) => (
+              <CompanyLabel key={c.id} company={c} compact />
+            ))}
+          </div>
+        )}
         <button
           class="hud-reading"
           type="button"
@@ -704,11 +718,18 @@ export function App(props: {
         <button
           class="hud-pill"
           type="button"
+          aria-label={`${t('hud.layers')} ▴`}
+          aria-describedby={filteredCompany ? 'map-company-filter' : undefined}
           onClick={() => {
             setScreen('layers');
           }}
         >
           {t('hud.layers')} ▴
+          {filteredCompany && (
+            <span id="map-company-filter" class="hud-filter-label">
+              {companyLabel(filteredCompany)}
+            </span>
+          )}
         </button>
         <button
           class={`hud-pill hud-recenter ${following ? 'is-following' : ''}`}
@@ -814,6 +835,13 @@ export function App(props: {
             ))}
           {screen === 'layers' && (
             <>
+              <CompanyLayers
+                companies={companies}
+                selected={company}
+                onChange={(id) => {
+                  changeSettings({ company: id });
+                }}
+              />
               <fieldset>
                 <legend>{t('hud.layers')}</legend>
                 {availableKinds.map((kind) => (

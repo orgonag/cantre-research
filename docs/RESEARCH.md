@@ -2,10 +2,10 @@
 
 ## Current publication status — checked 2026-10-30
 
-The public app includes PR #19, merged as
-`1cf25c10d8f8000443a2768b496f3248edc6817b` on 2026-10-27 UTC (October 26 in Saskatchewan).
-[CI run 40448650275](https://github.com/orgonag/cantre-research/actions/runs/40448650275)
-and [Pages deployment 40448663636](https://github.com/orgonag/cantre-research/actions/runs/40448663636)
+The public app includes PR #20, merged as
+`b8fa7826acd59c454308febac1c7e1d29feaa072` on October 30 Saskatchewan time.
+[CI run 41169075749](https://github.com/orgonag/cantre-research/actions/runs/41169075749)
+and [Pages deployment 41169085428](https://github.com/orgonag/cantre-research/actions/runs/41169085428)
 completed successfully. This status supersedes the pre-deployment wording in dated
 entries below; those entries remain a record of what was known at the time.
 
@@ -27,7 +27,7 @@ strict matching remains in Position details. The basemap defaults on and reveals
 the displayed area through tile requests. [Quick start](QUICK-START.md) and
 [data/privacy details](DATA-LICENSES.md) describe the current public interface.
 
-### Publication preparation and keyboard repair — not deployed
+### Publication preparation and keyboard repair — deployed in PR #20
 
 The publication review corrected stale release status, pipeline version, basemap
 privacy wording and the distinction between the historical pilot and current core
@@ -51,9 +51,29 @@ Validation of the prepared change on October 30 Saskatchewan time:
 - The existing immediate-Escape test repeated eight times in each of four browser
   projects: 32 passed after the fix.
 
-These are local automated checks. The prepared change has not been deployed;
-physical-device GPS acquisition, endurance and independent field accuracy remain
-unverified.
+After merge, all four CI jobs and the Pages deployment passed. Fourteen live site
+files matched the deployment artifact byte for byte. Reopening the browser after
+the service-worker update confirmed the deployed interface. Physical-device GPS
+acquisition, endurance and independent field accuracy remain unverified.
+
+### Railway company display — prepared 2026-10-30
+
+The requested map addition gives reported railway companies stable colours,
+company names in route/asset/map-tap details, and a saved selector plus legend in
+Layers. Filters affect the rendered tracks and visible asset markers/list only;
+the full calculation network, GPS counter and explicit mainline lock are retained.
+The source-name aliases were checked against all eleven pinned public NRWN TRACK
+packages. Conflicting source marks and unknowns remain separate; historical CPR
+records are not relabelled as current CPKC ownership. See [COMPANIES.md](COMPANIES.md).
+
+Local validation: 690 JavaScript tests with coverage, 407 pipeline tests with cached
+public inputs and no skips, and 263 browser tests across desktop, mobile layouts
+and macOS WebKit passed. Lint, formatting, typecheck, Ruff and strict mypy passed.
+Core was built before the frontend. A rendered-pixel browser check confirms that
+company filtering hides/restores tracks while keeping the GPS dot, mileage and
+route lock. A public-data preview also verified CN and CPR colours and filters
+around Saskatoon. No pipeline or generated-data bytes changed. These checks do not
+establish current ownership, physical-phone GPS behavior or field accuracy.
 
 ## 2026-10-16 — Local exploratory pilot
 

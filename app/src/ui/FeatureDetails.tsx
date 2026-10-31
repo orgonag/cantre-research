@@ -3,6 +3,8 @@ import type { AssetDetails } from '@cantre/data-client';
 import { getLang, t } from '../i18n/index.js';
 import { assetSource } from '../logic/present.js';
 import { featureFields, featureLocations } from '../logic/assetDetails.js';
+import { assetCompanies } from '../logic/companies.js';
+import { CompanyLabel } from './CompanyLabel.js';
 
 /** A readable summary backed by the installed record; no per-feature requests. */
 export function FeatureDetails(props: {
@@ -21,6 +23,14 @@ export function FeatureDetails(props: {
         <div>
           <dt>{t('feature.assetType')}</dt>
           <dd>{t(`asset.kind.${asset.kind}`)}</dd>
+        </div>
+        <div>
+          <dt>{t('company.associated')}</dt>
+          <dd>
+            {assetCompanies(asset, net).map((company) => (
+              <CompanyLabel key={company.id} company={company} />
+            ))}
+          </dd>
         </div>
       </dl>
       {locations.length ? (

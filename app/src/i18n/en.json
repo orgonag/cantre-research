@@ -308,6 +308,16 @@
     "mainline.unverified": "Unverified reference points",
     "mainline.selected": "Selected",
     "mainline.lockedCaption": "SELECTED MAINLINE MILEPOST",
-    "hud.follow": "Follow me"
+    "hud.follow": "Follow me",
+    "company.heading": "Railway companies",
+    "company.filter": "Show railway company",
+    "company.all": "All companies",
+    "company.unknown": "Not recorded / unknown",
+    "company.filterHelp": "Filters the map and visible-assets list. Your GPS counter and selected mainline stay unchanged.",
+    "company.legend": "Company colour legend",
+    "company.multiple": "Multiple reported operators · dashed mainline",
+    "company.colourNote": "Some colours repeat across the national list. Use the company name to identify a railway.",
+    "company.sourceNote": "Companies are the operators reported by the public source, which may be dated. A colour does not establish current ownership or operating rights.",
+    "company.associated": "Associated route operators"
   }
 }

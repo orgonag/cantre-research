@@ -26,7 +26,10 @@ licence. The app runs in the browser, with no account or app installation requir
 - Use **Menu → Find a location** to search by subdivision and milepost without GPS.
   A result is dataset-derived. Missing calibration gives no result, rather than an
   extrapolated position.
-- Use **Layers** for crossing/bridge filters and the roads-and-places basemap.
+- Use **Layers** to filter by railway company, see the company colour legend,
+  choose crossing/bridge layers and control the roads-and-places basemap.
+  Company labels follow the public source; filtering leaves the GPS counter and
+  selected mainline unchanged. See [company display](docs/COMPANIES.md).
   Previously cached app and rail data can support later offline use; background map
   tiles are not cached by CANTRE.
 

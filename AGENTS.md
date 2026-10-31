@@ -143,3 +143,14 @@ not mean M5 evaluation, independent field validation or M6 publication is comple
 Sheet focus and Escape setup use a layout effect. A passive effect lets a non-modal
 asset panel become visible before its key handler exists; immediate Escape can be
 lost. Keep the existing immediate-Escape browser check, including mobile layouts.
+
+## Railway company display (2026-10-30)
+
+Company colours/filters are presentation only. Keep the full network in matching
+and the GPS mainline search even when a company is hidden on the map. Filter map
+tap results and the shared marker/list set consistently; restore filters after a
+basemap style reload. The blue GPS marker must stay independent of company colours.
+Source aliases and known conflicts are documented in docs/COMPANIES.md. Never turn
+Unknown into a named operator, infer current CPKC ownership from old CPR records,
+or collapse the conflicting SRCL/West Coast names. Asset companies come only from
+explicit chain/subdivision associations, never the user's selected route.

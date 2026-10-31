@@ -37,6 +37,11 @@ result and diagnostics. Reloading clears a route lock with a notice.
 ## Layers, sources and privacy
 
 - **Layers** controls crossings, bridges and **Roads and places**.
+- **Layers → Railway companies** filters the map to a reported operator and shows
+  its colour legend. **All companies** restores the complete display. The GPS
+  counter and selected mainline keep working independently of this map filter.
+  Names are those reported by the source and may be historical. Multiple reported
+  operators use a separate dashed mainline style; unknown operators stay grey.
 - The OpenFreeMap background is on by default. Tile requests reveal the displayed
   area and your internet address to its provider; following GPS can reveal your
   approximate location. Turn off Roads and places to stop those requests. A saved

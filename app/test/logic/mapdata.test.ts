@@ -51,23 +51,23 @@ describe('displayDataOf', () => {
     const { tracks } = displayDataOf(sample);
     expect(tracks.features).toHaveLength(2);
     const first = tracks.features[0];
-    expect(first?.properties).toEqual({ kind: 'chain' });
+    expect(first?.properties).toMatchObject({ kind: 'chain', companyIds: ['CN'], shared: false });
     expect(first?.geometry).toEqual({
       type: 'LineString',
       coordinates: c1.pts.map((p) => [p.lon, p.lat]),
     });
-    expect(tracks.features[1]?.properties).toEqual({ kind: 'other' });
+    expect(tracks.features[1]?.properties).toMatchObject({ kind: 'other', companyIds: ['CN'] });
   });
 
   it('draws assets as points with their id and kind', () => {
     const { assets } = displayDataOf(sample);
-    expect(assets.features).toEqual([
-      {
-        type: 'Feature',
-        properties: { id: 'as1', kind: 'crossing' },
-        geometry: { type: 'Point', coordinates: [-99.99, 50.0005] },
-      },
-    ]);
+    expect(assets.features).toHaveLength(1);
+    expect(assets.features[0]?.properties).toMatchObject({
+      id: 'as1',
+      kind: 'crossing',
+      companyIds: ['unknown'],
+    });
+    expect(assets.features[0]?.geometry).toEqual({ type: 'Point', coordinates: [-99.99, 50.0005] });
   });
 
   it('is built once per network and leaves the calculation geometry untouched', () => {
