@@ -60,5 +60,8 @@ to modal sheets and automatic loading rather than removing their integrity/ambig
 The data-client tests now cover no-storage startup, quota failure and intact-cache fallback;
 visible-asset tests cover limits, filters and exploration-centre ordering.
 
-Full-suite release gate remains blocked by the existing unchanged-pipeline anchor-ID
-property failure. Physical-phone endurance, enlarged text and field testing remain pending.
+The anchor-ID property failure recorded at the start of this branch was repaired in
+pipeline 0.1.1. The release subsequently passed the full suites and was deployed; see
+the current status at the top of [RESEARCH.md](RESEARCH.md). Physical-phone endurance,
+enlarged text and field testing remain pending. Historical test-map rows above describe
+their original milestone; the later core-HUD and follow/explore suites add coverage.

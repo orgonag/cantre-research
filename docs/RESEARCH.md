@@ -1,5 +1,60 @@
 # Research log and unresolved decisions
 
+## Current publication status — checked 2026-10-30
+
+The public app includes PR #19, merged as
+`1cf25c10d8f8000443a2768b496f3248edc6817b` on 2026-10-27 UTC (October 26 in Saskatchewan).
+[CI run 40448650275](https://github.com/orgonag/cantre-research/actions/runs/40448650275)
+and [Pages deployment 40448663636](https://github.com/orgonag/cantre-research/actions/runs/40448663636)
+completed successfully. This status supersedes the pre-deployment wording in dated
+entries below; those entries remain a record of what was known at the time.
+
+The live manifest identifies `nrwn-national-c400fd8d+cantre.0.1.1`, snapshot date
+2026-10-25. On October 30 Saskatchewan time, both served data files matched their
+manifest SHA-256 and compressed size: snapshot 12,366,349 bytes, asset details
+1,871,505 bytes. Neither response carried `Content-Encoding`. The live browser loaded
+the map/data without GPS permission and supported subdivision/milepost lookup and
+individual asset inspection. This is a desktop/browser check, not field validation.
+
+Publication framing: an early, free research tool inviting feedback. Do not call it
+field-validated, surveyed, operationally approved, fully current national coverage,
+or a completed research paper. M5 evaluation and M6 methods/release-kit work remain
+pending. The historical comparison figures below are disagreements with a private
+calculation baseline, not independently measured accuracy.
+
+The main HUD now projects to the nearest usable or explicitly selected mainline;
+strict matching remains in Position details. The basemap defaults on and reveals
+the displayed area through tile requests. [Quick start](QUICK-START.md) and
+[data/privacy details](DATA-LICENSES.md) describe the current public interface.
+
+### Publication preparation and keyboard repair — not deployed
+
+The publication review corrected stale release status, pipeline version, basemap
+privacy wording and the distinction between the historical pilot and current core
+method. It also added a short guide to the current public interface.
+
+The existing immediate-Escape asset-panel browser test exposed a race: the panel
+could paint before its passive effect registered the key listener. The Pixel 7
+case failed twice in eight baseline repetitions. Moving the existing setup to a
+layout effect registers it before paint; focus restoration and cleanup are retained.
+No calibration, matching, source-data or route-lock behavior changed.
+
+Validation of the prepared change on October 30 Saskatchewan time:
+
+- `npm run lint`, `npm run format:check` and `npm run typecheck`: passed.
+- Core build followed by frontend production build: passed.
+- `npm run coverage`: 683 tests passed across 46 files.
+- Full pipeline tests with the public raw-data cache: 407 passed, no skips;
+  coverage 99.49%. Ruff checks, Ruff format checks and strict mypy also passed.
+- `CI=1 npm run -w app e2e`: 259 passed across desktop Chromium, mobile layouts
+  and macOS WebKit.
+- The existing immediate-Escape test repeated eight times in each of four browser
+  projects: 32 passed after the fix.
+
+These are local automated checks. The prepared change has not been deployed;
+physical-device GPS acquisition, endurance and independent field accuracy remain
+unverified.
+
 ## 2026-10-16 — Local exploratory pilot
 
 Located and inspected the original application without modifying its archive.

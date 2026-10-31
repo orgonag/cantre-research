@@ -127,3 +127,19 @@ Keep the asset panel frame overflow-hidden with a separate scrolling body. Chrom
 painted a white rectangle above a fixed overflow-auto panel over WebGL; the pixel
 regression checks that the exposed map stays visible. Keep the close button outside
 the scrolling body and the panel below the map centre in portrait layouts.
+
+## Publication preparation (2026-10-30)
+
+Public-facing copy must describe the current nearest/selected-mainline HUD separately
+from the strict matcher and the historical private-baseline pilot. Do not reuse the
+historical haversine/Float32 method paragraph as the current GRS80 core method.
+The basemap defaults on, so local GPS processing must not be described as eliminating
+approximate-location disclosure: viewport tile requests reveal the displayed area.
+Check the live manifest and deployment receipt before updating release status; dated
+research entries retain their original pre-deployment statements as history.
+The quick-start guide is docs/QUICK-START.md. A public research-tool announcement does
+not mean M5 evaluation, independent field validation or M6 publication is complete.
+
+Sheet focus and Escape setup use a layout effect. A passive effect lets a non-modal
+asset panel become visible before its key handler exists; immediate Escape can be
+lost. Keep the existing immediate-Escape browser check, including mobile layouts.

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { t } from '../i18n/index.js';
 
@@ -15,7 +15,9 @@ export function Sheet(props: {
   const dialog = useRef<HTMLElement>(null);
   const close = useRef(props.onClose);
   close.current = props.onClose;
-  useEffect(() => {
+  // Set focus and install Escape before the panel can be painted/interacted with.
+  // A passive effect leaves a visible non-modal panel briefly unable to dismiss.
+  useLayoutEffect(() => {
     const opener = props.opener ?? document.activeElement;
     const el = dialog.current;
     if (el instanceof HTMLDialogElement) el.showModal();
