@@ -308,6 +308,16 @@
     "mainline.unverified": "Points de référence non vérifiés",
     "mainline.selected": "Sélectionnée",
     "mainline.lockedCaption": "POINT MILLIAIRE DE LA VOIE SÉLECTIONNÉE",
-    "hud.follow": "Me suivre"
+    "hud.follow": "Me suivre",
+    "company.heading": "Compagnies ferroviaires",
+    "company.filter": "Afficher la compagnie ferroviaire",
+    "company.all": "Toutes les compagnies",
+    "company.unknown": "Non consigné / inconnu",
+    "company.filterHelp": "Filtre la carte et la liste des actifs visibles. Le compteur GPS et la voie principale sélectionnée restent inchangés.",
+    "company.legend": "Légende des couleurs des compagnies",
+    "company.multiple": "Plusieurs exploitants déclarés · voie principale en tirets",
+    "company.colourNote": "Certaines couleurs se répètent dans la liste nationale. Utilisez le nom de la compagnie pour identifier le chemin de fer.",
+    "company.sourceNote": "Les compagnies sont les exploitants déclarés par la source publique, qui peut être ancienne. Une couleur ne confirme ni la propriété actuelle ni les droits d’exploitation.",
+    "company.associated": "Exploitants des lignes associées"
   }
 }

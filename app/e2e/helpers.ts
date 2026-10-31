@@ -260,8 +260,9 @@ export async function countColour(
   }
 }
 
-/** The track colour of the light theme (`PALETTE.light.track` in src/logic/mapdata.ts). */
-export const TRACK_RGB = [0x0b, 0x4f, 0x9e] as const;
+/** CN's display colour in the light theme; the GPS dot stays a separate blue. */
+export const TRACK_RGB = [0xc0, 0x39, 0x35] as const;
+export const GPS_RGB = [0x0b, 0x4f, 0x9e] as const;
 
 export async function closeSheet(page: Page): Promise<void> {
   const close = page.getByRole('button', { name: /^(Close|Fermer)$/ });

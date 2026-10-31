@@ -1,6 +1,8 @@
 import type { Lock } from '@cantre/core';
 import { getLang, t } from '../i18n/index.js';
 import type { mainlines } from '../logic/mainlines.js';
+import { companiesOf } from '../logic/companies.js';
+import { CompanyLabel } from './CompanyLabel.js';
 
 export function MainlineChooser(props: {
   choices: ReturnType<typeof mainlines>['choices'];
@@ -28,7 +30,12 @@ export function MainlineChooser(props: {
           return (
             <li key={option.key} class="chooser__item">
               <div class="chooser__text">
-                <strong>{c.subdivisionName}</strong> · {c.operator}
+                <strong>{c.subdivisionName}</strong>
+                <div>
+                  {companiesOf(c.operator.split('+')).map((company) => (
+                    <CompanyLabel key={company.id} company={company} />
+                  ))}
+                </div>
                 <p>
                   {t('mainline.distance', {
                     distance: number(c.residualM / (props.units === 'mi' ? 1609.344 : 1000), 2),

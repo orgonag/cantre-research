@@ -69,6 +69,13 @@ an input or a threshold is a new version (a code change must bump the pipeline v
 snapshot date is the retrieval date, not the date of the features. The app shows the snapshot
 date on the status card.
 
+### Railway company display
+
+The company-name display table is derived from the NRWN TRACK operator mark/name
+fields in the pinned source packages and remains under OGL-Canada. See
+[company display and source conflicts](COMPANIES.md); aliases do not update the
+source's vintage or establish current ownership.
+
 ## Optional basemap
 
 The roads-and-places basemap is on by default for a new visit; an explicitly saved off

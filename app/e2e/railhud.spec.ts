@@ -6,6 +6,7 @@ import {
   closeSheet,
   PLACES,
   countColour,
+  GPS_RGB,
   TRACK_RGB,
 } from './helpers';
 
@@ -29,6 +30,53 @@ test.beforeEach(async ({ page, browserName }) => {
         options,
       );
   });
+});
+
+test('company filters hide rendered tracks without changing the GPS counter or route lock', async ({
+  page,
+  context,
+}) => {
+  await openApp(page);
+  await expect(page.locator('.hud-mp')).toHaveText(/11\.9\d{2}/);
+  await expect(page.locator('.hud-company')).toContainText('CN');
+  await page.locator('.hud-route').click();
+  await page.getByRole('button', { name: /^Choose this route: Alpha/ }).click();
+  const mileage = await page.locator('.hud-mp').innerText();
+  const canvas = page.locator('.map__canvas');
+  await expect
+    .poll(async () => countColour(context, await canvas.screenshot(), TRACK_RGB, 15))
+    .toBeGreaterThan(100);
+
+  await page.getByRole('button', { name: 'Layers ▴', exact: true }).click();
+  await page.getByLabel('Show railway company', { exact: true }).selectOption('unknown');
+  await expect(page.locator('.company-legend')).toHaveAttribute('open', '');
+  await closeSheet(page);
+  await expect(page.locator('.hud-filter-label')).toHaveText('Not recorded / unknown');
+  await expect
+    .poll(async () => countColour(context, await canvas.screenshot(), TRACK_RGB, 15))
+    .toBe(0);
+  await expect(page.locator('.hud-mp')).toHaveText(mileage);
+  await expect(page.locator('.hud-lock')).toBeVisible();
+  await expect
+    .poll(async () => countColour(context, await canvas.screenshot(), GPS_RGB, 15))
+    .toBeGreaterThan(50);
+
+  await page.getByRole('button', { name: 'Layers ▴', exact: true }).click();
+  await page.getByLabel('Show railway company', { exact: true }).selectOption('CN');
+  await expect(page.locator('.company-legend')).toContainText('CN · Canadian National');
+  await closeSheet(page);
+  await expect
+    .poll(async () => countColour(context, await canvas.screenshot(), TRACK_RGB, 15))
+    .toBeGreaterThan(100);
+  await expect(page.locator('.hud-mp')).toHaveText(mileage);
+  await expect(page.locator('.hud-lock')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.hud-filter-label')).toHaveText('CN · Canadian National');
+  await page.getByRole('button', { name: 'Layers ▴', exact: true }).click();
+  await expect(page.getByLabel('Show railway company', { exact: true })).toHaveValue('CN');
+  await page.getByLabel('Show railway company', { exact: true }).selectOption('');
+  await closeSheet(page);
+  await expect(page.locator('.hud-filter-label')).toHaveCount(0);
 });
 
 /** The map-first contract; all traffic also goes through the privacy fixture. */
@@ -255,11 +303,11 @@ test('position dot renders when rail sources and GPS arrive together', async ({
   if (!box) throw new Error('missing map');
   expect(box.y).toBe(0);
   const scale = await page.evaluate(() => devicePixelRatio);
-  // A 30 CSS-pixel square has more blue area with the 8 px position dot than
-  // the track line alone. This catches source-loading races that hide the dot.
+  // The position dot stays blue while tracks have company colours. This catches
+  // source-loading races that hide the dot without counting track pixels as GPS.
   await expect
     .poll(async () =>
-      countColour(context, await canvas.screenshot(), TRACK_RGB, 24, {
+      countColour(context, await canvas.screenshot(), GPS_RGB, 24, {
         x: 0.5 - 15 / box.width,
         y: 0.5 - 15 / box.height,
         w: 30 / box.width,

@@ -18,6 +18,8 @@ export type Settings = {
   readonly basemap: boolean;
   /** Enabled map layers only; no location or asset IDs. Absent uses the default layers. */
   readonly assetKinds?: readonly AssetKind[];
+  /** A display-only company filter; an empty string means every company. Never a route lock. */
+  readonly company?: string;
 };
 
 export const SETTINGS_KEY = 'cantre.settings.v1';
@@ -86,6 +88,9 @@ export function loadSettings(
     : undefined;
   return {
     ...(assetKinds === undefined ? {} : { assetKinds }),
+    ...(typeof stored['company'] === 'string' && stored['company'].length <= 200
+      ? { company: stored['company'] }
+      : {}),
     units: stored['units'] === 'km' || stored['units'] === 'mi' ? stored['units'] : 'mi',
     lang: stored['lang'] === 'fr' || stored['lang'] === 'en' ? stored['lang'] : deviceLang,
     basemap: typeof stored['basemap'] === 'boolean' ? stored['basemap'] : true,
@@ -105,6 +110,7 @@ export function saveSettings(
         lang: settings.lang,
         basemap: settings.basemap,
         ...(settings.assetKinds === undefined ? {} : { assetKinds: settings.assetKinds }),
+        ...(settings.company === undefined ? {} : { company: settings.company }),
       }),
     );
   } catch {

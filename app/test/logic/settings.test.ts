@@ -126,3 +126,17 @@ it('round-trips only known layer kinds without persisting position data', () => 
     [],
   );
 });
+
+it('persists the display company filter separately from a route or position', () => {
+  const storage = memoryStorage();
+  saveSettings({ ...DEFAULT_SETTINGS, company: 'CPR' }, storage);
+  expect(loadSettings(storage).company).toBe('CPR');
+  expect(
+    loadSettings(memoryStorage({ [SETTINGS_KEY]: '{"company":52.1}' })).company,
+  ).toBeUndefined();
+  expect(
+    loadSettings(memoryStorage({ [SETTINGS_KEY]: JSON.stringify({ company: 'x'.repeat(201) }) }))
+      .company,
+  ).toBeUndefined();
+  expect(updateSettings(loadSettings(storage), { company: '' }, storage).company).toBe('');
+});

@@ -7,6 +7,7 @@ import type {
 } from 'maplibre-gl';
 import { t } from '../i18n/index.js';
 import type { Pin } from './find.js';
+import { assetCompanies, companiesOf, companyPaint } from './companies.js';
 
 /**
  * What the map draws, built from the in-memory network (spec §7, §11).
@@ -33,8 +34,14 @@ type Geometry =
 type Feature<P> = { type: 'Feature'; properties: P; geometry: Geometry };
 export type Collection<P> = { type: 'FeatureCollection'; features: Feature<P>[] };
 
-export type TrackProps = { kind: 'chain' | 'other' };
-export type AssetProps = { id: string; kind: string };
+type CompanyProps = {
+  companyIds: string[];
+  companyLight: string;
+  companyDark: string;
+  shared: boolean;
+};
+export type TrackProps = CompanyProps & { kind: 'chain' | 'other' };
+export type AssetProps = CompanyProps & { id: string; kind: string };
 type NoProps = Record<string, never>;
 
 export type DisplayData = {
@@ -44,6 +51,23 @@ export type DisplayData = {
 };
 
 const line = (pts: readonly LatLon[]): Coord[] => pts.map((p) => [p.lon, p.lat]);
+
+const companyProps = (companies: ReturnType<typeof companiesOf>): CompanyProps => {
+  const colour = companyPaint(companies);
+  return {
+    companyIds: companies.map((c) => c.id),
+    companyLight: colour.light,
+    companyDark: colour.dark,
+    shared: companies.length > 1,
+  };
+};
+
+export function assetMapProperties(
+  asset: NetworkView['assets'][number],
+  net: NetworkView,
+): AssetProps {
+  return { id: asset.id, kind: asset.kind, ...companyProps([...assetCompanies(asset, net)]) };
+}
 
 /**
  * Builds the GeoJSON for a network: one line per chain piece and per unchained segment (pieces of
@@ -56,7 +80,7 @@ function build(net: NetworkView): DisplayData {
     if (c.pts.length >= 2) {
       tracks.features.push({
         type: 'Feature',
-        properties: { kind: 'chain' },
+        properties: { kind: 'chain', ...companyProps(companiesOf(c.operators)) },
         geometry: { type: 'LineString', coordinates: line(c.pts) },
       });
     }
@@ -65,7 +89,7 @@ function build(net: NetworkView): DisplayData {
     if (s.pts.length >= 2) {
       tracks.features.push({
         type: 'Feature',
-        properties: { kind: 'other' },
+        properties: { kind: 'other', ...companyProps(companiesOf([s.operator])) },
         geometry: { type: 'LineString', coordinates: line(s.pts) },
       });
     }
@@ -74,7 +98,7 @@ function build(net: NetworkView): DisplayData {
     type: 'FeatureCollection',
     features: net.assets.map((a) => ({
       type: 'Feature',
-      properties: { id: a.id, kind: a.kind },
+      properties: assetMapProperties(a, net),
       geometry: { type: 'Point', coordinates: [a.at.lon, a.at.lat] },
     })),
   };
@@ -197,6 +221,7 @@ const PALETTE = {
  */
 export function cantreLayers(dark: boolean): LayerSpecification[] {
   const c = dark ? PALETTE.dark : PALETTE.light;
+  const colour = ['get', dark ? 'companyDark' : 'companyLight'] as const;
   return [
     {
       id: 'tracks-halo',
@@ -211,15 +236,23 @@ export function cantreLayers(dark: boolean): LayerSpecification[] {
       source: SOURCE.tracks,
       filter: ['==', ['get', 'kind'], 'other'],
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': c.other, 'line-width': 2, 'line-dasharray': [2, 1.5] },
+      paint: { 'line-color': [...colour], 'line-width': 2, 'line-dasharray': [2, 1.5] },
     },
     {
       id: 'tracks-chain',
       type: 'line',
       source: SOURCE.tracks,
-      filter: ['==', ['get', 'kind'], 'chain'],
+      filter: ['all', ['==', ['get', 'kind'], 'chain'], ['!', ['get', 'shared']]],
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': c.track, 'line-width': 3 },
+      paint: { 'line-color': [...colour], 'line-width': 3 },
+    },
+    {
+      id: 'tracks-shared',
+      type: 'line',
+      source: SOURCE.tracks,
+      filter: ['all', ['==', ['get', 'kind'], 'chain'], ['get', 'shared']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': [...colour], 'line-width': 3, 'line-dasharray': [3, 1.5] },
     },
     {
       id: 'assets',
@@ -228,7 +261,7 @@ export function cantreLayers(dark: boolean): LayerSpecification[] {
       minzoom: 9,
       paint: {
         'circle-radius': 5,
-        'circle-color': c.asset,
+        'circle-color': [...colour],
         'circle-stroke-color': c.halo,
         'circle-stroke-width': 2,
       },

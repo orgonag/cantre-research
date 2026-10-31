@@ -3,6 +3,7 @@ import type { LatLon, LocatedMilepost, NetworkView } from '@cantre/core';
 import { getLang, t } from '../i18n/index.js';
 import type { Lang, MessageKey } from '../i18n/index.js';
 import { fmt } from './present.js';
+import { companiesOf, companyLabel } from './companies.js';
 
 /**
  * Find-a-location and tap-to-milepost: the two ways to use the network without a GPS fix
@@ -237,6 +238,7 @@ export function pinText(pin: Pin, mp: number): string {
 /** One track near a tapped point. */
 export type TapRow = {
   readonly subdivision: string;
+  readonly company: string;
   readonly trackClass: string;
   /** "MP 11.00" when the track is calibrated there; otherwise null. */
   readonly mpText: string | null;
@@ -262,7 +264,7 @@ export type TapModel = {
  * a fix. Tracks with no milepost are listed with their reason rather than hidden. A point
  * outside Canada gives `outside` instead of throwing.
  */
-export function presentTap(net: NetworkView, p: LatLon): TapModel {
+export function presentTap(net: NetworkView, p: LatLon, company = ''): TapModel {
   const label = t('map.tap.label');
   let hits: ReturnType<typeof milepostAtPoint>;
   try {
@@ -273,18 +275,24 @@ export function presentTap(net: NetworkView, p: LatLon): TapModel {
     }
     throw error;
   }
-  const rows = hits.map(({ candidate, milepost }): TapRow => {
-    const mp = milepost.milepost;
-    const calibrated = mp?.kind === 'calibrated';
-    const reason = milepost.reasons[0] ?? 'CHAIN_UNCALIBRATED';
-    return {
-      subdivision: candidate.subdivisionName,
-      trackClass: candidate.trackClass,
-      mpText: calibrated ? t('card.mp', { value: fmt(mp.mp, 2) }) : null,
-      noMpText: calibrated ? null : t(`reason.${reason}`),
-      tierNote: calibrated && milepost.tier === 'unverified' ? t('tier.unverified') : null,
-      offsetText: t('map.tap.offset', { value: fmt(candidate.residualM, 0) }),
-    };
-  });
+  const rows = hits
+    .filter(
+      ({ candidate }) =>
+        !company || companiesOf(candidate.operator.split('+')).some((c) => c.id === company),
+    )
+    .map(({ candidate, milepost }): TapRow => {
+      const mp = milepost.milepost;
+      const calibrated = mp?.kind === 'calibrated';
+      const reason = milepost.reasons[0] ?? 'CHAIN_UNCALIBRATED';
+      return {
+        subdivision: candidate.subdivisionName,
+        company: companiesOf(candidate.operator.split('+')).map(companyLabel).join(' / '),
+        trackClass: candidate.trackClass,
+        mpText: calibrated ? t('card.mp', { value: fmt(mp.mp, 2) }) : null,
+        noMpText: calibrated ? null : t(`reason.${reason}`),
+        tierNote: calibrated && milepost.tier === 'unverified' ? t('tier.unverified') : null,
+        offsetText: t('map.tap.offset', { value: fmt(candidate.residualM, 0) }),
+      };
+    });
   return { label, rows, outside: false };
 }
