@@ -61,7 +61,7 @@ empty and records that in the audit log.
 
 ### Dataset version and snapshot date
 
-The current national build is dataset version `nrwn-national-c400fd8d+cantre.0.1.0`, snapshot
+The current national build is dataset version `nrwn-national-c400fd8d+cantre.0.1.1`, snapshot
 date 2026-10-25. The version is derived from the SHA-256 of every input package and the
 inventory, the SHA-256 of the pipeline configuration and the pipeline version, so any change of
 an input or a threshold is a new version (a code change must bump the pipeline version; see
@@ -71,10 +71,12 @@ date on the status card.
 
 ## Optional basemap
 
-The map can show a basemap. It is off by default and fetched only after the user turns it on and
-reads the notice that map tiles are requested for the area shown, that OpenFreeMap then sees the
-user's internet address and that area, and that because the map opens around the GPS fix, the
-requests show roughly where the user is.
+The roads-and-places basemap is on by default for a new visit; an explicitly saved off
+choice is respected. OpenFreeMap receives the device's internet address and tile requests
+for the displayed area. When the map follows GPS, those requests can reveal approximate
+location even though the app does not send the raw GPS fix or store a trace. The Layers
+and About panels disclose this. Turn off Roads and places in Layers to stop basemap
+requests; railway geometry and assets remain available.
 
 - Provider: OpenFreeMap (`tiles.openfreemap.org`, "liberty" style).
 - Data: © OpenStreetMap contributors, available under the Open Database Licence (ODbL),

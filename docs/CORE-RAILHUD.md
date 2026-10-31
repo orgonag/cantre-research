@@ -139,3 +139,11 @@ nearby rendered features are ranked by screen distance, with IDs breaking exact 
 Blank-map taps replace asset inspection with the existing map-position lookup. Closing
 inspection does not resume following. Menu/list/settings sheets retain modal behavior.
 These changes do not alter matching, calibration, source data or route-lock semantics.
+
+### Publication-review keyboard fix — 2026-10-30 (not deployed)
+
+An immediate Escape press could occur after an asset panel became visible but before
+its passive effect installed the key listener. The existing Pixel 7 browser regression
+failed in 2 of 8 repeated runs. Sheet focus, native-dialog opening and the Escape
+listener now initialize in a layout effect, before paint. Cleanup still removes the
+listener and restores the opener. Validation is recorded in the research log.

@@ -2,42 +2,83 @@
 
 **CANTRE — Canada Track Rail Estimation** (formerly RailHUD).
 
-An open-source research tool that works out where a GPS position is on the Canadian
-railway network, and what railway assets are near it, from public data. The repository
-is public (since 2026-10-25). Code is MIT-licensed; data stays under each source's own
-licence. Built so far: the calculation core and matching state machine (`packages/core`,
-milestones M1 and M3), the data pipeline (`pipeline/`, M2, now run for every NRWN province
-with a published package) and the phone web app with its data client (`app/`,
-`packages/data-client`, M4, pull request pending). No source app, private railway data,
-credentials, photographs or database is included.
+A free, open-source research web app for exploring Canadian railway locations using
+public data. CANTRE can show a calculated milepost relative to a nearby or selected
+mainline, look up a subdivision and milepost, and show the source details of mapped
+crossings and bridges.
 
-## The app (research software)
+**[Open CANTRE](https://orgonag.github.io/cantre-research/)** ·
+[Quick guide](docs/QUICK-START.md) · [Data and licences](docs/DATA-LICENSES.md) ·
+[Research evidence and limits](docs/RESEARCH.md)
 
-CANTRE is a phone web app that shows a calculated railway milepost for the device's GPS fix,
-using public National Railway Network (NRWN) geometry and Transport Canada crossing data for
-all provinces and territories that have a published NRWN package (not Nunavut or Prince Edward
-Island). It is **research software**: mileposts are calculated, not surveyed, every threshold in
-the matcher is experimental and unevaluated, and there has been **no field validation yet**. It
-is not for safety, operations or track access.
+Built by Orgo Nag. Code is [MIT-licensed](LICENSE); data stays under each source's own
+licence. The app runs in the browser, with no account or app installation required.
 
-- On the core RailHUD branch, opening the page asks for location and automatically loads
-  the national data (about 14 MB); a usable cached copy supports later offline visits.
-  See [the core HUD contract](docs/CORE-RAILHUD.md). This branch has not been deployed.
-- Your GPS position stays on the device: no request carries a coordinate, and no fix or trace
-  is stored. The only storage is your settings, the downloaded data and a one-bit "lock was set"
-  flag. There is no analytics or telemetry.
-- Ambiguous places (diamonds, nearby routes, edges of the data) show a route chooser instead of
-  a guess; a chosen route stays visible until you unlock it or reload.
-- English and French (the French text is a draft that needs native review).
+## What you can try
 
-**Live link:** <https://orgonag.github.io/cantre-research/>. Live since 2026-10-25. The owner
-enabled GitHub Pages and the [deploy workflow](.github/workflows/deploy.yml) runs by hand. To run it
-locally instead: `npm ci`, `npm run -w app build`, then serve `app/dist` (the data comes from
-the pipeline's `national` command).
+- Open the site and allow location if you want the live GPS counter. The national
+  railway data loads automatically (about 14 MB). The counter shows the nearest
+  mainline with usable calibration, or the mainline you explicitly select.
+- Tap the route name to compare nearby mainlines. A manual choice stays locked for
+  the session; choose **Auto** to return to automatic selection.
+- Pan the map and tap an asset to inspect its public source details. GPS processing
+  continues while the camera is exploring; **Follow me** returns the camera to GPS.
+- Use **Menu → Find a location** to search by subdivision and milepost without GPS.
+  A result is dataset-derived. Missing calibration gives no result, rather than an
+  extrapolated position.
+- Use **Layers** for crossing/bridge filters and the roads-and-places basemap.
+  Previously cached app and rail data can support later offline use; background map
+  tiles are not cached by CANTRE.
 
-Data sources, versions and the required attribution are in
-[docs/DATA-LICENSES.md](docs/DATA-LICENSES.md); measured sizes, test counts and the open items
-are in the M4 entry of [docs/RESEARCH.md](docs/RESEARCH.md).
+## Research status and limits
+
+The current map-first interface is live, including the follow/explore changes merged
+in [PR #19](https://github.com/orgonag/cantre-research/pull/19). The calculation core,
+matching engine, public-data pipeline and browser app are implemented. Independent
+field validation, the formal evaluation report and the methods publication remain
+unfinished. Browser tests with mocked GPS do not establish phone or field accuracy.
+
+Mileposts are **calculated, not surveyed**. The mainline counter is a geometric
+reference, including when the device is away from track; it does not establish which
+track a person occupies. Source coverage and calibration have gaps, and many NRWN
+features are from 2016 or earlier. Nunavut and Prince Edward Island are absent from
+the current snapshot. English and draft French are available.
+
+Research use only. CANTRE is not for safety, operations or track access, and grants
+no authority to enter railway property. No percentage-accuracy claim is made.
+
+## Location and privacy
+
+GPS calculations happen on the device, with no stored GPS trace, analytics or
+telemetry. Everyone downloads the same national rail-data files.
+
+The OpenFreeMap basemap is **on by default**. Its tile requests disclose the displayed
+area and the device's internet address to the provider; when following GPS, that area
+can reveal approximate location. Turn off **Roads and places** in Layers to stop
+basemap requests. A saved off choice is respected. See [data and licences](docs/DATA-LICENSES.md).
+
+The repository is public. No private reference application, railway database,
+credentials or private photographs are included.
+
+## Development
+
+See [the core package](packages/core/README.md), [the data pipeline](pipeline/README.md)
+and [the browser contract](docs/CORE-RAILHUD.md). Build the core before the frontend:
+
+```sh
+npm ci
+npm run build -w @cantre/core
+npm run -w app build
+```
+
+A local preview also needs the pipeline's public-data output. Serve compressed data
+files as opaque bytes without a `Content-Encoding: gzip` header; see the browser
+contract for the local server. There is no application server. Production deployment
+uses the manually triggered [GitHub Pages workflow](.github/workflows/deploy.yml).
+
+The sections below preserve the earlier research history; they are not a description
+of the current implementation. Start with the package documentation and latest
+[research-log status](docs/RESEARCH.md) for the current method and release evidence.
 
 ## How we work — approved method
 
@@ -80,9 +121,13 @@ movement authority, protection limit or substitute for railway rules.
 - [Data, licensing and reproducibility](docs/DATA.md): provenance and lawful inputs.
 - [Research log and decisions](docs/RESEARCH.md): evidence, gaps and decisions.
 
-## Actual calculation method
+## Historical pilot calculation method
 
-Represent a track as an ordered polyline. For each consecutive vertex pair,
+The October 16 pilot used the older reference calculation described here. The current
+independently authored core uses a GRS80 segment-local tangent plane, documented in
+[packages/core/README.md](packages/core/README.md).
+
+In the historical pilot, represent a track as an ordered polyline. For each consecutive vertex pair,
 project the GPS position onto the segment using a local longitude scaling by
 cos(latitude), clamp the projection to the segment, and compare haversine distances.
 Select the closest projected point on that candidate polyline. Sum the distances
@@ -188,7 +233,7 @@ measure it against the absolute milepost label. Agree an absolute chainage toler
 a meaningful interval denominator, reporting percentiles, source quality and field
 validation method before any pass/fail accuracy claim.
 
-## Stack: observed versus proposed
+## Historical stack observations and proposal
 
 The inspected original app uses React 19, TypeScript/TSX, Vite 7, pnpm, Leaflet,
 Flatbush in a Web Worker and browser `navigator.geolocation.watchPosition`.
@@ -197,7 +242,7 @@ supporting libraries include Tailwind 4, Radix UI, Zustand, TanStack Query and R
 Router 7. Vitest and Playwright are its test tools. This is descriptive evidence,
 not permission to copy its code or a dependency lock for a new app.
 
-**Proposal:** independently implement a small TypeScript calculation core with a
+**Superseded proposal (current stack: TypeScript core, Python pipeline, Preact and MapLibre):** independently implement a small TypeScript calculation core with a
 React/Vite mobile web shell, Leaflet and an indexed matching worker. Consider local
 versioned corridor bundles first; add a backend only for a demonstrated requirement.
 Evaluate current versions, licences, browser support, bundle size and alternatives
